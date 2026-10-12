@@ -16,6 +16,7 @@ import {
   HybridRetriever,
   NODE,
   learnDomainPack,
+  learnStateDimensions,
   learnTags,
   retrieveWith,
   toAgentContext,
@@ -63,6 +64,52 @@ export interface RecordableDimension {
   readonly descriptionZh: string
 }
 
+/** What this surface adds to a registered dimension: its Chinese names, and its prose. */
+interface DimensionPresentation {
+  readonly id: DimensionId
+  readonly labelZh: string
+  /** The Chinese name of every registered level, keyed by level token. */
+  readonly levelLabelsZh: Readonly<Record<string, string>>
+  readonly description: string
+  readonly descriptionZh: string
+}
+
+/**
+ * Joins a presentation to the dimension the Learn pack registers.
+ *
+ * The levels come from the pack, never from here: Core refuses any level the pack did not register, so a
+ * level list kept on this side could only ever drift into offering the learner buttons that fail. A
+ * registered level without a Chinese name, or a name for a level that is not registered, throws at load
+ * rather than rendering a raw token or a dead button.
+ */
+function recordable(presentation: DimensionPresentation): RecordableDimension {
+  const registered = learnStateDimensions.find((candidate) => candidate.id === presentation.id)
+  if (registered?.levels === undefined) {
+    throw new Error(`dimension ${presentation.id} is not registered with levels by the Learn pack`)
+  }
+  const levels: readonly string[] = registered.levels
+  const named = Object.keys(presentation.levelLabelsZh)
+  const missing = levels.filter((level) => !named.includes(level))
+  const extra = named.filter((level) => !levels.includes(level))
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(
+      `Chinese level names for ${presentation.id} do not match its registered levels ` +
+        `(missing: ${missing.join(', ') || '-'}; unregistered: ${extra.join(', ') || '-'})`,
+    )
+  }
+  return {
+    id: presentation.id,
+    label: registered.label,
+    labelZh: presentation.labelZh,
+    levels,
+    levelLabelsZh: levels.map((level) => ({ level, label: presentation.levelLabelsZh[level]! })),
+    description: presentation.description,
+    descriptionZh: presentation.descriptionZh,
+  }
+}
+
+const LOW_MEDIUM_HIGH_ZH = { low: '低', medium: '中', high: '高' }
+
 /**
  * The dimensions a learner may set from this surface, in the order they are offered.
  *
@@ -77,58 +124,33 @@ export interface RecordableDimension {
 export const RECORDABLE_DIMENSIONS: readonly RecordableDimension[] = [
   {
     id: DIMENSION.confidence,
-    label: 'Confidence',
     labelZh: '确信程度',
-    levels: ['low', 'medium', 'high'],
-    levelLabelsZh: [
-      { level: 'low', label: '低' },
-      { level: 'medium', label: '中' },
-      { level: 'high', label: '高' },
-    ],
+    levelLabelsZh: LOW_MEDIUM_HIGH_ZH,
     description: 'How much you would rely on this.',
     descriptionZh: '你愿意多大程度上依赖它。',
   },
   {
     id: DIMENSION.articulation,
-    label: 'Articulation',
     labelZh: '表达程度',
-    levels: ['low', 'medium', 'high'],
-    levelLabelsZh: [
-      { level: 'low', label: '低' },
-      { level: 'medium', label: '中' },
-      { level: 'high', label: '高' },
-    ],
+    levelLabelsZh: LOW_MEDIUM_HIGH_ZH,
     description: 'How well you could explain it to someone else.',
     descriptionZh: '你能多好地把它讲给别人听。',
   },
   {
     id: DIMENSION.evidence,
-    label: 'Evidence',
     labelZh: '证据',
-    levels: ['none', 'weak', 'reproduced', 'derived'],
-    levelLabelsZh: [
-      { level: 'none', label: '无' },
-      { level: 'weak', label: '薄弱' },
-      { level: 'reproduced', label: '已复现' },
-      { level: 'derived', label: '已推导' },
-    ],
+    levelLabelsZh: { none: '无', anecdotal: '零散的', reproduced: '已复现', proven: '已证明' },
     description: 'What backs it up.',
     descriptionZh: '它背后有什么支撑。',
   },
   {
     id: DIMENSION.conflict,
-    label: 'Conflict',
     labelZh: '冲突',
-    levels: ['none', 'open', 'resolved'],
-    levelLabelsZh: [
-      { level: 'none', label: '无' },
-      { level: 'open', label: '未解决' },
-      { level: 'resolved', label: '已解决' },
-    ],
+    levelLabelsZh: { none: '无', suspected: '疑似', open: '未解决', resolved: '已解决' },
     description: 'Whether you hold something that contradicts it.',
     descriptionZh: '你是否同时持有与它矛盾的东西。',
   },
-]
+].map(recordable)
 
 /** One retrieved node, with everything a view needs to justify its position. */
 export interface RankedView {
