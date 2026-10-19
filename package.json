@@ -1,8 +1,8 @@
 {
-  "name": "learner",
+  "name": "mindlink",
   "version": "0.0.0",
   "private": true,
-  "description": "Learner: Cognitive learning surface and domain pack built on Episteme.",
+  "description": "MindLink: the learning application built on Episteme.",
   "type": "module",
   "packageManager": "pnpm@11.5.0",
   "engines": {
