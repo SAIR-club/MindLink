@@ -19,15 +19,21 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-      - name: Checkout learner
+      - name: Checkout MindLink
         uses: actions/checkout@v4
         with:
           path: learner
 
-      - name: Checkout Episteme substrate
+      # The Episteme commit this build is pinned to (ADR 0013, step M1), not whatever main is today.
+      - name: Read the pinned Episteme commit
+        id: episteme
+        run: echo "ref=$(cat learner/episteme.ref)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Episteme at the pinned commit
         uses: actions/checkout@v4
         with:
           repository: SAIR-club/Episteme
+          ref: ${{ steps.episteme.outputs.ref }}
           path: Episteme
 
       - name: Install pnpm

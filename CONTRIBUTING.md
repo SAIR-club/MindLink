@@ -1,6 +1,6 @@
-# Contributing to Learner
+# Contributing to MindLink
 
-Thanks for helping build Learner — the reference cognitive learning application and interface built on top of Episteme.
+Thanks for helping build MindLink (formerly Learner) — the reference cognitive learning application and interface built on top of Episteme.
 
 [English](#english) · [简体中文](#简体中文)
 
@@ -22,8 +22,9 @@ Requirements:
 - pnpm >= 11
 
 ```bash
-git clone https://github.com/SAIR-club/learner.git
-cd learner
+git clone -c core.autocrlf=false https://github.com/SAIR-club/learner.git mindlink
+cd mindlink
+node scripts/setup-episteme.mjs
 pnpm install
 pnpm build
 pnpm test
@@ -68,8 +69,9 @@ Or individual checks:
 - pnpm >= 11
 
 ```bash
-git clone https://github.com/SAIR-club/learner.git
-cd learner
+git clone -c core.autocrlf=false https://github.com/SAIR-club/learner.git mindlink
+cd mindlink
+node scripts/setup-episteme.mjs
 pnpm install
 pnpm build
 pnpm test
