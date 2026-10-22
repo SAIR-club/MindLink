@@ -260,7 +260,10 @@ const stateDimensions = [
     label: 'Evidence',
     kind: 'ordinal' as const,
     ordered: true,
-    levels: ['none', 'anecdotal', 'reproduced', 'proven'],
+    // `weak` and `derived` come from the v0.1.0 vocabulary. History is append-only, so graphs that hold them must
+    // still open; they are registered as legacy, kept in their place on the scale, and offered for no new input.
+    levels: ['none', 'weak', 'anecdotal', 'reproduced', 'derived', 'proven'],
+    legacyLevels: ['weak', 'derived'],
     description: 'The strength of evidence the learner can actually cite.',
   },
   {
@@ -276,7 +279,9 @@ const stateDimensions = [
     label: 'Transfer',
     kind: 'ordinal' as const,
     ordered: true,
-    levels: ORDINAL_LOW_MEDIUM_HIGH,
+    // `none`, `near` and `far` come from the v0.1.0 vocabulary, registered as legacy for the same reason.
+    levels: ['none', 'low', 'near', 'medium', 'far', 'high'],
+    legacyLevels: ['none', 'near', 'far'],
     description: 'Whether the learner can apply it in a new situation.',
   },
   {
@@ -422,41 +427,4 @@ export {
   stateDimensions as learnStateDimensions,
 }
 
-// ── Learner-level context retrieval ─────────────────────────────────────────
-export {
-  retrieveRelevantContext,
-  retrieveWith,
-  settledUnderstanding,
-  hasOpenConflict,
-  summarise,
-  contextSummary,
-  learnerResponder,
-  toAgentContext,
-} from './context.js'
-export type {
-  RelevantContext,
-  KnownUnderstanding,
-  RankedEntry,
-  RetrieveContextOptions,
-} from './context.js'
-
-// ── Retrieval strategy: the seam a different relevance model plugs into ─────
-export {
-  LexicalGraphRetriever,
-  EmbeddingRetriever,
-  HybridRetriever,
-  DEFAULT_HYBRID_WEIGHTS,
-  lexicalRetriever,
-  embeddingRetriever,
-  hybridRetriever,
-  textOfNode,
-  cognitiveValue,
-} from './retriever.js'
-export type {
-  Retriever,
-  RetrieveQuery,
-  RankSignal,
-  HybridWeights,
-  SignalContribution,
-  ScoredCandidate,
-} from './retriever.js'
+export { learnPresentations, type LearnPresentation } from './presentation.js'

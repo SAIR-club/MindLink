@@ -1,12 +1,12 @@
 import {
   CHINESE_TERMS,
   DeterministicEmbeddingAdapter,
+  HybridRetriever,
   InMemoryEmbeddingCache,
   cosineSimilarity,
   lexiconTokens,
   retrievalTokens,
 } from '@episteme/core'
-import { hybridRetriever } from '@episteme/domain-learn'
 import { describe, expect, it } from 'vitest'
 import { createFixture } from './fixtures.js'
 import { seedEvaluationGraph } from './retrieval-evaluation-fixtures.js'
@@ -99,7 +99,7 @@ describe('Chinese questions reach stored cognition', () => {
   it('retrieves the right node for a Chinese question', async () => {
     const context = createFixture()
     seedEvaluationGraph(context)
-    const hybrid = hybridRetriever(
+    const hybrid = new HybridRetriever(
       context.graph,
       context.log,
       new DeterministicEmbeddingAdapter(),
@@ -123,7 +123,7 @@ describe('Chinese questions reach stored cognition', () => {
   it('leaves an unrelated Chinese question with nothing relevant', async () => {
     const context = createFixture()
     seedEvaluationGraph(context)
-    const hybrid = hybridRetriever(
+    const hybrid = new HybridRetriever(
       context.graph,
       context.log,
       new DeterministicEmbeddingAdapter(),
