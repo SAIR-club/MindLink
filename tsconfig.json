@@ -1,13 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "files": [],
-  "references": [
-    { "path": "packages/domain-learn" },
-    { "path": "apps/learn" },
-    { "path": "examples/distill-session" },
-    { "path": "examples/learn-session" },
-    { "path": "examples/persistent-session" },
-    { "path": "examples/semantic-session" },
-    { "path": "tests" }
-  ]
+  "references": [{ "path": "packages/domain-learn" }, { "path": "tests" }]
 }

@@ -8,5 +8,5 @@
     "types": ["node"]
   },
   "include": ["**/*.ts"],
-  "references": [{ "path": "../apps/learn" }, { "path": "../packages/domain-learn" }]
+  "references": [{ "path": "../packages/domain-learn" }]
 }

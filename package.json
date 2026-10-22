@@ -19,8 +19,6 @@
     "format": "biome format --write .",
     "format:check": "biome format .",
     "prepare": "simple-git-hooks",
-    "learn": "pnpm --filter @episteme/app-learn learn",
-    "learn:web": "pnpm --filter @episteme/app-learn serve",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm test"
   },
   "simple-git-hooks": {
