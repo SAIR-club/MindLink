@@ -10,6 +10,8 @@ overrides:
   '@episteme/core': link:../Episteme/packages/core
   '@episteme/distillation': link:../Episteme/packages/distillation
   '@episteme/embeddings-http': link:../Episteme/packages/embeddings-http
+  '@episteme/mcp': link:../Episteme/packages/mcp
+  '@episteme/service': link:../Episteme/apps/service
   '@episteme/sdk': link:../Episteme/packages/sdk
   '@episteme/storage-local': link:../Episteme/packages/storage-local
   '@episteme/storage-memory': link:../Episteme/packages/storage-memory
@@ -52,6 +54,15 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
+  apps/mindlink:
+    dependencies:
+      '@episteme/domain-learn':
+        specifier: workspace:*
+        version: link:../../packages/domain-learn
+      '@mindlink/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+
   packages/domain-learn:
     dependencies:
       '@episteme/core':
@@ -60,6 +71,24 @@ importers:
       '@episteme/distillation':
         specifier: link:../../../Episteme/packages/distillation
         version: link:../../../Episteme/packages/distillation
+
+  packages/platform:
+    dependencies:
+      '@episteme/application':
+        specifier: link:../../../Episteme/packages/application
+        version: link:../../../Episteme/packages/application
+      '@episteme/core':
+        specifier: link:../../../Episteme/packages/core
+        version: link:../../../Episteme/packages/core
+      '@episteme/distillation':
+        specifier: link:../../../Episteme/packages/distillation
+        version: link:../../../Episteme/packages/distillation
+      '@episteme/mcp':
+        specifier: link:../../../Episteme/packages/mcp
+        version: link:../../../Episteme/packages/mcp
+      '@episteme/service':
+        specifier: link:../../../Episteme/apps/service
+        version: link:../../../Episteme/apps/service
 
   tests:
     dependencies:
@@ -72,6 +101,15 @@ importers:
       '@episteme/sdk':
         specifier: link:../../Episteme/packages/sdk
         version: link:../../Episteme/packages/sdk
+      '@episteme/service':
+        specifier: link:../../Episteme/apps/service
+        version: link:../../Episteme/apps/service
+      '@mindlink/app':
+        specifier: workspace:*
+        version: link:../apps/mindlink
+      '@mindlink/platform':
+        specifier: workspace:*
+        version: link:../packages/platform
 
 packages:
 

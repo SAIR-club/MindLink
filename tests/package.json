@@ -10,6 +10,9 @@
   "dependencies": {
     "@episteme/core": "link:../../Episteme/packages/core",
     "@episteme/domain-learn": "workspace:*",
-    "@episteme/sdk": "link:../../Episteme/packages/sdk"
+    "@episteme/sdk": "link:../../Episteme/packages/sdk",
+    "@episteme/service": "link:../../Episteme/apps/service",
+    "@mindlink/app": "workspace:*",
+    "@mindlink/platform": "workspace:*"
   }
 }

@@ -1,5 +1,21 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "files": [],
-  "references": [{ "path": "packages/domain-learn" }, { "path": "tests" }]
+  "references": [
+    {
+      "path": "packages/domain-learn"
+    },
+    {
+      "path": "packages/platform"
+    },
+    {
+      "path": "apps/mindlink"
+    },
+    {
+      "path": "packages/platform/test"
+    },
+    {
+      "path": "tests"
+    }
+  ]
 }

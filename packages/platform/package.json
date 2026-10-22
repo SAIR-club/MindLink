@@ -1,0 +1,31 @@
+{
+  "name": "@mindlink/platform",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MindLink's one way into Episteme: the ports every feature reads and writes through, and the launcher.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@episteme/application": "*",
+    "@episteme/core": "*",
+    "@episteme/distillation": "*",
+    "@episteme/mcp": "*",
+    "@episteme/service": "*"
+  }
+}

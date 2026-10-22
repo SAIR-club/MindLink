@@ -13,6 +13,8 @@ overrides:
   '@episteme/core': 'link:../Episteme/packages/core'
   '@episteme/distillation': 'link:../Episteme/packages/distillation'
   '@episteme/embeddings-http': 'link:../Episteme/packages/embeddings-http'
+  '@episteme/mcp': 'link:../Episteme/packages/mcp'
+  '@episteme/service': 'link:../Episteme/apps/service'
   '@episteme/sdk': 'link:../Episteme/packages/sdk'
   '@episteme/storage-local': 'link:../Episteme/packages/storage-local'
   '@episteme/storage-memory': 'link:../Episteme/packages/storage-memory'

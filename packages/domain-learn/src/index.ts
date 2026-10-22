@@ -426,3 +426,5 @@ export {
   edgeTypes as learnEdgeTypes,
   stateDimensions as learnStateDimensions,
 }
+
+export { learnPresentations, type LearnPresentation } from './presentation.js'
