@@ -1,0 +1,203 @@
+:root {
+  --text: #1d2228;
+  --muted: #5c6670;
+  --line: #d9dee3;
+  --surface: #ffffff;
+  --background: #f5f6f8;
+  --accent: #2f5bd3;
+  --danger: #b42318;
+  --notice: #fff4d6;
+  font-family:
+    system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+    sans-serif;
+  color: var(--text);
+  background: var(--background);
+  line-height: 1.6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font: inherit;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+button[type="submit"],
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.nav a[aria-current="page"] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 1.5rem;
+  background: var(--notice);
+}
+
+.notice[hidden] {
+  display: none;
+}
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.state {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.state-error {
+  color: var(--danger);
+}
+
+.state-code {
+  font-size: 0.85em;
+  color: var(--muted);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.list-item {
+  padding: 0.75rem 1rem;
+}
+
+.list-item + .list-item {
+  border-top: 1px solid var(--line);
+}
+
+.form {
+  display: grid;
+  gap: 1rem;
+  max-width: 560px;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.field-label {
+  font-weight: 500;
+}
+
+.field input,
+.field textarea,
+.field select {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.field textarea {
+  min-height: 6rem;
+}
+
+.form-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.form-error:empty {
+  display: none;
+}
+
+.form button[type="submit"] {
+  justify-self: start;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 35%);
+}
+
+.dialog {
+  width: min(420px, calc(100% - 2rem));
+  padding: 1.25rem;
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.dialog-detail {
+  color: var(--muted);
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
