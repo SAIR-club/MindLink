@@ -8,7 +8,7 @@ import {
   parseIntensity,
   readBlock,
   reportStep,
-  unwiredProjects,
+  learningProjects,
   type EngineContext,
   type RunState,
 } from './engine/runs.js'
@@ -26,7 +26,7 @@ export type EngineOptions = Partial<EngineContext>
 function contextOf(options: EngineOptions): EngineContext {
   return {
     registry: options.registry ?? builtinRegistry,
-    projects: options.projects ?? unwiredProjects,
+    projects: options.projects ?? learningProjects,
   }
 }
 

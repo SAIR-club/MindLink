@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 // The engine's tools and routes over test blocks; the app wires the same ones over the built-in library.
 import { workflowTools } from '../../apps/mindlink/src/blocks/mcp.js'
 import { workflowRoutes } from '../../apps/mindlink/src/blocks/routes.js'
+import { projectTools } from '../../apps/mindlink/src/project/mcp.js'
+import { projectRoutes } from '../../apps/mindlink/src/project/routes.js'
 import { fakeProjects, registryOf } from './engine-helpers.js'
 
 /**
@@ -40,10 +42,15 @@ beforeEach(async () => {
       p2: { workflowId: 'user:lean-flow', guidance: 'tell' },
     }),
   }
+  // A second copy of the engine reads the real learning projects, served under its own prefix.
+  const real = workflowTools({ registry: () => registry }).map((tool) => ({
+    ...tool,
+    name: `real_${tool.name}`,
+  }))
   service = await launch({
     scene: mindlinkScene,
-    tools: workflowTools(options),
-    routes: workflowRoutes(options),
+    tools: [...workflowTools(options), ...real, ...projectTools],
+    routes: [...workflowRoutes(options), ...projectRoutes],
     mode: 'local',
     graph: join(directory, 'graph.jsonl'),
     port: 0,
@@ -256,5 +263,38 @@ describe('a run over REST', () => {
 
     const switched = await rest('POST', '/runs/intensity', { project: 'p2', intensity: 'hint' })
     expect(switched.status).toBe(422)
+  })
+})
+
+describe('a learning project opened by the agent', () => {
+  it('runs the workflow the project was created with', async () => {
+    const call = agent('scripted-host')
+    const created = await rest('POST', '/projects/create', {
+      title: '贝叶斯',
+      goalType: 'apply',
+      course: 'stats',
+    })
+    expect(created.status).toBe(200)
+    const id = String((created.body['project'] as Json)['id'])
+
+    const opened = await call('project_open', { id })
+    expect(opened.isError).not.toBe(true)
+    const next = await call('real_workflow_next', { project: id })
+    expect(next.isError, textOf(next)).not.toBe(true)
+    expect(next.structuredContent?.['current']).toMatchObject({
+      path: 'goal',
+      block: 'builtin:goal',
+    })
+    expect((next.structuredContent?.['run'] as Json)['workflow']).toBe('builtin:apply')
+
+    // The goal step writes back through the project's own tool, then the run moves on.
+    const updated = await call('project_update', { id, goal: '能用贝叶斯做判断' })
+    expect(updated.isError).not.toBe(true)
+    await call('real_workflow_report', { project: id, step: 'goal' })
+    const after = await call('real_workflow_next', { project: id })
+    expect(after.structuredContent?.['current']).toMatchObject({ path: 'diagnose' })
+
+    const missing = await call('real_workflow_next', { project: 'nope' })
+    expect(missing.isError).toBe(true)
   })
 })

@@ -14,7 +14,7 @@ import {
   setLean,
   stateOf,
   switchIntensity,
-  unwiredProjects,
+  learningProjects,
   type EngineContext,
 } from './engine/runs.js'
 import { builtinRegistry, runView } from './engine/view.js'
@@ -83,7 +83,7 @@ function adjustmentOf(body: Readonly<Record<string, unknown>>): Adjustment {
 export function workflowRoutes(options: EngineRouteOptions = {}): readonly SceneRoute[] {
   const context: EngineContext = {
     registry: options.registry ?? builtinRegistry,
-    projects: options.projects ?? unwiredProjects,
+    projects: options.projects ?? learningProjects,
   }
   const view = (ports: Ports, id: string): Readonly<Record<string, unknown>> => {
     const active = activeRun(ports, id)

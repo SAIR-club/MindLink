@@ -63,7 +63,7 @@ export {
   startRun,
   stateOf,
   switchIntensity,
-  unwiredProjects,
+  learningProjects,
   type EngineContext,
   type NextAnswer,
   type NextOptions,

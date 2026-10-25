@@ -19,8 +19,10 @@ import {
   type EngineContext,
   type ProjectSettings,
 } from '@mindlink/app/blocks'
+import { learningProjects } from '@mindlink/app/blocks'
+import { createProject, updateProject } from '@mindlink/app/project'
 import { isRefusal, type Ports } from '@mindlink/platform'
-import { fixedClock, memoryPorts, stubState } from '@mindlink/platform/testing'
+import { fixedClock, memoryPorts, memoryRecords, stubState } from '@mindlink/platform/testing'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { activity, fakeProjects, registryOf, workflow } from './engine-helpers.js'
 
@@ -388,7 +390,7 @@ describe('a run', () => {
         (recorded[String(id)] ?? []).map((dimension) => ({ id: dimension, level: 'x' })),
     })
     const p = ports(state)
-    const context = engine({ p1: { workflowId: 'user:pick', guidance: 'tell', course: 'c1' } })
+    const context = engine({ p1: { workflowId: 'user:pick', guidance: 'tell', scope: 'scope:c1' } })
     const first = await nextStep(p, context, 'p1')
     expect(first.state.position.candidates.map((candidate) => candidate.step.path)).toEqual([
       'heavy',
@@ -403,6 +405,47 @@ describe('a run', () => {
     expect(picked.state.current?.path).toBe('light-b')
     await reportStep(p, 'p1', { step: 'light-b' })
     expect((await nextStep(p, context, 'p1')).state.current?.path).toBe('heavy')
+  })
+})
+
+describe('a run of a learning project', () => {
+  it('reads the project’s workflow, guidance and scope, and keeps its snapshot when they change', async () => {
+    const raw = memoryRecords()
+    const clock = fixedClock(1_000)
+    const projectPorts = memoryPorts('project', { records: raw, clock })
+    const blockPorts = memoryPorts('blocks', { records: raw, clock })
+    const context: EngineContext = { registry: () => registry, projects: learningProjects }
+
+    const project = await createProject(projectPorts, {
+      title: '贝叶斯',
+      goalType: 'apply',
+      course: 'stats',
+    })
+    const first = await nextStep(blockPorts, context, project.id)
+    expect(first.state.run).toMatchObject({
+      project: project.id,
+      scope: 'scope:stats',
+      defaults: { intensity: 'hint' },
+    })
+    expect(first.state.plan.workflow).toBe('builtin:apply')
+    expect(first.state.current?.path).toBe('goal')
+
+    // The person switches the project to another workflow: this run keeps going, the next one takes it.
+    await updateProject(projectPorts, project.id, {
+      workflowId: 'user:lean-flow',
+      guidance: 'tell',
+    })
+    expect((await nextStep(blockPorts, context, project.id)).state.plan.workflow).toBe(
+      'builtin:apply',
+    )
+    const next = await nextStep(blockPorts, context, project.id, { restart: true })
+    expect(next.state.plan.workflow).toBe('user:lean-flow')
+    expect(next.state.run.defaults).toEqual({ intensity: 'tell' })
+  })
+
+  it('refuses a project that does not exist', async () => {
+    const context: EngineContext = { registry: () => registry, projects: learningProjects }
+    expect((await refusal(nextStep(ports(), context, 'nope'))).code).toBe('project_not_found')
   })
 })
 

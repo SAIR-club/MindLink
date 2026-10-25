@@ -1,4 +1,5 @@
 import { refuse, type Ports, type RecordKind } from '@mindlink/platform'
+import { getProject, scopeTag } from '../../project/index.js'
 import { parseRef } from '../parse.js'
 import type { BlockRegistry } from '../registry.js'
 import { INTENSITIES, type Block, type Intensity, type ScalarValue } from '../types.js'
@@ -40,28 +41,27 @@ export interface ProjectSettings {
   readonly workflowId: string
   /** The project's default guidance. */
   readonly guidance: Intensity
-  /** The course the project belongs to; its nodes are tagged `scope:<course>`. */
-  readonly course?: string
+  /** The tag the project's nodes carry, `scope:<course>`, when the project belongs to a course. */
+  readonly scope?: string
 }
 
-/**
- * Where runs read a project's settings.
- *
- * TODO(MindLink#10): implemented over the project feature's `getProject` once it can read the project records from
- * the blocks feature. `Ports.records` holds the calling feature's records only, so the project feature's records
- * need a read-only way in from `@mindlink/platform` first; until then the app passes `unwiredProjects`.
- */
+/** Where runs read a project's settings. Tests pass their own; the app reads the learning projects. */
 export type ProjectSource = (
   ports: Ports,
   projectId: string,
 ) => ProjectSettings | undefined | Promise<ProjectSettings | undefined>
 
-/** The placeholder until MindLink#10 is wired in: every run is refused, saying why. */
-export const unwiredProjects: ProjectSource = () =>
-  refuse(
-    'projects_not_wired',
-    '积木运行还没有接上学习项目（MindLink#10），暂时无法读取项目的工作流和默认强度',
-  )
+/** A learning project's settings (MindLink#10), read from the project feature's records through `getProject`. */
+export const learningProjects: ProjectSource = (ports, projectId) => {
+  const project = getProject(ports, projectId)
+  if (project === undefined) return undefined
+  const scope = scopeTag(project)
+  return {
+    workflowId: project.workflowId,
+    guidance: project.guidance,
+    ...(scope === undefined ? {} : { scope }),
+  }
+}
 
 /** The blocks runs may start from: the built-in library, and later the course's and the person's own. */
 export type RegistryProvider = (ports: Ports) => BlockRegistry | Promise<BlockRegistry>
@@ -86,7 +86,8 @@ export interface StoredRun {
   readonly finishedAt?: number
   readonly lean: boolean
   readonly defaults: PlanDefaults
-  readonly course?: string
+  /** The tag of the project's nodes, when it belongs to a course. */
+  readonly scope?: string
   /** The plan when the run started. */
   readonly plan: Plan
   /** Every block the run may use, as it was when the run started or an adjustment brought it in. */
@@ -186,7 +187,7 @@ export async function startRun(
     startedAt: ports.clock.now(),
     lean: options.lean ?? false,
     defaults,
-    ...(settings.course === undefined ? {} : { course: settings.course }),
+    ...(settings.scope === undefined ? {} : { scope: settings.scope }),
     plan,
     blocks: snapshot(registry, [workflow, ...adjusted]),
     done: [],
@@ -208,7 +209,7 @@ export function planOf(ports: Ports, run: StoredRun): EffectivePlan {
 function gapsOf(ports: Ports, run: StoredRun, plan: EffectivePlan): Gaps {
   const dimensions = new Set(plan.steps.flatMap((step) => step.dimensions))
   if (dimensions.size === 0) return new Map()
-  const tag = run.course === undefined ? undefined : `scope:${run.course}`
+  const tag = run.scope
   const nodes = ports.state
     .nodes()
     .filter((node) => tag === undefined || node.tags.includes(tag))
