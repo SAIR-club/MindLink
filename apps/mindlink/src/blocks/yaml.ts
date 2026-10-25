@@ -96,16 +96,16 @@ function opensScalar(text: string, index: number): boolean {
 
 function linesOf(source: readonly string[], firstLine: number): Line[] {
   const lines: Line[] = []
-  source.forEach((raw, offset) => {
+  for (let offset = 0; offset < source.length; offset++) {
+    const raw = source[offset]!
     const line = firstLine + offset
     const leading = /^[ \t]*/.exec(raw)![0]
     if (leading.includes('\t')) {
       throw new SyntaxProblem(line, leading.indexOf('\t') + 1, '缩进里有制表符；请只用空格缩进')
     }
     const text = stripComment(raw.slice(leading.length)).trimEnd()
-    if (text === '') return
-    lines.push({ indent: leading.length, text, line })
-  })
+    if (text !== '') lines.push({ indent: leading.length, text, line })
+  }
   return lines
 }
 
@@ -272,29 +272,32 @@ class FlowReader {
     return { kind: 'scalar', value: this.plain(inFlow), quoted: false, line: this.line, column }
   }
 
+  private nextItem(closeChar: ']' | '}', missingMsg: string): boolean {
+    this.skipSpaces()
+    if (this.text[this.at] === ',') {
+      this.at++
+      return true
+    }
+    if (this.text[this.at] === closeChar) {
+      this.at++
+      return false
+    }
+    this.fail(missingMsg)
+  }
+
   private sequence(): YamlSeq {
     const column = this.column + this.at
     this.at++
     const items: YamlNode[] = []
     this.skipSpaces()
-    if (this.text[this.at] === ']') {
+    if (this.text[this.at] !== ']') {
+      do {
+        items.push(this.value(true))
+      } while (this.nextItem(']', '列表缺少 "," 或 "]"；流式列表必须写在一行里'))
+    } else {
       this.at++
-      return { kind: 'sequence', items, line: this.line, column }
     }
-    for (;;) {
-      items.push(this.value(true))
-      this.skipSpaces()
-      const char = this.text[this.at]
-      if (char === ',') {
-        this.at++
-        continue
-      }
-      if (char === ']') {
-        this.at++
-        return { kind: 'sequence', items, line: this.line, column }
-      }
-      this.fail('列表缺少 "," 或 "]"；流式列表必须写在一行里')
-    }
+    return { kind: 'sequence', items, line: this.line, column }
   }
 
   private mapping(): YamlMap {
@@ -303,36 +306,25 @@ class FlowReader {
     const entries: YamlEntry[] = []
     const seen = new Set<string>()
     this.skipSpaces()
-    if (this.text[this.at] === '}') {
-      this.at++
-      return { kind: 'mapping', entries, line: this.line, column }
-    }
-    for (;;) {
-      this.skipSpaces()
-      const keyAt = this.at
-      const match = /^[A-Za-z0-9_][A-Za-z0-9_-]*/.exec(this.text.slice(this.at))
-      if (match === null) this.fail('这里应该是键')
-      const key = match[0]
-      this.at += key.length
-      this.skipSpaces()
-      if (this.text[this.at] !== ':') this.fail(`键 "${key}" 后面缺少 ":"`)
-      this.at++
-      if (seen.has(key)) this.fail(`键 "${key}" 重复了`, keyAt)
-      seen.add(key)
-      const value = this.value(true)
-      entries.push({ key, line: this.line, column: this.column + keyAt, value })
-      this.skipSpaces()
-      const char = this.text[this.at]
-      if (char === ',') {
+    if (this.text[this.at] !== '}') {
+      do {
+        this.skipSpaces()
+        const keyAt = this.at
+        const match = /^[A-Za-z0-9_][A-Za-z0-9_-]*/.exec(this.text.slice(this.at))
+        if (match === null) this.fail('这里应该是键')
+        const key = match[0]
+        this.at += key.length
+        this.skipSpaces()
+        if (this.text[this.at] !== ':') this.fail(`键 "${key}" 后面缺少 ":"`)
         this.at++
-        continue
-      }
-      if (char === '}') {
-        this.at++
-        return { kind: 'mapping', entries, line: this.line, column }
-      }
-      this.fail('映射缺少 "," 或 "}"；流式映射必须写在一行里')
+        if (seen.has(key)) this.fail(`键 "${key}" 重复了`, keyAt)
+        seen.add(key)
+        entries.push({ key, line: this.line, column: this.column + keyAt, value: this.value(true) })
+      } while (this.nextItem('}', '映射缺少 "," 或 "}"；流式映射必须写在一行里'))
+    } else {
+      this.at++
     }
+    return { kind: 'mapping', entries, line: this.line, column }
   }
 
   private quoted(quote: '"' | "'"): string {

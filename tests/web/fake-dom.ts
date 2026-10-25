@@ -100,7 +100,7 @@ export class FakeElement extends FakeNode {
   }
 
   replaceChildren(...nodes: (FakeNode | string)[]): void {
-    for (const child of [...this.childNodes]) child.remove()
+    for (const child of this.childNodes.splice(0)) child.parentNode = undefined
     this.append(...nodes)
   }
 

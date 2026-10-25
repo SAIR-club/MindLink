@@ -1,6 +1,6 @@
 import { defineTool, refuse, type SceneTool, type ToolAnswer } from '@mindlink/platform'
 import type { Instructions } from './engine/instructions.js'
-import type { Adjustment } from './engine/plan.js'
+import type { Adjustment, IntensitySource } from './engine/plan.js'
 import {
   FEATURE,
   adjustmentsOf,
@@ -46,7 +46,7 @@ function optionalBoolean(value: unknown, name: string): boolean | undefined {
   return value
 }
 
-const SOURCE_LABEL: Readonly<Record<string, string>> = {
+const SOURCE_LABEL: Readonly<Record<IntensitySource, string>> = {
   temporary: '临时切换',
   adjustment: '项目里的调整',
   step: '工作流里的设置',

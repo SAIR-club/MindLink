@@ -46,19 +46,16 @@ function stripComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
 }
 
+const IMPORT_PATTERN =
+  /\b(?:(?:import|export)\s[^'"`;]*?\sfrom|import)\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g
+
 /** Every module specifier the file imports or re-exports, static or dynamic. */
 export function importsOf(text: string): readonly string[] {
   const code = stripComments(text)
   const found: string[] = []
-  const patterns = [
-    /\b(?:import|export)\s[^'"`;]*?\sfrom\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*['"]([^'"]+)['"]/g,
-    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
-  ]
-  for (const pattern of patterns) {
-    for (const match of code.matchAll(pattern)) {
-      if (match[1] !== undefined) found.push(match[1])
-    }
+  for (const match of code.matchAll(IMPORT_PATTERN)) {
+    const specifier = match[1] ?? match[2]
+    if (specifier !== undefined) found.push(specifier)
   }
   return found
 }
