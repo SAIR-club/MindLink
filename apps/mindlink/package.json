@@ -16,6 +16,10 @@
     "./blocks": {
       "types": "./dist/blocks/index.d.ts",
       "default": "./dist/blocks/index.js"
+    },
+    "./project": {
+      "types": "./dist/project/index.d.ts",
+      "default": "./dist/project/index.js"
     }
   },
   "bin": {

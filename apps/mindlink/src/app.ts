@@ -8,6 +8,8 @@ import {
   type SceneRoute,
   type SceneTool,
 } from '@mindlink/platform'
+import { projectTools } from './project/mcp.js'
+import { projectRoutes } from './project/routes.js'
 
 /**
  * MindLink's composition root (layer L3): the one place every feature is wired into the service.
@@ -25,10 +27,10 @@ export const mindlinkScene = sceneOf({
 })
 
 /** Every feature's MCP tools, beside Episteme's own. */
-export const tools: readonly SceneTool[] = []
+export const tools: readonly SceneTool[] = [...projectTools]
 
 /** Every feature's REST routes, served under `/api/v1/scene/mindlink`. */
-export const routes: readonly SceneRoute[] = []
+export const routes: readonly SceneRoute[] = [...projectRoutes]
 
 export type StartOptions = Omit<LaunchOptions, 'scene' | 'tools' | 'routes'>
 
