@@ -113,6 +113,11 @@ export const REFUSAL_TEXT = Object.freeze({
   invalid_record_id: '记录的编号不正确。',
   not_available: '这个功能暂时还不能用。',
 
+  // Learning projects.
+  invalid_project: '项目设置填写得不对，请检查后再保存。',
+  project_not_found: '找不到这个学习项目。',
+  project_archived: '这个学习项目已经归档，不能再修改。',
+
   // Failures the front end itself names, when no answer came back to read.
   network: '连不上服务，请检查服务是否还在运行。',
   bad_response: '服务返回的内容无法识别。',
