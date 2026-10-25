@@ -10,6 +10,8 @@ overrides:
   '@episteme/core': link:../Episteme/packages/core
   '@episteme/distillation': link:../Episteme/packages/distillation
   '@episteme/embeddings-http': link:../Episteme/packages/embeddings-http
+  '@episteme/mcp': link:../Episteme/packages/mcp
+  '@episteme/service': link:../Episteme/apps/service
   '@episteme/sdk': link:../Episteme/packages/sdk
   '@episteme/storage-local': link:../Episteme/packages/storage-local
   '@episteme/storage-memory': link:../Episteme/packages/storage-memory
@@ -52,86 +54,14 @@ importers:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)
 
-  apps/learn:
+  apps/mindlink:
     dependencies:
-      '@episteme/agent':
-        specifier: link:../../../Episteme/packages/agent
-        version: link:../../../Episteme/packages/agent
-      '@episteme/core':
-        specifier: link:../../../Episteme/packages/core
-        version: link:../../../Episteme/packages/core
       '@episteme/domain-learn':
         specifier: workspace:*
         version: link:../../packages/domain-learn
-      '@episteme/sdk':
-        specifier: link:../../../Episteme/packages/sdk
-        version: link:../../../Episteme/packages/sdk
-      '@episteme/storage-local':
-        specifier: link:../../../Episteme/packages/storage-local
-        version: link:../../../Episteme/packages/storage-local
-      dotenv:
-        specifier: ^16.4.7
-        version: 16.6.1
-
-  examples/distill-session:
-    dependencies:
-      '@episteme/application':
-        specifier: link:../../../Episteme/packages/application
-        version: link:../../../Episteme/packages/application
-      '@episteme/domain-learn':
+      '@mindlink/platform':
         specifier: workspace:*
-        version: link:../../packages/domain-learn
-
-  examples/learn-session:
-    dependencies:
-      '@episteme/agent':
-        specifier: link:../../../Episteme/packages/agent
-        version: link:../../../Episteme/packages/agent
-      '@episteme/core':
-        specifier: link:../../../Episteme/packages/core
-        version: link:../../../Episteme/packages/core
-      '@episteme/domain-learn':
-        specifier: workspace:*
-        version: link:../../packages/domain-learn
-      '@episteme/storage-memory':
-        specifier: link:../../../Episteme/packages/storage-memory
-        version: link:../../../Episteme/packages/storage-memory
-
-  examples/persistent-session:
-    dependencies:
-      '@episteme/agent':
-        specifier: link:../../../Episteme/packages/agent
-        version: link:../../../Episteme/packages/agent
-      '@episteme/core':
-        specifier: link:../../../Episteme/packages/core
-        version: link:../../../Episteme/packages/core
-      '@episteme/domain-learn':
-        specifier: workspace:*
-        version: link:../../packages/domain-learn
-      '@episteme/sdk':
-        specifier: link:../../../Episteme/packages/sdk
-        version: link:../../../Episteme/packages/sdk
-      '@episteme/storage-local':
-        specifier: link:../../../Episteme/packages/storage-local
-        version: link:../../../Episteme/packages/storage-local
-
-  examples/semantic-session:
-    dependencies:
-      '@episteme/agent':
-        specifier: link:../../../Episteme/packages/agent
-        version: link:../../../Episteme/packages/agent
-      '@episteme/core':
-        specifier: link:../../../Episteme/packages/core
-        version: link:../../../Episteme/packages/core
-      '@episteme/domain-learn':
-        specifier: workspace:*
-        version: link:../../packages/domain-learn
-      '@episteme/sdk':
-        specifier: link:../../../Episteme/packages/sdk
-        version: link:../../../Episteme/packages/sdk
-      '@episteme/storage-local':
-        specifier: link:../../../Episteme/packages/storage-local
-        version: link:../../../Episteme/packages/storage-local
+        version: link:../../packages/platform
 
   packages/domain-learn:
     dependencies:
@@ -142,32 +72,44 @@ importers:
         specifier: link:../../../Episteme/packages/distillation
         version: link:../../../Episteme/packages/distillation
 
+  packages/platform:
+    dependencies:
+      '@episteme/application':
+        specifier: link:../../../Episteme/packages/application
+        version: link:../../../Episteme/packages/application
+      '@episteme/core':
+        specifier: link:../../../Episteme/packages/core
+        version: link:../../../Episteme/packages/core
+      '@episteme/distillation':
+        specifier: link:../../../Episteme/packages/distillation
+        version: link:../../../Episteme/packages/distillation
+      '@episteme/mcp':
+        specifier: link:../../../Episteme/packages/mcp
+        version: link:../../../Episteme/packages/mcp
+      '@episteme/service':
+        specifier: link:../../../Episteme/apps/service
+        version: link:../../../Episteme/apps/service
+
   tests:
     dependencies:
-      '@episteme/agent':
-        specifier: link:../../Episteme/packages/agent
-        version: link:../../Episteme/packages/agent
-      '@episteme/app-learn':
-        specifier: workspace:*
-        version: link:../apps/learn
       '@episteme/core':
         specifier: link:../../Episteme/packages/core
         version: link:../../Episteme/packages/core
       '@episteme/domain-learn':
         specifier: workspace:*
         version: link:../packages/domain-learn
-      '@episteme/embeddings-http':
-        specifier: link:../../Episteme/packages/embeddings-http
-        version: link:../../Episteme/packages/embeddings-http
       '@episteme/sdk':
         specifier: link:../../Episteme/packages/sdk
         version: link:../../Episteme/packages/sdk
-      '@episteme/storage-local':
-        specifier: link:../../Episteme/packages/storage-local
-        version: link:../../Episteme/packages/storage-local
-      '@episteme/storage-memory':
-        specifier: link:../../Episteme/packages/storage-memory
-        version: link:../../Episteme/packages/storage-memory
+      '@episteme/service':
+        specifier: link:../../Episteme/apps/service
+        version: link:../../Episteme/apps/service
+      '@mindlink/app':
+        specifier: workspace:*
+        version: link:../apps/mindlink
+      '@mindlink/platform':
+        specifier: workspace:*
+        version: link:../packages/platform
 
 packages:
 

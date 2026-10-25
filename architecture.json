@@ -1,0 +1,39 @@
+{
+  "$comment": "MindLink's layer table, checked by tests/architecture.test.ts. A module may import only modules in lower layers, and only through their public entry. Every source file must belong to a module listed here: a new feature is added to this table in the same pull request.",
+  "layers": [
+    {
+      "name": "L0 platform",
+      "modules": ["packages/platform", "packages/domain-learn"]
+    },
+    {
+      "name": "L1 base",
+      "modules": []
+    },
+    {
+      "name": "L2 features",
+      "modules": ["apps/mindlink/src/blocks"]
+    },
+    {
+      "name": "L3 assembly",
+      "modules": ["apps/mindlink/src/app.ts"]
+    },
+    {
+      "name": "L4 entry",
+      "modules": ["apps/mindlink/src/cli.ts"]
+    }
+  ],
+  "episteme": {
+    "$comment": "Which modules may import which @episteme packages. Nothing else may import any.",
+    "packages/platform": [
+      "@episteme/application",
+      "@episteme/core",
+      "@episteme/distillation",
+      "@episteme/mcp",
+      "@episteme/service"
+    ],
+    "packages/domain-learn": ["@episteme/core", "@episteme/distillation"]
+  },
+  "assembly": "apps/mindlink/src/app.ts",
+  "web": "apps/mindlink/web",
+  "blocks": { "engine": "apps/mindlink/src/blocks", "library": "apps/mindlink/blocks" }
+}

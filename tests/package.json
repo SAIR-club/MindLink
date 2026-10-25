@@ -3,18 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Integration tests for Learner",
+  "description": "Integration tests for MindLink",
   "scripts": {
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@episteme/agent": "link:../../Episteme/packages/agent",
-    "@episteme/app-learn": "workspace:*",
     "@episteme/core": "link:../../Episteme/packages/core",
     "@episteme/domain-learn": "workspace:*",
-    "@episteme/embeddings-http": "link:../../Episteme/packages/embeddings-http",
     "@episteme/sdk": "link:../../Episteme/packages/sdk",
-    "@episteme/storage-local": "link:../../Episteme/packages/storage-local",
-    "@episteme/storage-memory": "link:../../Episteme/packages/storage-memory"
+    "@episteme/service": "link:../../Episteme/apps/service",
+    "@mindlink/app": "workspace:*",
+    "@mindlink/platform": "workspace:*"
   }
 }

@@ -2,12 +2,20 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "files": [],
   "references": [
-    { "path": "packages/domain-learn" },
-    { "path": "apps/learn" },
-    { "path": "examples/distill-session" },
-    { "path": "examples/learn-session" },
-    { "path": "examples/persistent-session" },
-    { "path": "examples/semantic-session" },
-    { "path": "tests" }
+    {
+      "path": "packages/domain-learn"
+    },
+    {
+      "path": "packages/platform"
+    },
+    {
+      "path": "apps/mindlink"
+    },
+    {
+      "path": "packages/platform/test"
+    },
+    {
+      "path": "tests"
+    }
   ]
 }

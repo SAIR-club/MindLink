@@ -1,0 +1,33 @@
+{
+  "name": "@mindlink/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MindLink's launcher: Episteme's service composed with the Learn scene and every MindLink feature.",
+  "exports": {
+    ".": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
+    "./blocks": {
+      "types": "./dist/blocks/index.d.ts",
+      "default": "./dist/blocks/index.js"
+    }
+  },
+  "bin": {
+    "mindlink": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "serve": "tsc -b && node dist/cli.js serve"
+  },
+  "dependencies": {
+    "@episteme/domain-learn": "workspace:*",
+    "@mindlink/platform": "workspace:*"
+  }
+}
