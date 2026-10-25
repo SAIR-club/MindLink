@@ -1,0 +1,16 @@
+{
+  "$comment": "Type-checks the front end's JSDoc against the browser's DOM. The front end has no build step: nothing is emitted.",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["**/*.js"]
+}

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { learnDomainPack, learnPresentations, learnStateDimensions } from '@episteme/domain-learn'
 import { learnDistillationPolicy } from '@episteme/domain-learn/distillation'
 import {
@@ -34,9 +35,15 @@ export const tools: readonly SceneTool[] = [...projectTools, ...workflowTools()]
 /** Every feature's REST routes, served under `/api/v1/scene/mindlink`. */
 export const routes: readonly SceneRoute[] = [...projectRoutes, ...workflowRoutes()]
 
+/** The front end (`apps/mindlink/web`), served at `/`. Beside `src` and `dist` alike, so either finds it. */
+export const WEB = fileURLToPath(new URL('../web', import.meta.url))
+
 export type StartOptions = Omit<LaunchOptions, 'scene' | 'tools' | 'routes'>
 
-/** Starts MindLink: Episteme's service, owning the graph, with the scene, tools and routes above. */
+/**
+ * Starts MindLink: Episteme's service, owning the graph, with the scene, tools and routes above, and the front end
+ * at `/` unless `web` names another directory.
+ */
 export function startMindLink(options: StartOptions): Promise<Launched> {
-  return launch({ ...options, scene: mindlinkScene, tools, routes })
+  return launch({ web: WEB, ...options, scene: mindlinkScene, tools, routes })
 }
