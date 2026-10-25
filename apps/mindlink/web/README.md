@@ -95,11 +95,11 @@ register({
 
 ## 测试
 
-页面的逻辑尽量写成纯函数，直接在 Node 里测。要测 DOM 时，用 `tests/web/fake-dom.ts` 里手写的假 document（不引入 jsdom 之类的依赖），参照 `tests/web/components.test.ts` 和 `tests/web/shell.test.ts`：
+页面的逻辑尽量写成纯函数，直接在 Node 里测。要测 DOM 时，用 `tests/web/fake-dom.ts` 封装的 `happy-dom` 测试文档，参照 `tests/web/components.test.ts` 和 `tests/web/shell.test.ts`：
 
 ```ts
-import { FakeDocument, asDocument, byText, fake } from './fake-dom.js'
+import { byText, createTestDocument } from './fake-dom.js'
 
-const node = fake(render({ document: asDocument(new FakeDocument()), ... }))
+const node = render({ document: createTestDocument(), ... })
 expect(byText(node, '还没有学习项目。')).toBeDefined()
 ```

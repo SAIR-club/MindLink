@@ -7,7 +7,7 @@ import {
   levelText,
   vocabularyOf,
 } from '../../apps/mindlink/web/vocabulary.js'
-import { FakeDocument, asDocument, byTag, fake } from './fake-dom.js'
+import { byTag, createTestDocument } from './fake-dom.js'
 
 /** An answer from `GET /api/v1/vocabulary`, in the shape Episteme's `VocabularyDimension` documents. */
 const ANSWER = {
@@ -38,13 +38,11 @@ const ANSWER = {
 
 /** The level options a form built from `answer` offers. */
 function offered(answer: Record<string, unknown>): string[] {
-  const doc = new FakeDocument()
-  const node = fake(
-    form(asDocument(doc), {
-      fields: [levelField(vocabularyOf(answer), 'learn.mastery')],
-      onSubmit: () => {},
-    }),
-  )
+  const document = createTestDocument()
+  const node = form(document, {
+    fields: [levelField(vocabularyOf(answer), 'learn.mastery')],
+    onSubmit: () => {},
+  })
   return byTag(node, 'option').map((option) => option.getAttribute('value') ?? '')
 }
 
@@ -96,15 +94,15 @@ describe('the vocabulary', () => {
   it('selects a held level only when it is still offered', () => {
     const vocabulary = vocabularyOf(ANSWER)
     const select = (value: string) =>
-      byTag(
-        fake(
-          form(asDocument(new FakeDocument()), {
+      (
+        byTag(
+          form(createTestDocument(), {
             fields: [levelField(vocabulary, 'learn.mastery', { value })],
             onSubmit: () => {},
           }),
-        ),
-        'select',
-      )[0]?.value
+          'select',
+        )[0] as HTMLSelectElement | undefined
+      )?.value
     expect(select('solid')).toBe('solid')
     expect(select('shaky')).toBe('none')
   })

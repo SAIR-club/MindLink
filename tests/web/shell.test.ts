@@ -5,16 +5,7 @@ import { form, levelField } from '../../apps/mindlink/web/components/form.js'
 import { createRegistry, type Feature } from '../../apps/mindlink/web/features.js'
 import { REFUSAL_TEXT } from '../../apps/mindlink/web/refusals.js'
 import { start } from '../../apps/mindlink/web/shell.js'
-import {
-  FakeDocument,
-  FakeElement,
-  all,
-  asDocument,
-  byTag,
-  byText,
-  click,
-  settle,
-} from './fake-dom.js'
+import { all, byTag, byText, click, createTestDocument, settle } from './fake-dom.js'
 
 interface Answer {
   readonly status: number
@@ -25,8 +16,8 @@ interface Answer {
 function harness(features: readonly Feature[], answers: Record<string, Answer>) {
   const registry = createRegistry()
   for (const feature of features) registry.register(feature)
-  const doc = new FakeDocument()
-  const root = new FakeElement('div')
+  const doc = createTestDocument()
+  const root = doc.createElement('div')
   const listeners: (() => void)[] = []
   let reloads = 0
   const window = {
@@ -51,15 +42,16 @@ function harness(features: readonly Feature[], answers: Record<string, Answer>) 
     })
   }
   const shell = start({
-    document: asDocument(doc),
+    document: doc,
     window,
     fetch,
     registry,
-    root: root as unknown as HTMLElement,
+    root,
   })
-  const page = (): FakeElement => all(root).find((node) => node.tagName === 'main')!
-  const notice = (): FakeElement =>
-    all(root).find((node) => node.getAttribute('class') === 'notice')!
+  const page = (): HTMLElement =>
+    all(root).find((node) => node.tagName.toLowerCase() === 'main')! as HTMLElement
+  const notice = (): HTMLElement =>
+    all(root).find((node) => node.getAttribute('class') === 'notice')! as HTMLElement
   /** Goes to `hash` the way a click on a link does, and waits for the page. */
   const go = async (hash: string): Promise<void> => {
     window.location.hash = hash
@@ -147,7 +139,7 @@ describe('the shell', () => {
     await go('#/slow')
     expect(page().textContent).toBe('加载中…')
     await go('#/fast')
-    finish(asDocument(doc).createElement('p'))
+    finish(doc.createElement('p'))
     await settle()
     expect(page().textContent).toBe('快页面')
   })

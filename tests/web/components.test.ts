@@ -10,76 +10,59 @@ import {
   loading,
 } from '../../apps/mindlink/web/components/index.js'
 import { REFUSAL_TEXT } from '../../apps/mindlink/web/refusals.js'
-import {
-  FakeDocument,
-  FakeText,
-  all,
-  asDocument,
-  byTag,
-  byText,
-  click,
-  event,
-  fake,
-  settle,
-} from './fake-dom.js'
+import { all, byTag, byText, click, createTestDocument, event, settle } from './fake-dom.js'
 
-const doc = new FakeDocument()
-const document = asDocument(doc)
+const document = createTestDocument()
 
 describe('el', () => {
   it('sets attributes, adds listeners and turns strings into text nodes', () => {
     let clicked = 0
-    const node = fake(
-      el(
-        document,
-        'button',
-        { type: 'button', disabled: true, hidden: false, onclick: () => clicked++ },
-        'a',
-        1,
-        null,
-      ),
+    const node = el(
+      document,
+      'button',
+      { type: 'button', disabled: true, hidden: false, onclick: () => clicked++ },
+      'a',
+      1,
+      null,
     )
     expect(node.getAttribute('type')).toBe('button')
-    expect(node.getAttribute('disabled')).toBe('')
+    expect(node.hasAttribute('disabled')).toBe(true)
     expect(node.hasAttribute('hidden')).toBe(false)
-    expect(node.childNodes.every((child) => child instanceof FakeText)).toBe(true)
+    expect(Array.from(node.childNodes).every((child) => child.nodeType === 3)).toBe(true)
     expect(node.textContent).toBe('a1')
+    node.removeAttribute('disabled')
     click(node)
     expect(clicked).toBe(1)
   })
 
   it('shows markup in a string as text, never as elements', () => {
-    const node = fake(el(document, 'p', {}, '<img src=x onerror=alert(1)>'))
-    expect(node.children).toEqual([])
+    const node = el(document, 'p', {}, '<img src=x onerror=alert(1)>')
+    expect(node.children.length).toBe(0)
     expect(node.textContent).toBe('<img src=x onerror=alert(1)>')
   })
 })
 
 describe('states', () => {
   it('shows loading as a busy status', () => {
-    const node = fake(loading(document))
+    const node = loading(document)
     expect(node.getAttribute('role')).toBe('status')
     expect(node.textContent).toBe('加载中…')
   })
 
   it('shows an empty state with what to do about it', () => {
-    const node = fake(
-      emptyState(
-        document,
-        '还没有学习项目。',
-        el(document, 'a', { href: '#/projects/new' }, '新建'),
-      ),
+    const node = emptyState(
+      document,
+      '还没有学习项目。',
+      el(document, 'a', { href: '#/projects/new' }, '新建'),
     )
     expect(node.textContent).toBe('还没有学习项目。新建')
   })
 
   it('shows a refusal in Chinese with its code, and retries', () => {
     let retried = 0
-    const node = fake(
-      errorState(document, new ApiError(422, 'sharing_disabled', 'sharing is off'), {
-        retry: () => retried++,
-      }),
-    )
+    const node = errorState(document, new ApiError(422, 'sharing_disabled', 'sharing is off'), {
+      retry: () => retried++,
+    })
     expect(node.getAttribute('role')).toBe('alert')
     expect(byText(node, REFUSAL_TEXT['sharing_disabled']!)).toBeDefined()
     expect(byText(node, '代码：sharing_disabled')).toBeDefined()
@@ -89,56 +72,55 @@ describe('states', () => {
   })
 
   it('shows a page’s own failure without its message', () => {
-    const node = fake(errorState(document, new TypeError('x is undefined')))
+    const node = errorState(document, new TypeError('x is undefined'))
     expect(node.textContent).toBe('页面出了问题，请刷新后再试。')
   })
 })
 
 describe('list', () => {
   it('renders one item per entry', () => {
-    const node = fake(
-      list(document, { items: ['甲', '乙'], render: (item, index) => [`${index + 1}. `, item] }),
-    )
-    expect(node.tagName).toBe('ul')
+    const node = list(document, {
+      items: ['甲', '乙'],
+      render: (item, index) => [`${index + 1}. `, item],
+    })
+    expect(node.tagName.toLowerCase()).toBe('ul')
     expect(byTag(node, 'li').map((item) => item.textContent)).toEqual(['1. 甲', '2. 乙'])
   })
 
   it('shows the empty state when there is nothing', () => {
-    const node = fake(list(document, { items: [], render: String, empty: '还没有线程。' }))
-    expect(node.tagName).toBe('div')
+    const node = list(document, { items: [], render: String, empty: '还没有线程。' })
+    expect(node.tagName.toLowerCase()).toBe('div')
     expect(node.textContent).toBe('还没有线程。')
   })
 })
 
 describe('form', () => {
   function build(onSubmit: (values: Readonly<Record<string, string>>) => unknown) {
-    const node = fake(
-      form(document, {
-        fields: [
-          { name: 'title', label: '名称', required: true },
-          { name: 'about', label: '说明', kind: 'textarea', value: '默认' },
-          {
-            name: 'tier',
-            label: '级别',
-            kind: 'select',
-            options: [
-              { value: 'basic', label: '基础' },
-              { value: 'activity', label: '活动' },
-            ],
-          },
-        ],
-        submitLabel: '保存',
-        onSubmit,
-      }),
-    )
+    const node = form(document, {
+      fields: [
+        { name: 'title', label: '名称', required: true },
+        { name: 'about', label: '说明', kind: 'textarea', value: '默认' },
+        {
+          name: 'tier',
+          label: '级别',
+          kind: 'select',
+          options: [
+            { value: 'basic', label: '基础' },
+            { value: 'activity', label: '活动' },
+          ],
+        },
+      ],
+      submitLabel: '保存',
+      onSubmit,
+    })
     const [title, about, tier] = [
       ...byTag(node, 'input'),
       ...byTag(node, 'textarea'),
       ...byTag(node, 'select'),
-    ]
-    const submit = byText(node, '保存')
+    ] as [HTMLInputElement, HTMLTextAreaElement, HTMLSelectElement]
+    const submit = byText(node, '保存') as HTMLButtonElement
     const error = all(node).find((each) => each.getAttribute('role') === 'alert')!
-    return { node, title: title!, about: about!, tier: tier!, submit, error }
+    return { node, title, about, tier, submit, error }
   }
 
   it('labels every field and starts from the given values', () => {
@@ -164,22 +146,22 @@ describe('form', () => {
     )
     title.value = '线性代数'
     tier.value = 'activity'
-    const submitted = event('submit')
+    const submitted = event(node, 'submit')
     node.dispatchEvent(submitted)
     expect(submitted.defaultPrevented).toBe(true)
-    expect(submit.disabled).toBe(true)
-    node.dispatchEvent(event('submit'))
+    expect(submit.hasAttribute('disabled')).toBe(true)
+    node.dispatchEvent(event(node, 'submit'))
     finish()
     await settle()
     expect(sent).toEqual([{ title: '线性代数', about: '默认', tier: 'activity' }])
-    expect(submit.disabled).toBe(false)
+    expect(submit.hasAttribute('disabled')).toBe(false)
   })
 
   it('catches an empty required field before sending anything', async () => {
     const sent: unknown[] = []
     const { node, title, error } = build((values) => sent.push(values))
     title.value = '   '
-    node.dispatchEvent(event('submit'))
+    node.dispatchEvent(event(node, 'submit'))
     await settle()
     expect(sent).toEqual([])
     expect(error.textContent).toBe('请填写“名称”。')
@@ -191,31 +173,29 @@ describe('form', () => {
       if (refuse) throw new ApiError(422, 'missing_property', 'a node needs a label')
     })
     title.value = 'x'
-    node.dispatchEvent(event('submit'))
+    node.dispatchEvent(event(node, 'submit'))
     await settle()
     expect(error.textContent).toBe(REFUSAL_TEXT['missing_property'])
-    expect(submit.disabled).toBe(false)
+    expect(submit.hasAttribute('disabled')).toBe(false)
     refuse = false
-    node.dispatchEvent(event('submit'))
+    node.dispatchEvent(event(node, 'submit'))
     await settle()
     expect(error.textContent).toBe('')
   })
 
   it('disables a select with nothing to offer', () => {
-    const node = fake(
-      form(document, {
-        fields: [{ name: 'level', label: '等级', kind: 'select', options: [] }],
-        onSubmit: () => {},
-      }),
-    )
+    const node = form(document, {
+      fields: [{ name: 'level', label: '等级', kind: 'select', options: [] }],
+      onSubmit: () => {},
+    })
     expect(byTag(node, 'select')[0]?.hasAttribute('disabled')).toBe(true)
   })
 })
 
 describe('confirm', () => {
   function open(spec: Parameters<typeof confirm>[1] = { message: '撤回这条发布？' }) {
-    const page = new FakeDocument()
-    const answer = confirm(asDocument(page), spec)
+    const page = createTestDocument()
+    const answer = confirm(page, spec)
     const overlay = page.body.children[0]!
     return { page, answer, overlay }
   }
@@ -230,7 +210,7 @@ describe('confirm', () => {
     const dialog = all(overlay).find((node) => node.getAttribute('role') === 'alertdialog')!
     expect(dialog.getAttribute('aria-modal')).toBe('true')
     expect(byText(dialog, '同学将看不到它。')).toBeDefined()
-    expect(byText(dialog, '取消').focused).toBe(true)
+    expect(byText(dialog, '取消')).toBe(dialog.ownerDocument.activeElement)
     expect(byText(dialog, '撤回').getAttribute('class')).toBe('danger')
   })
 
@@ -238,7 +218,7 @@ describe('confirm', () => {
     const { page, answer, overlay } = open()
     click(byText(overlay, '确定'))
     expect(await answer).toBe(true)
-    expect(page.body.children).toEqual([])
+    expect(page.body.children.length).toBe(0)
   })
 
   it('resolves false on cancel, on Escape and on a click outside the box', async () => {
@@ -247,16 +227,15 @@ describe('confirm', () => {
     expect(await cancelled.answer).toBe(false)
 
     const escaped = open()
-    escaped.overlay.dispatchEvent(event('keydown', { key: 'Escape' }))
+    escaped.overlay.dispatchEvent(event(escaped.overlay, 'keydown', { key: 'Escape' }))
     expect(await escaped.answer).toBe(false)
-    expect(escaped.page.body.children).toEqual([])
+    expect(escaped.page.body.children.length).toBe(0)
 
     const outside = open()
-    const inBox = event('click')
-    inBox.target = outside.overlay.children[0]!
-    outside.overlay.dispatchEvent(inBox)
-    expect(outside.page.body.children).toEqual([outside.overlay])
-    outside.overlay.dispatchEvent(event('click'))
+    const box = outside.overlay.children[0]!
+    box.dispatchEvent(event(box, 'click'))
+    expect(outside.page.body.children.length).toBe(1)
+    outside.overlay.dispatchEvent(event(outside.overlay, 'click'))
     expect(await outside.answer).toBe(false)
   })
 })
