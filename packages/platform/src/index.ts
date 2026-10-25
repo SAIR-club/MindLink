@@ -29,8 +29,11 @@ export {
 } from './publications.js'
 export {
   featureRecords,
+  readonlyFeatureRecords,
   type FeatureRecords,
   type RawRecords,
+  type ReadonlyFeatureRecords,
+  type ReadonlyRecords,
   type RecordKind,
   type Records,
 } from './records.js'

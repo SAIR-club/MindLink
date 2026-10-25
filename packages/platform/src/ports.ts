@@ -1,7 +1,12 @@
 import type { SceneView } from '@episteme/application'
 import { systemClock, type Clock } from './clock.js'
 import { publicationReaderOf, type PublicationReader } from './publications.js'
-import { featureRecords, type FeatureRecords } from './records.js'
+import {
+  featureRecords,
+  readonlyFeatureRecords,
+  type FeatureRecords,
+  type ReadonlyFeatureRecords,
+} from './records.js'
 import { proposerOf, stateReaderOf, type Proposer, type StateReader } from './state.js'
 import { threadReaderOf, type ThreadReader } from './threads.js'
 
@@ -11,6 +16,8 @@ export interface Ports {
   readonly proposer: Proposer
   /** This feature's records only. */
   readonly records: FeatureRecords
+  /** Another feature's records, read only. Read them through that feature's own exported functions. */
+  readRecordsOf(feature: string): ReadonlyFeatureRecords
   readonly threads: ThreadReader
   readonly publications: PublicationReader
   readonly clock: Clock
@@ -22,6 +29,7 @@ export function portsOf(view: SceneView, feature: string, clock: Clock = systemC
     state: stateReaderOf(view),
     proposer: proposerOf(view),
     records: featureRecords(view.records, feature),
+    readRecordsOf: (other: string) => readonlyFeatureRecords(view.records, other),
     threads: threadReaderOf(view),
     publications: publicationReaderOf(view),
     clock,

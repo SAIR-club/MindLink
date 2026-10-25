@@ -7,7 +7,7 @@ import type {
   PublicationSummary,
   PublicationView,
 } from '../publications.js'
-import { featureRecords, type RawRecords } from '../records.js'
+import { featureRecords, readonlyFeatureRecords, type RawRecords } from '../records.js'
 import type { SessionScene } from '../scene.js'
 import type { Proposer, StateReader } from '../state.js'
 import type { Thread, ThreadReader, ThreadView } from '../threads.js'
@@ -155,12 +155,14 @@ export interface MemoryPortsOptions {
   readonly clock?: Clock
 }
 
-/** Ports for one feature, entirely in memory. */
+/** Ports for one feature, entirely in memory. Pass one `records` store to several to share it, as features do. */
 export function memoryPorts(feature: string, options: MemoryPortsOptions = {}): Ports {
+  const raw = options.records ?? memoryRecords()
   return Object.freeze({
     state: options.state ?? stubState(),
     proposer: options.proposer ?? stubProposer(),
-    records: featureRecords(options.records ?? memoryRecords(), feature),
+    records: featureRecords(raw, feature),
+    readRecordsOf: (other: string) => readonlyFeatureRecords(raw, other),
     threads: options.threads ?? memoryThreads(),
     publications: options.publications ?? memoryPublications(),
     clock: options.clock ?? fixedClock(),

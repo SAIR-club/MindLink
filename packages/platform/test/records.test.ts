@@ -1,6 +1,6 @@
 import { asId, defineDomainPack, type DimensionId } from '@episteme/core'
 import { afterEach, describe, expect, it } from 'vitest'
-import { featureRecords, sceneOf, type RawRecords } from '../src/index.js'
+import { featureRecords, readonlyFeatureRecords, sceneOf, type RawRecords } from '../src/index.js'
 import { memoryRecords, openTestView } from '../src/testing/index.js'
 
 /**
@@ -120,6 +120,20 @@ for (const [name, open] of stores) {
       const other = featureRecords(raw, 'blocks').of<Project>({ kind: 'item', version: 1 })
       expect(other.get('x')).toBeUndefined()
       expect(other.list()).toEqual([])
+    })
+
+    it('lets another feature read its records, and only read them', async () => {
+      const raw = await open()
+      await featureRecords(raw, 'project')
+        .of<Project>({ kind: 'project', version: 1 })
+        .put('p1', { title: '线性代数' })
+      const read = readonlyFeatureRecords(raw, 'project').of<Project>({
+        kind: 'project',
+        version: 1,
+      })
+      expect(read.get('p1')).toEqual({ title: '线性代数' })
+      expect(read.list()).toEqual([{ id: 'p1', value: { title: '线性代数' } }])
+      expect(Object.keys(read).sort()).toEqual(['get', 'list'])
     })
 
     it('reads an earlier version through migrate', async () => {
