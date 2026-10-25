@@ -7,7 +7,7 @@
     },
     {
       "name": "L1 base",
-      "modules": []
+      "modules": ["apps/mindlink/src/project"]
     },
     {
       "name": "L2 features",

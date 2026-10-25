@@ -12,6 +12,7 @@ and the features built on it do not.
 | `StateReader` | Reading understanding: progress, nodes, history, vocabulary, recall. Never writing. |
 | `Proposer` | Suggesting and distilling. Every suggestion waits for the person, or a delegation they granted. |
 | `FeatureRecords`, `RecordKind` | The feature's own records. Keys are prefixed with the feature's name, so features cannot reach each other's; each kind has a schema version and, above 1, a `migrate`. |
+| `readRecordsOf` | Another feature's records, read only (`get`, `list`). A lower feature wraps it in a function such as `getProject`, so a feature above reads its settings and only the owner writes them. |
 | `ThreadReader`, `PublicationReader` | Reading the caller's own threads, and browsing live publications and viewing one (`PublicationView`: members, public relations, thread summaries, version chain; no one's state). Episteme decides what is visible. |
 | `defineTool`, `defineRoute` | Turning handlers written against `Ports` into the MCP tools and REST routes Episteme mounts. |
 | `refuse` | Refusing a request: a tool error with its code for an agent, a 422 for a person. |
