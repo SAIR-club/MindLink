@@ -11,7 +11,7 @@
     },
     {
       "name": "L2 features",
-      "modules": []
+      "modules": ["apps/mindlink/src/blocks"]
     },
     {
       "name": "L3 assembly",

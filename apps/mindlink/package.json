@@ -12,6 +12,10 @@
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
+    },
+    "./blocks": {
+      "types": "./dist/blocks/index.d.ts",
+      "default": "./dist/blocks/index.js"
     }
   },
   "bin": {

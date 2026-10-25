@@ -20,7 +20,8 @@
     "format:check": "biome format .",
     "prepare": "simple-git-hooks",
     "mindlink": "pnpm --filter @mindlink/app serve",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm test"
+    "modules:check": "tsc -b && node apps/mindlink/dist/blocks/check-library.js",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm test && pnpm modules:check"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm format:check"
