@@ -9,6 +9,8 @@ import {
   type SceneRoute,
   type SceneTool,
 } from '@mindlink/platform'
+import { workflowTools } from './blocks/mcp.js'
+import { workflowRoutes } from './blocks/routes.js'
 import { projectTools } from './project/mcp.js'
 import { projectRoutes } from './project/routes.js'
 
@@ -28,10 +30,10 @@ export const mindlinkScene = sceneOf({
 })
 
 /** Every feature's MCP tools, beside Episteme's own. */
-export const tools: readonly SceneTool[] = [...projectTools]
+export const tools: readonly SceneTool[] = [...projectTools, ...workflowTools()]
 
 /** Every feature's REST routes, served under `/api/v1/scene/mindlink`. */
-export const routes: readonly SceneRoute[] = [...projectRoutes]
+export const routes: readonly SceneRoute[] = [...projectRoutes, ...workflowRoutes()]
 
 /** The front end (`apps/mindlink/web`), served at `/`. Beside `src` and `dist` alike, so either finds it. */
 export const WEB = fileURLToPath(new URL('../web', import.meta.url))
