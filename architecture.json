@@ -11,7 +11,7 @@
     },
     {
       "name": "L2 features",
-      "modules": []
+      "modules": ["apps/mindlink/src/blocks"]
     },
     {
       "name": "L3 assembly",
@@ -34,5 +34,6 @@
     "packages/domain-learn": ["@episteme/core", "@episteme/distillation"]
   },
   "assembly": "apps/mindlink/src/app.ts",
-  "web": "apps/mindlink/web"
+  "web": "apps/mindlink/web",
+  "blocks": { "engine": "apps/mindlink/src/blocks", "library": "apps/mindlink/blocks" }
 }

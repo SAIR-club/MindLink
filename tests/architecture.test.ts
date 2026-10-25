@@ -1,4 +1,5 @@
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -27,20 +28,24 @@ async function walk(dir: string): Promise<string[]> {
 
 const toPosix = (path: string): string => path.split(sep).join('/')
 
-async function repository(): Promise<{
+/**
+ * The files the checker sees: every package's `src/` and `web/`, and the built-in block library, whose directory names
+ * are the block ids the engine must not name. The library holds content, not source, so no layering rule reads it.
+ */
+async function repository(root: string = ROOT): Promise<{
   files: Map<string, string>
   config: ArchitectureConfig
   packages: PackageInfo[]
 }> {
   const config = JSON.parse(
-    await readFile(join(ROOT, 'architecture.json'), 'utf8'),
+    await readFile(join(root, 'architecture.json'), 'utf8'),
   ) as ArchitectureConfig
   const files = new Map<string, string>()
   const packages: PackageInfo[] = []
   for (const group of ['packages', 'apps']) {
-    const dirs = await readdir(join(ROOT, group), { withFileTypes: true }).catch(() => [])
+    const dirs = await readdir(join(root, group), { withFileTypes: true }).catch(() => [])
     for (const dir of dirs.filter((entry) => entry.isDirectory())) {
-      const base = join(ROOT, group, dir.name)
+      const base = join(root, group, dir.name)
       const manifest = JSON.parse(await readFile(join(base, 'package.json'), 'utf8')) as {
         name: string
         exports?: Record<string, unknown>
@@ -51,8 +56,13 @@ async function repository(): Promise<{
         exports: Object.keys(manifest.exports ?? { '.': true }),
       })
       for (const file of [...(await walk(join(base, 'src'))), ...(await walk(join(base, 'web')))]) {
-        files.set(toPosix(relative(ROOT, file)), await readFile(file, 'utf8'))
+        files.set(toPosix(relative(root, file)), await readFile(file, 'utf8'))
       }
+    }
+  }
+  if (config.blocks !== undefined) {
+    for (const file of await walk(join(root, config.blocks.library))) {
+      files.set(toPosix(relative(root, file)), await readFile(file, 'utf8'))
     }
   }
   return { files, config, packages }
@@ -63,6 +73,45 @@ describe('the repository', () => {
     const { files, config, packages } = await repository()
     expect(files.size).toBeGreaterThan(0)
     expect(check(files, config, packages)).toEqual([])
+  })
+
+  it('reads the built-in block library, so the engine naming a block in it is caught', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'architecture-'))
+    try {
+      const write = async (path: string, text: string): Promise<void> => {
+        await mkdir(dirname(join(root, path)), { recursive: true })
+        await writeFile(join(root, path), text)
+      }
+      const config: ArchitectureConfig = {
+        layers: [{ name: 'L2', modules: ['apps/mindlink/src/blocks'] }],
+        episteme: {},
+        assembly: 'apps/mindlink/src/app.ts',
+        web: 'apps/mindlink/web',
+        blocks: { engine: 'apps/mindlink/src/blocks', library: 'apps/mindlink/blocks' },
+      }
+      await write('architecture.json', JSON.stringify(config))
+      await write('apps/mindlink/package.json', JSON.stringify({ name: '@mindlink/app' }))
+      await write('apps/mindlink/blocks/guide/BLOCK.md', '---\nid: guide\n---\n')
+      await write('apps/mindlink/src/blocks/index.ts', 'export const first = (id: string) => id')
+      const clean = await repository(root)
+      expect(clean.files.has('apps/mindlink/blocks/guide/BLOCK.md')).toBe(true)
+      expect(check(clean.files, clean.config, clean.packages)).toEqual([])
+
+      await write(
+        'apps/mindlink/src/blocks/index.ts',
+        "export const first = (id: string) => id === 'guide'",
+      )
+      const named = await repository(root)
+      expect(check(named.files, named.config, named.packages)).toEqual([
+        {
+          rule: 6,
+          file: 'apps/mindlink/src/blocks/index.ts',
+          message: 'names the built-in block "guide"; the engine knows no specific block',
+        },
+      ])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })
 
