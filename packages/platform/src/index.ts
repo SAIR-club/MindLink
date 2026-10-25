@@ -25,11 +25,15 @@ export {
   type PublicationQuery,
   type PublicationReader,
   type PublicationSummary,
+  type PublicationView,
 } from './publications.js'
 export {
   featureRecords,
+  readonlyFeatureRecords,
   type FeatureRecords,
   type RawRecords,
+  type ReadonlyFeatureRecords,
+  type ReadonlyRecords,
   type RecordKind,
   type Records,
 } from './records.js'

@@ -1,8 +1,13 @@
 import { CognitiveSession, sceneViewOf, type SceneView } from '@episteme/application'
 import type { Clock } from '../clock.js'
 import type { Ports } from '../ports.js'
-import type { PublicationQuery, PublicationReader, PublicationSummary } from '../publications.js'
-import { featureRecords, type RawRecords } from '../records.js'
+import type {
+  PublicationQuery,
+  PublicationReader,
+  PublicationSummary,
+  PublicationView,
+} from '../publications.js'
+import { featureRecords, readonlyFeatureRecords, type RawRecords } from '../records.js'
 import type { SessionScene } from '../scene.js'
 import type { Proposer, StateReader } from '../state.js'
 import type { Thread, ThreadReader, ThreadView } from '../threads.js'
@@ -66,35 +71,67 @@ export function stubProposer(overrides: Partial<Proposer> = {}): Proposer {
   return stub<Proposer>('proposer', overrides, ['propose', 'distill'])
 }
 
-/** Threads held in memory. */
+/** The caller's threads held in memory, given in the order they were opened and read newest first, as in Episteme. */
 export function memoryThreads(views: readonly ThreadView[] = []): ThreadReader {
   return Object.freeze({
     threads: (scope?: string): readonly Thread[] =>
       views
         .map((view) => view.thread)
-        .filter((thread) => scope === undefined || thread.scope === scope),
+        .filter((thread) => scope === undefined || thread.scope === scope)
+        .reverse(),
     threadView: (threadId: string) => views.find((view) => view.thread.id === threadId),
   })
 }
 
-/** Publications held in memory, each with the scope its root is tagged with. */
+/** What browsing lists of a publication, derived from its view as Episteme derives it. */
+function summaryOf(view: PublicationView): PublicationSummary {
+  const { publication } = view
+  return {
+    id: publication.id,
+    author: publication.actorId,
+    createdAt: publication.createdAt,
+    rootLabel:
+      view.nodes.find((node) => node.nodeId === publication.root)?.label ?? publication.root,
+    members: publication.members.length,
+    version: view.versions.indexOf(publication.id) + 1,
+    ...(publication.note === undefined ? {} : { note: publication.note }),
+  }
+}
+
+/**
+ * Publications held in memory, each with the scope its root is tagged with, in the order given (Episteme lists
+ * newest first). As in Episteme, browsing leaves out withdrawn publications, and only `caller`, when they wrote one,
+ * can still view it.
+ */
 export function memoryPublications(
-  entries: readonly { readonly summary: PublicationSummary; readonly scope?: string }[] = [],
+  entries: readonly { readonly view: PublicationView; readonly scope?: string }[] = [],
+  options: { readonly caller?: string } = {},
 ): PublicationReader {
   return Object.freeze({
     browse: (query: PublicationQuery = {}) => {
       const text = query.q?.trim().toLowerCase()
       return entries
-        .filter((entry) => query.author === undefined || entry.summary.author === query.author)
+        .filter((entry) => entry.view.live)
+        .filter(
+          (entry) => query.author === undefined || entry.view.publication.actorId === query.author,
+        )
         .filter((entry) => query.scope === undefined || entry.scope === query.scope)
         .filter(
           (entry) =>
             text === undefined ||
             text === '' ||
-            entry.summary.rootLabel.toLowerCase().includes(text),
+            entry.view.nodes.some((node) => node.label.toLowerCase().includes(text)),
         )
-        .map((entry) => entry.summary)
+        .map((entry) => summaryOf(entry.view))
     },
+    view: (id: string) =>
+      entries
+        .map((entry) => entry.view)
+        .find(
+          (view) =>
+            view.publication.id === id &&
+            (view.live || view.publication.actorId === options.caller),
+        ),
   })
 }
 
@@ -118,12 +155,14 @@ export interface MemoryPortsOptions {
   readonly clock?: Clock
 }
 
-/** Ports for one feature, entirely in memory. */
+/** Ports for one feature, entirely in memory. Pass one `records` store to several to share it, as features do. */
 export function memoryPorts(feature: string, options: MemoryPortsOptions = {}): Ports {
+  const raw = options.records ?? memoryRecords()
   return Object.freeze({
     state: options.state ?? stubState(),
     proposer: options.proposer ?? stubProposer(),
-    records: featureRecords(options.records ?? memoryRecords(), feature),
+    records: featureRecords(raw, feature),
+    readRecordsOf: (other: string) => readonlyFeatureRecords(raw, other),
     threads: options.threads ?? memoryThreads(),
     publications: options.publications ?? memoryPublications(),
     clock: options.clock ?? fixedClock(),

@@ -43,6 +43,17 @@ export interface FeatureRecords {
   of<T>(kind: RecordKind<T>): Records<T>
 }
 
+/** Another feature's records, for reading only: there is no way to write them through this. */
+export interface ReadonlyRecords<T> {
+  get(id: string): T | undefined
+  list(): readonly { readonly id: string; readonly value: T }[]
+}
+
+export interface ReadonlyFeatureRecords {
+  readonly feature: string
+  of<T>(kind: RecordKind<T>): ReadonlyRecords<T>
+}
+
 /** What is stored: the value and the schema version it was written at. */
 interface Envelope {
   readonly schemaVersion: number
@@ -130,6 +141,21 @@ export function featureRecords(raw: RawRecords, feature: string): FeatureRecords
           await raw.put(prefix + id, null)
         },
       })
+    },
+  })
+}
+
+/**
+ * Another feature's records, read only. A lower-layer feature exports functions over these, such as the project
+ * feature's `getProject`, so a feature above it can read its settings while only the owner writes them.
+ */
+export function readonlyFeatureRecords(raw: RawRecords, feature: string): ReadonlyFeatureRecords {
+  const records = featureRecords(raw, feature)
+  return Object.freeze({
+    feature,
+    of<T>(kind: RecordKind<T>): ReadonlyRecords<T> {
+      const of = records.of(kind)
+      return Object.freeze({ get: (id: string) => of.get(id), list: () => of.list() })
     },
   })
 }
