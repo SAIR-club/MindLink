@@ -87,7 +87,7 @@
 
 这里 `engine` 建议填整个积木功能目录，而不只是 `engine/`：格式解析、注册表、工具也都不应该认识具体的积木。
 
-实现说明：`tests/architecture.test.ts` 只读取各个包 `src/` 和 `web/` 下的文件，`apps/mindlink/blocks/` 不在其中，所以按上面配置后规则 6 实际上看不到任何内置积木的 id。#5 还没有内置积木（两个例子是 `tests/blocks/fixtures/` 下的测试数据），所以暂不加 `blocks` 配置；第一块内置积木（#29）进来之前，要么让架构测试也读取这个目录（改 `tests/architecture.test.ts`），要么把内置积木移到 `src/` 下，需要在 #20 下决定。
+实现说明：`architecture.json` 已按上面配置；`tests/architecture.test.ts` 除了各个包的 `src/` 和 `web/`，也读取 `blocks.library` 目录，所以内置积木一进来，规则 6 就会检查积木功能的源码。为此 YAML 解析结果的节点类型写成 `mapping` / `sequence`，避免和内置积木 `map` 撞名。
 
 一个要留意的地方：这条规则按字符串字面量匹配。内置积木里有 `conflict`、`transfer` 这样和维度同名的 id，以及 `path`、`model`、`example` 这样常见的词。积木功能的代码里如果出现 `'conflict'` 这样的字面量（哪怕指的是维度），也会被报出来。建议的做法是代码里的维度一律从词汇表读取，不写字面量；真的冲突时再在 #20 下讨论。
 

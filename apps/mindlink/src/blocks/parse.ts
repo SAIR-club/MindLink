@@ -163,9 +163,9 @@ export function valueProblem(spec: ValueSpec, value: ScalarValue): string | unde
 }
 
 const describe = (node: YamlNode): string =>
-  node.kind === 'map'
+  node.kind === 'mapping'
     ? '映射'
-    : node.kind === 'seq'
+    : node.kind === 'sequence'
       ? '列表'
       : typeof node.value === 'string'
         ? '字符串'
@@ -673,7 +673,7 @@ class BlockReader {
   private exampleResult(block: Block, path: string, fields: FieldReader): Example['result'] {
     const entry = fields.entry('result')
     if (entry === undefined || block.level !== 'activity') return []
-    if (entry.value.kind !== 'map') {
+    if (entry.value.kind !== 'mapping') {
       this.add('field-type', path, entry.value, `result 应该是映射，而不是${describe(entry.value)}`)
       return []
     }
@@ -899,7 +899,7 @@ class FieldReader {
   private list(key: string): Located<string>[] {
     const entry = this.entries.get(key)
     if (entry === undefined) return []
-    if (entry.value.kind !== 'seq') {
+    if (entry.value.kind !== 'sequence') {
       this.add('field-type', entry.value, `${key} 应该是列表，而不是${describe(entry.value)}`)
       return []
     }
@@ -931,7 +931,7 @@ class FieldReader {
   intensities(): Intensity[] {
     const entry = this.entries.get('intensities')
     const list = this.list('intensities')
-    if (entry !== undefined && entry.value.kind === 'seq' && entry.value.items.length === 0) {
+    if (entry !== undefined && entry.value.kind === 'sequence' && entry.value.items.length === 0) {
       this.add('field-format', entry.value, 'intensities 不能是空列表')
     }
     const out: Intensity[] = []
@@ -957,7 +957,7 @@ class FieldReader {
   private mapOf(key: string): YamlMap | undefined {
     const entry = this.entries.get(key)
     if (entry === undefined) return undefined
-    if (entry.value.kind !== 'map') {
+    if (entry.value.kind !== 'mapping') {
       this.add('field-type', entry.value, `${key} 应该是映射，而不是${describe(entry.value)}`)
       return undefined
     }
@@ -1078,12 +1078,12 @@ class FieldReader {
 
   private requiredWhen(entry: YamlEntry): { field: string; values: Located<string>[] } | undefined {
     const node = entry.value
-    if (node.kind !== 'map' || node.entries.length !== 1) {
+    if (node.kind !== 'mapping' || node.entries.length !== 1) {
       this.add('required-when', node, 'required_when 写成 { 字段名: [取值, …] }，只能有一个字段')
       return undefined
     }
     const only = node.entries[0]!
-    if (only.value.kind !== 'seq' || only.value.items.length === 0) {
+    if (only.value.kind !== 'sequence' || only.value.items.length === 0) {
       this.add('required-when', only.value, 'required_when 的取值应该是非空列表')
       return undefined
     }
@@ -1106,7 +1106,7 @@ class FieldReader {
     const node = entry.value
     const what = kind === 'param' ? `参数 ${entry.key}` : `结果字段 ${entry.key}`
     const semantic: BlockIssueCode = kind === 'param' ? 'field-format' : 'result-field'
-    if (node.kind !== 'map') {
+    if (node.kind !== 'mapping') {
       this.add('field-type', node, `${what} 应该写成 { type: …, … } 的映射`)
       return undefined
     }
@@ -1168,7 +1168,7 @@ class FieldReader {
         )
         return undefined
       }
-      if (values.value.kind !== 'seq' || values.value.items.length === 0) {
+      if (values.value.kind !== 'sequence' || values.value.items.length === 0) {
         this.add(semantic, values.value, `${what} 的 values 应该是非空列表`)
         return undefined
       }
@@ -1219,7 +1219,7 @@ class FieldReader {
   /** Values given to parameters, in a step, an override or an example. */
   assignments(entry: YamlEntry | undefined): ParamAssignment[] {
     if (entry === undefined) return []
-    if (entry.value.kind !== 'map') {
+    if (entry.value.kind !== 'mapping') {
       this.add('field-type', entry.value, `params 应该是映射，而不是${describe(entry.value)}`)
       return []
     }
@@ -1249,7 +1249,7 @@ class FieldReader {
   steps(level: BlockLevel): Step[] {
     const entry = this.entries.get('steps')
     if (entry === undefined || level === 'primitive') return []
-    if (entry.value.kind !== 'seq') {
+    if (entry.value.kind !== 'sequence') {
       this.add('field-type', entry.value, `steps 应该是列表，而不是${describe(entry.value)}`)
       return []
     }
@@ -1258,7 +1258,7 @@ class FieldReader {
     }
     const steps: Step[] = []
     for (const item of entry.value.items) {
-      if (item.kind !== 'map') {
+      if (item.kind !== 'mapping') {
         this.add('field-type', item, '每一步都写成 "use: 积木" 的映射')
         continue
       }
@@ -1335,7 +1335,7 @@ class FieldReader {
     const overrides: StepOverride[] = []
     const overridesEntry = level === 'activity' ? undefined : fields.get('overrides')
     if (overridesEntry !== undefined) {
-      if (overridesEntry.value.kind !== 'map') {
+      if (overridesEntry.value.kind !== 'mapping') {
         this.add(
           'field-type',
           overridesEntry.value,
@@ -1343,7 +1343,7 @@ class FieldReader {
         )
       } else {
         for (const override of overridesEntry.value.entries) {
-          if (override.value.kind !== 'map') {
+          if (override.value.kind !== 'mapping') {
             this.add('field-type', override.value, `overrides.${override.key} 应该是映射`)
             continue
           }

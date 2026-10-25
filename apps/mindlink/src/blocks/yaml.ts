@@ -23,14 +23,14 @@ export interface YamlEntry {
 }
 
 export interface YamlMap {
-  readonly kind: 'map'
+  readonly kind: 'mapping'
   readonly entries: readonly YamlEntry[]
   readonly line: number
   readonly column: number
 }
 
 export interface YamlSeq {
-  readonly kind: 'seq'
+  readonly kind: 'sequence'
   readonly items: readonly YamlNode[]
   readonly line: number
   readonly column: number
@@ -114,7 +114,7 @@ export function parseYaml(source: readonly string[], firstLine: number): YamlRes
   try {
     const lines = linesOf(source, firstLine)
     if (lines.length === 0) {
-      return { ok: true, value: { kind: 'map', entries: [], line: firstLine, column: 1 } }
+      return { ok: true, value: { kind: 'mapping', entries: [], line: firstLine, column: 1 } }
     }
     const parser = new BlockParser(lines)
     const first = lines[0]!
@@ -191,7 +191,7 @@ class BlockParser {
       }
       entries.push({ key, line: line.line, column, value })
     }
-    return { kind: 'map', entries, line: start.line, column: start.indent + 1 }
+    return { kind: 'mapping', entries, line: start.line, column: start.indent + 1 }
   }
 
   private seq(indent: number): YamlSeq {
@@ -221,7 +221,7 @@ class BlockParser {
         this.index++
       }
     }
-    return { kind: 'seq', items, line: start.line, column: start.indent + 1 }
+    return { kind: 'sequence', items, line: start.line, column: start.indent + 1 }
   }
 }
 
@@ -279,7 +279,7 @@ class FlowReader {
     this.skipSpaces()
     if (this.text[this.at] === ']') {
       this.at++
-      return { kind: 'seq', items, line: this.line, column }
+      return { kind: 'sequence', items, line: this.line, column }
     }
     for (;;) {
       items.push(this.value(true))
@@ -291,7 +291,7 @@ class FlowReader {
       }
       if (char === ']') {
         this.at++
-        return { kind: 'seq', items, line: this.line, column }
+        return { kind: 'sequence', items, line: this.line, column }
       }
       this.fail('列表缺少 "," 或 "]"；流式列表必须写在一行里')
     }
@@ -305,7 +305,7 @@ class FlowReader {
     this.skipSpaces()
     if (this.text[this.at] === '}') {
       this.at++
-      return { kind: 'map', entries, line: this.line, column }
+      return { kind: 'mapping', entries, line: this.line, column }
     }
     for (;;) {
       this.skipSpaces()
@@ -329,7 +329,7 @@ class FlowReader {
       }
       if (char === '}') {
         this.at++
-        return { kind: 'map', entries, line: this.line, column }
+        return { kind: 'mapping', entries, line: this.line, column }
       }
       this.fail('映射缺少 "," 或 "}"；流式映射必须写在一行里')
     }
