@@ -25,6 +25,7 @@ export {
   type PublicationQuery,
   type PublicationReader,
   type PublicationSummary,
+  type PublicationView,
 } from './publications.js'
 export {
   featureRecords,
