@@ -17,6 +17,11 @@ export const USAGE = `usage:
   mindlink serve [--local] [--graph <file>] [--port <n>] [--host <h>]
   mindlink serve --shared --users <file> --public-origin <url> [--sharing] [--graph <file>] [--port <n>] [--host <h>]`
 
+/** Whether the command line asks for the usage: `--help`, `-h` or `help`, before or after `serve`. */
+export function wantsHelp(argv: readonly string[]): boolean {
+  return argv.some((arg) => arg === '--help' || arg === '-h' || arg === 'help')
+}
+
 /** Reads `serve`'s flags into start options. Throws with the usage on anything it does not understand. */
 export function parseServeArgs(argv: readonly string[]): StartOptions {
   const { values, positionals } = parseArgs({
@@ -64,6 +69,11 @@ export function parseServeArgs(argv: readonly string[]): StartOptions {
 }
 
 async function main(argv: readonly string[]): Promise<void> {
+  if (wantsHelp(argv)) {
+    process.stdout.write(`${USAGE}
+`)
+    return
+  }
   let options: StartOptions
   try {
     options = parseServeArgs(argv)
