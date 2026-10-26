@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { ApiError, createClient, messageOf, type Fetch } from '../../apps/mindlink/web/client.js'
-import { REFUSAL_TEXT } from '../../apps/mindlink/web/refusals.js'
+import {
+  ApiError,
+  createClient,
+  messageOf,
+  type Fetch,
+} from '../../apps/mindlink/web/src/client.js'
+import { REFUSAL_TEXT } from '../../apps/mindlink/web/src/refusals.js'
 
 interface Sent {
   readonly path: string

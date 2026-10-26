@@ -4,12 +4,13 @@ import { tmpdir } from 'node:os'
 import { dirname, join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { importsOf } from '../architecture/check.js'
 
 /**
- * `mindlink serve --local` serves the front end at `/`: the page, and every module it loads, transitively.
+ * `mindlink serve --local` serves the built front end (`apps/mindlink/web/dist`) at `/`: the page, and every
+ * script, stylesheet and chunk it loads, transitively.
  *
- * Runs the built CLI as a person would, so what is checked is what ships.
+ * Runs the built CLI and the built page as a person would (`pnpm test` builds both first), so what is checked is
+ * what ships.
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -64,6 +65,13 @@ function referencesOf(html: string, from: string): string[] {
   return found
 }
 
+/** Every module a built script loads by a relative path, statically or not (Vite's chunks, minified). */
+function modulesOf(script: string): string[] {
+  return [...script.matchAll(/\b(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g)].map(
+    (match) => match[1]!,
+  )
+}
+
 describe('mindlink serve --local', () => {
   it('serves index.html at /, with the person’s session cookie', async () => {
     const response = await fetch(`${origin}/`)
@@ -72,10 +80,10 @@ describe('mindlink serve --local', () => {
     expect(response.headers.get('set-cookie')).toMatch(/^episteme_session=/)
     const html = await response.text()
     expect(html).toContain('<div id="app">')
-    expect(html).toMatch(/<script type="module" src="\.\/main\.js">/)
+    expect(html).toMatch(/<script type="module" crossorigin src="\.\/assets\/index-[\w-]+\.js">/)
   })
 
-  it('serves every file the page references and every module they import', async () => {
+  it('serves every file the page references and every module they load', async () => {
     const html = await (await fetch(`${origin}/`)).text()
     const pending = referencesOf(html, '/index.html')
     const seen = new Set<string>()
@@ -85,26 +93,21 @@ describe('mindlink serve --local', () => {
       seen.add(path)
       const response = await fetch(`${origin}${path}`)
       expect(response.status, path).toBe(200)
+      if (path.endsWith('.css')) {
+        expect(response.headers.get('content-type'), path).toMatch(/^text\/css/)
+      }
       if (!path.endsWith('.js')) continue
       expect(response.headers.get('content-type'), path).toMatch(/^text\/javascript/)
-      for (const specifier of importsOf(await response.text())) {
-        expect(
-          specifier.startsWith('.'),
-          `${path} imports ${specifier}; the front end has no bundler`,
-        ).toBe(true)
+      for (const specifier of modulesOf(await response.text())) {
         pending.push(posix.normalize(posix.join(posix.dirname(path), specifier)))
       }
     }
-    for (const module of [
-      '/main.js',
-      '/shell.js',
-      '/client.js',
-      '/router.js',
-      '/components/dom.js',
-    ]) {
-      expect(seen).toContain(module)
-    }
-    expect(seen).toContain('/style.css')
+    expect([...seen].some((path) => /^\/assets\/index-[\w-]+\.js$/.test(path))).toBe(true)
+    expect([...seen].some((path) => /^\/assets\/index-[\w-]+\.css$/.test(path))).toBe(true)
+  })
+
+  it('serves no source, only what was built', async () => {
+    expect((await fetch(`${origin}/src/main.ts`)).status).toBe(404)
   })
 
   it('answers the vocabulary the shell reads, in the shape it expects', async () => {
