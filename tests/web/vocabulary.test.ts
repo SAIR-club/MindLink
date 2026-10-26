@@ -1,13 +1,16 @@
+// @vitest-environment happy-dom
+import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { form, levelField } from '../../apps/mindlink/web/components/form.js'
+import FormView from '../../apps/mindlink/web/src/components/FormView.vue'
+import { levelField } from '../../apps/mindlink/web/src/form.js'
 import {
   dimensionOptions,
   dimensionText,
   levelOptions,
   levelText,
   vocabularyOf,
-} from '../../apps/mindlink/web/vocabulary.js'
-import { FakeDocument, asDocument, byTag, fake } from './fake-dom.js'
+  type Vocabulary,
+} from '../../apps/mindlink/web/src/vocabulary.js'
 
 /** An answer from `GET /api/v1/vocabulary`, in the shape Episteme's `VocabularyDimension` documents. */
 const ANSWER = {
@@ -36,16 +39,20 @@ const ANSWER = {
   ],
 }
 
+/** The level select a form offers for `learn.mastery`, holding `value`. */
+function select(vocabulary: Vocabulary, value?: string): HTMLSelectElement {
+  const form = mount(FormView, {
+    props: {
+      fields: [levelField(vocabulary, 'learn.mastery', value === undefined ? {} : { value })],
+      submit: () => {},
+    },
+  })
+  return form.get('select').element
+}
+
 /** The level options a form built from `answer` offers. */
 function offered(answer: Record<string, unknown>): string[] {
-  const doc = new FakeDocument()
-  const node = fake(
-    form(asDocument(doc), {
-      fields: [levelField(vocabularyOf(answer), 'learn.mastery')],
-      onSubmit: () => {},
-    }),
-  )
-  return byTag(node, 'option').map((option) => option.getAttribute('value') ?? '')
+  return [...select(vocabularyOf(answer)).options].map((option) => option.value)
 }
 
 describe('the vocabulary', () => {
@@ -95,18 +102,8 @@ describe('the vocabulary', () => {
 
   it('selects a held level only when it is still offered', () => {
     const vocabulary = vocabularyOf(ANSWER)
-    const select = (value: string) =>
-      byTag(
-        fake(
-          form(asDocument(new FakeDocument()), {
-            fields: [levelField(vocabulary, 'learn.mastery', { value })],
-            onSubmit: () => {},
-          }),
-        ),
-        'select',
-      )[0]?.value
-    expect(select('solid')).toBe('solid')
-    expect(select('shaky')).toBe('none')
+    expect(select(vocabulary, 'solid').value).toBe('solid')
+    expect(select(vocabulary, 'shaky').value).toBe('none')
   })
 
   it('drops what does not have the documented shape', () => {

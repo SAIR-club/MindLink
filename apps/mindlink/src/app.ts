@@ -35,8 +35,11 @@ export const tools: readonly SceneTool[] = [...projectTools, ...workflowTools()]
 /** Every feature's REST routes, served under `/api/v1/scene/mindlink`. */
 export const routes: readonly SceneRoute[] = [...projectRoutes, ...workflowRoutes()]
 
-/** The front end (`apps/mindlink/web`), served at `/`. Beside `src` and `dist` alike, so either finds it. */
-export const WEB = fileURLToPath(new URL('../web', import.meta.url))
+/**
+ * The built front end (`apps/mindlink/web/dist`, from `vite build web`), served at `/`. Beside `src` and `dist`
+ * alike, so either finds it.
+ */
+export const WEB = fileURLToPath(new URL('../web/dist', import.meta.url))
 
 export type StartOptions = Omit<LaunchOptions, 'scene' | 'tools' | 'routes'>
 

@@ -14,5 +14,11 @@
     "@episteme/service": "link:../../Episteme/apps/service",
     "@mindlink/app": "workspace:*",
     "@mindlink/platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@vue/test-utils": "2.5.1",
+    "happy-dom": "20.14.5",
+    "vue": "3.5.43",
+    "vue-router": "4.6.4"
   }
 }
