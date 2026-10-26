@@ -8,45 +8,50 @@ import { API } from './client.js'
  * never offered for new input.
  */
 
-/**
- * @typedef {{ readonly id: string, readonly legacy: boolean }} Level
- * @typedef {{
- *   readonly id: string,
- *   readonly label: string,
- *   readonly kind: string,
- *   readonly recordable: boolean,
- *   readonly levels: readonly Level[],
- * }} Dimension
- * @typedef {{ readonly dimensions: readonly Dimension[] }} Vocabulary
- * @typedef {{ readonly value: string, readonly label: string }} Option
- */
+export interface Level {
+  readonly id: string
+  readonly legacy: boolean
+}
+
+export interface Dimension {
+  readonly id: string
+  readonly label: string
+  readonly kind: string
+  readonly recordable: boolean
+  readonly levels: readonly Level[]
+}
+
+export interface Vocabulary {
+  readonly dimensions: readonly Dimension[]
+}
+
+export interface Option {
+  readonly value: string
+  readonly label: string
+}
 
 export const VOCABULARY_PATH = `${API}/vocabulary`
 
 /**
  * The vocabulary in an answer from the service. Anything that does not have the documented shape is dropped
  * rather than shown half-read.
- * @param {Readonly<Record<string, unknown>>} answer
- * @returns {Vocabulary}
  */
-export function vocabularyOf(answer) {
+export function vocabularyOf(answer: Readonly<Record<string, unknown>>): Vocabulary {
   const field = answer['dimensions']
-  /** @type {readonly unknown[]} */
-  const raw = Array.isArray(field) ? field : []
-  /** @type {Dimension[]} */
-  const dimensions = []
+  const raw: readonly unknown[] = Array.isArray(field) ? field : []
+  const dimensions: Dimension[] = []
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue
-    const { id, label, kind, recordable, levels } = /** @type {Record<string, unknown>} */ (item)
+    const { id, label, kind, recordable, levels } = item as Record<string, unknown>
     if (typeof id !== 'string' || !Array.isArray(levels)) continue
     dimensions.push({
       id,
       label: typeof label === 'string' && label !== '' ? label : id,
       kind: typeof kind === 'string' ? kind : '',
       recordable: recordable === true,
-      levels: /** @type {readonly unknown[]} */ (levels).flatMap((level) => {
+      levels: (levels as readonly unknown[]).flatMap((level) => {
         if (typeof level !== 'object' || level === null) return []
-        const { id: levelId, legacy } = /** @type {Record<string, unknown>} */ (level)
+        const { id: levelId, legacy } = level as Record<string, unknown>
         return typeof levelId === 'string' ? [{ id: levelId, legacy: legacy === true }] : []
       }),
     })
@@ -54,22 +59,15 @@ export function vocabularyOf(answer) {
   return { dimensions }
 }
 
-/**
- * @param {Vocabulary} vocabulary
- * @param {string} dimensionId
- * @returns {Dimension | undefined}
- */
-export function dimensionOf(vocabulary, dimensionId) {
+export function dimensionOf(vocabulary: Vocabulary, dimensionId: string): Dimension | undefined {
   return vocabulary.dimensions.find((dimension) => dimension.id === dimensionId)
 }
 
-/**
- * The dimensions to choose from, by their registered names. By default only those a person may record by hand.
- * @param {Vocabulary} vocabulary
- * @param {{ readonly recordableOnly?: boolean }} [options]
- * @returns {readonly Option[]}
- */
-export function dimensionOptions(vocabulary, { recordableOnly = true } = {}) {
+/** The dimensions to choose from, by their registered names. By default only those a person may record by hand. */
+export function dimensionOptions(
+  vocabulary: Vocabulary,
+  { recordableOnly = true }: { readonly recordableOnly?: boolean } = {},
+): readonly Option[] {
   return vocabulary.dimensions
     .filter((dimension) => !recordableOnly || dimension.recordable)
     .map((dimension) => ({ value: dimension.id, label: dimension.label }))
@@ -78,11 +76,8 @@ export function dimensionOptions(vocabulary, { recordableOnly = true } = {}) {
 /**
  * The levels to choose from for new input on one dimension: every registered level but the legacy ones, in
  * registration order.
- * @param {Vocabulary} vocabulary
- * @param {string} dimensionId
- * @returns {readonly Option[]}
  */
-export function levelOptions(vocabulary, dimensionId) {
+export function levelOptions(vocabulary: Vocabulary, dimensionId: string): readonly Option[] {
   const dimension = dimensionOf(vocabulary, dimensionId)
   if (dimension === undefined) return []
   return dimension.levels
@@ -93,22 +88,13 @@ export function levelOptions(vocabulary, dimensionId) {
 /**
  * How a level the graph holds is shown: as registered, marked when it is legacy so a person knows it can no
  * longer be chosen.
- * @param {Vocabulary} vocabulary
- * @param {string} dimensionId
- * @param {string} levelId
- * @returns {string}
  */
-export function levelText(vocabulary, dimensionId, levelId) {
+export function levelText(vocabulary: Vocabulary, dimensionId: string, levelId: string): string {
   const level = dimensionOf(vocabulary, dimensionId)?.levels.find((each) => each.id === levelId)
   return level?.legacy === true ? `${levelId}（旧等级，不能再选）` : levelId
 }
 
-/**
- * How a dimension is shown: its registered name, or its id when the vocabulary no longer lists it.
- * @param {Vocabulary} vocabulary
- * @param {string} dimensionId
- * @returns {string}
- */
-export function dimensionText(vocabulary, dimensionId) {
+/** How a dimension is shown: its registered name, or its id when the vocabulary no longer lists it. */
+export function dimensionText(vocabulary: Vocabulary, dimensionId: string): string {
   return dimensionOf(vocabulary, dimensionId)?.label ?? dimensionId
 }
