@@ -1,4 +1,4 @@
-import { parseServeArgs } from '@mindlink/app/cli'
+import { parseServeArgs, wantsHelp } from '@mindlink/app/cli'
 import { describe, expect, it } from 'vitest'
 
 describe('mindlink serve', () => {
@@ -53,5 +53,13 @@ describe('mindlink serve', () => {
     expect(() => parseServeArgs(['serve', '--verbose'])).toThrow()
     expect(() => parseServeArgs(['serve', '--port', 'eighty'])).toThrow(/must be a port number/)
     expect(() => parseServeArgs([])).toThrow(/usage/)
+  })
+
+  it('recognises a request for the usage, before or after serve', () => {
+    expect(wantsHelp(['--help'])).toBe(true)
+    expect(wantsHelp(['-h'])).toBe(true)
+    expect(wantsHelp(['help'])).toBe(true)
+    expect(wantsHelp(['serve', '--help'])).toBe(true)
+    expect(wantsHelp(['serve', '--port', '4400'])).toBe(false)
   })
 })
