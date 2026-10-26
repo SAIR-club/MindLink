@@ -5,6 +5,8 @@ import { addPerson, addToken } from '@episteme/service'
 import { startMindLink } from '@mindlink/app'
 import type { Launched } from '@mindlink/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createClient, type Fetch } from '../../apps/mindlink/web/src/client.js'
+import { projectApi } from '../../apps/mindlink/web/src/features/project/project.js'
 
 /**
  * Learning projects through the running service (MindLink#10): two people on one shared deployment, each with a
@@ -215,5 +217,57 @@ describe('projects over MCP', () => {
     expect(JSON.stringify(refused)).toContain('must NOT have additional properties')
     const shown = await rest(tokens.linHuman, 'GET', `/projects/show?id=${id}`)
     expect(shown.body['project']).toMatchObject({ delegation: false })
+  })
+})
+
+describe('projects through the pages’ data calls', () => {
+  /** The calls the project pages make, over the pages' own request client, signed in as `token`. */
+  function pages(token: string) {
+    const fetcher: Fetch = (path, init) =>
+      fetch(`${service.url}${path}`, {
+        ...init,
+        headers: { ...(init.headers as Record<string, string>), authorization: `Bearer ${token}` },
+      })
+    return projectApi(createClient({ fetch: fetcher }))
+  }
+
+  it('creates, lists, changes settings, archives and restores, and the agent opens what was made', async () => {
+    const lin = pages(tokens.linHuman)
+    const made = await lin.create({ title: '线性代数', course: ' MATH101 ', goalType: 'speedrun' })
+    expect(made).toMatchObject({
+      title: '线性代数',
+      course: 'MATH101',
+      workflowId: 'builtin:speedrun',
+      guidance: 'hint',
+      archived: false,
+    })
+    expect(await lin.list(false)).toEqual([made])
+    expect(await pages(tokens.meiHuman).list(true)).toEqual([])
+
+    const changed = await lin.update(made.id, {
+      course: null,
+      guidance: 'tell',
+      workflowId: 'builtin:deep',
+    })
+    expect(changed.course).toBeUndefined()
+    expect(changed).toMatchObject({ guidance: 'tell', workflowId: 'builtin:deep' })
+    expect(await lin.show(made.id)).toEqual(changed)
+
+    await lin.archive(made.id, true)
+    expect(await lin.list(false)).toEqual([])
+    expect(await lin.list(true)).toEqual([expect.objectContaining({ id: made.id, archived: true })])
+    await expect(lin.update(made.id, { title: '改名' })).rejects.toMatchObject({
+      code: 'project_archived',
+      message: '这个学习项目已经归档，不能再修改。',
+    })
+    await lin.archive(made.id, false)
+    expect(await lin.list(false)).toEqual([
+      expect.objectContaining({ id: made.id, archived: false }),
+    ])
+    await expect(lin.show('nowhere')).rejects.toMatchObject({ code: 'project_not_found' })
+
+    const fresh = await lin.create({ title: '概率论', course: '', goalType: 'speedrun' })
+    const opened = await agent(tokens.linAgent, 'claude-code')('project_open', { id: fresh.id })
+    expect(opened.structuredContent?.['project']).toMatchObject({ workflowId: 'builtin:speedrun' })
   })
 })
