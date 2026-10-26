@@ -26,12 +26,22 @@
     "mindlink": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -b",
-    "typecheck": "tsc -b",
-    "serve": "tsc -b && node dist/cli.js serve"
+    "build": "tsc -b && vite build web",
+    "typecheck": "tsc -b && vue-tsc -p web/tsconfig.json",
+    "build:web": "vite build web",
+    "typecheck:web": "vue-tsc -p web/tsconfig.json",
+    "dev:web": "vite web",
+    "serve": "tsc -b && vite build web && node dist/cli.js serve"
   },
   "dependencies": {
     "@episteme/domain-learn": "workspace:*",
-    "@mindlink/platform": "workspace:*"
+    "@mindlink/platform": "workspace:*",
+    "vue": "3.5.43",
+    "vue-router": "4.6.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "6.0.9",
+    "vite": "7.3.6",
+    "vue-tsc": "3.3.11"
   }
 }

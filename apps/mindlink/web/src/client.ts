@@ -17,43 +17,45 @@ export const SCENE_API = `${API}/scene/mindlink`
 /** A request the service refused or could not answer. `message` is for the person; `detail` for a report. */
 export class ApiError extends Error {
   /**
-   * @param {number} status the HTTP status, or 0 when no answer came back
-   * @param {string} code the refusal code
-   * @param {string} [detail] the service's own English message
+   * @param status the HTTP status, or 0 when no answer came back
+   * @param code the refusal code
+   * @param detail the service's own English message
    */
-  constructor(status, code, detail = '') {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    readonly detail = '',
+  ) {
     super(refusalText(code))
     this.name = 'ApiError'
-    this.status = status
-    this.code = code
-    this.detail = detail
   }
 }
 
-/**
- * @typedef {(input: string, init: RequestInit) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>} Fetch
- * @typedef {{
- *   get(path: string): Promise<Record<string, unknown>>,
- *   post(path: string, body?: Readonly<Record<string, unknown>>): Promise<Record<string, unknown>>,
- * }} Client
- */
+export type Fetch = (
+  input: string,
+  init: RequestInit,
+) => Promise<Pick<Response, 'ok' | 'status' | 'json'>>
 
-/**
- * @param {{ fetch: Fetch, onUnauthenticated?: (error: ApiError) => void }} options
- * @returns {Client}
- */
-export function createClient({ fetch, onUnauthenticated = () => {} }) {
-  /**
-   * @param {'GET' | 'POST'} method
-   * @param {string} path
-   * @param {Readonly<Record<string, unknown>>} [body]
-   * @returns {Promise<Record<string, unknown>>}
-   */
-  async function request(method, path, body) {
-    /** @type {Record<string, string>} */
-    const headers = { accept: 'application/json' }
+export interface Client {
+  get(path: string): Promise<Record<string, unknown>>
+  post(path: string, body?: Readonly<Record<string, unknown>>): Promise<Record<string, unknown>>
+}
+
+export function createClient({
+  fetch,
+  onUnauthenticated = () => {},
+}: {
+  readonly fetch: Fetch
+  readonly onUnauthenticated?: (error: ApiError) => void
+}): Client {
+  async function request(
+    method: 'GET' | 'POST',
+    path: string,
+    body?: Readonly<Record<string, unknown>>,
+  ): Promise<Record<string, unknown>> {
+    const headers: Record<string, string> = { accept: 'application/json' }
     if (body !== undefined) headers['content-type'] = 'application/json'
-    let response
+    let response: Awaited<ReturnType<Fetch>>
     try {
       response = await fetch(path, {
         method,
@@ -64,8 +66,7 @@ export function createClient({ fetch, onUnauthenticated = () => {} }) {
     } catch (error) {
       throw new ApiError(0, 'network', error instanceof Error ? error.message : String(error))
     }
-    /** @type {unknown} */
-    let payload
+    let payload: unknown
     try {
       payload = await response.json()
     } catch {
@@ -73,7 +74,7 @@ export function createClient({ fetch, onUnauthenticated = () => {} }) {
     }
     const object =
       typeof payload === 'object' && payload !== null && !Array.isArray(payload)
-        ? /** @type {Record<string, unknown>} */ (payload)
+        ? (payload as Record<string, unknown>)
         : undefined
     if (response.ok) {
       if (object === undefined) throw new ApiError(response.status, 'bad_response')
@@ -93,24 +94,21 @@ export function createClient({ fetch, onUnauthenticated = () => {} }) {
   }
 }
 
-/**
- * The code an answer without one stands for, such as a proxy's own error page.
- * @param {number} status
- * @returns {string}
- */
-function codeOfStatus(status) {
+/** The code an answer without one stands for, such as a proxy's own error page. */
+function codeOfStatus(status: number): string {
   if (status === 401) return 'unauthenticated'
   if (status === 404) return 'no_route'
   if (status >= 500) return 'internal'
   return 'bad_response'
 }
 
-/**
- * What to tell a person about anything a page threw: a refusal's text, or that the page itself failed.
- * @param {unknown} error
- * @returns {string}
- */
-export function messageOf(error) {
+/** What to tell a person about anything a page threw: a refusal's text, or that the page itself failed. */
+export function messageOf(error: unknown): string {
   if (error instanceof ApiError) return error.message
   return '页面出了问题，请刷新后再试。'
+}
+
+/** A refusal's code, for a report, or `undefined` when what was thrown is not a refusal. */
+export function codeOf(error: unknown): string | undefined {
+  return error instanceof ApiError ? error.code : undefined
 }

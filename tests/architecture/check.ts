@@ -11,9 +11,13 @@ import { posix } from 'node:path'
  * 3. A module is imported only through its public entry: a package by its name or a declared export, never its
  *    testing entry from source; an app feature by its `index`.
  * 4. A feature's MCP tools and REST routes (`mcp.ts`, `routes.ts`) are imported only by the assembly.
- * 5. A page under `web/<feature>/` imports only its own feature's pages and the shared shell.
+ * 5. A feature's pages, under `<web>/features/<feature>/`, import only their own feature's files and the shared
+ *    shell (everything under `<web>` outside `features/`); nothing under `<web>` imports past it.
  * 6. Only the modules listed under `episteme` import `@episteme/*`, and only the packages listed for them; the
- *    block engine names no built-in block; pages never write HTML (`innerHTML` and its relatives).
+ *    block engine names no built-in block; the front end never writes HTML (`v-html`, `innerHTML` and its
+ *    relatives), in `.vue` and `.ts` alike.
+ *
+ * `<web>` is `architecture.json`'s `web`: the front end's source, `apps/mindlink/web/src`.
  */
 
 export interface ArchitectureConfig {
@@ -39,11 +43,20 @@ export interface Violation {
 }
 
 const SOURCE = /\.(ts|js|mjs)$/
-const HTML_WRITERS = /\b(innerHTML|outerHTML|insertAdjacentHTML)\b/
+const WEB_SOURCE = /\.(ts|js|mjs|vue)$/
+const HTML_WRITERS = /\bv-html\b|\b(innerHTML|outerHTML|insertAdjacentHTML)\b/i
 
-/** Removes comments, so a path in prose is not mistaken for an import. */
+/** Removes comments (and a template's `<!-- -->`), so a path in prose is not mistaken for an import. */
 function stripComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^\s*\/\/.*$/gm, '')
+}
+
+/** The feature a front-end file belongs to, from its path inside `<web>`, or `undefined` for the shell. */
+function featureOf(inside: readonly string[]): string | undefined {
+  return inside[0] === 'features' && inside.length > 2 ? inside[1] : undefined
 }
 
 /** Every module specifier the file imports or re-exports, static or dynamic. */
@@ -94,9 +107,8 @@ function isPublicEntry(file: string, module: string): boolean {
 }
 
 function isSourceFile(file: string, config: ArchitectureConfig): boolean {
-  if (!SOURCE.test(file)) return false
-  if (file.startsWith(`${config.web}/`)) return true
-  return /^(packages|apps)\/[^/]+\/src\//.test(file)
+  if (file.startsWith(`${config.web}/`)) return WEB_SOURCE.test(file)
+  return SOURCE.test(file) && /^(packages|apps)\/[^/]+\/src\//.test(file)
 }
 
 export function check(
@@ -119,18 +131,24 @@ export function check(
 
     if (isWeb) {
       if (HTML_WRITERS.test(stripComments(text))) {
-        report(6, file, 'writes HTML; build the DOM with textContent')
+        report(6, file, 'writes HTML; show text with {{ }} or textContent')
       }
-      const own = file.slice(config.web.length + 1).split('/')
-      const feature = own.length > 1 ? own[0] : undefined
+      const feature = featureOf(file.slice(config.web.length + 1).split('/'))
       for (const specifier of importsOf(text)) {
         if (!specifier.startsWith('.')) continue
         const target = resolveRelative(file, specifier, paths)
-        const rest = target.startsWith(`${config.web}/`)
-          ? target.slice(config.web.length + 1).split('/')
-          : []
-        const targetFeature = rest.length > 1 && rest[0] !== 'components' ? rest[0] : undefined
-        if (targetFeature !== undefined && targetFeature !== feature) {
+        if (!target.startsWith(`${config.web}/`)) {
+          report(5, file, `imports ${specifier}, outside the front end; reach it through REST`)
+          continue
+        }
+        const inside = target.slice(config.web.length + 1).split('/')
+        const targetFeature = featureOf(inside)
+        // The registry of features imports each feature's entry, and nothing else of it.
+        const registering =
+          file === `${config.web}/features/index.ts` &&
+          inside.length === 3 &&
+          /^index\.(ts|js)$/.test(inside[2] ?? '')
+        if (targetFeature !== undefined && targetFeature !== feature && !registering) {
           report(
             5,
             file,
