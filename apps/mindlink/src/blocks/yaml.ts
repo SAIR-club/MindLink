@@ -65,33 +65,43 @@ interface Line {
   readonly line: number
 }
 
-const KEY = /^([A-Za-z0-9_][A-Za-z0-9_-]*)[ ]*:(?:[ ]+(.*))?$/
-const MAP_START = /^[A-Za-z0-9_][A-Za-z0-9_-]*[ ]*:(?:[ ]|$)/
+/** A key: block keys, the start of `- key: value`, and flow-mapping keys all share it. */
+const NAME = '[A-Za-z0-9_][A-Za-z0-9_-]*'
+const KEY = new RegExp(`^(${NAME})[ ]*:(?:[ ]+(.*))?$`)
+const MAP_START = new RegExp(`^${NAME}[ ]*:(?:[ ]|$)`)
+/** Sticky, so a flow-mapping key is matched where the reader stands, without copying the rest of the line. */
+const FLOW_KEY = new RegExp(NAME, 'y')
 
-/** Where a `#` starts a comment: at the start, or after a space, and not inside a quoted scalar. */
+/** The characters after which a quote opens a scalar, rather than sitting inside a plain one like `it's`. */
+const OPENS_SCALAR_AFTER = new Set([':', '-', '[', '{', ','])
+
+/**
+ * Where a `#` starts a comment: at the start, or after a space, and not inside a quoted scalar.
+ *
+ * One pass: whether a quote opens a scalar depends only on the last non-blank character before it, which is kept as
+ * the scan goes rather than recomputed from the start of the line at every quote.
+ */
 function stripComment(text: string): string {
   let quote: '"' | "'" | undefined
   let previous = ''
+  let lastNonBlank: string | undefined
   for (let index = 0; index < text.length; index++) {
     const char = text[index]!
     if (quote === undefined) {
       if (char === '#' && (index === 0 || previous === ' ')) return text.slice(0, index)
-      if ((char === '"' || char === "'") && opensScalar(text, index)) quote = char
+      const opens = lastNonBlank === undefined || OPENS_SCALAR_AFTER.has(lastNonBlank)
+      if ((char === '"' || char === "'") && opens) quote = char
     } else if (quote === '"' && char === '\\') {
+      // The escaped character is inside the scalar: it can be neither the scalar's end nor what a later quote follows.
       index++
     } else if (char === quote) {
       if (quote === "'" && text[index + 1] === "'") index++
       else quote = undefined
     }
+    if (!/\s/.test(char)) lastNonBlank = char
     previous = char
   }
   return text
-}
-
-/** Whether a quote at `index` begins a scalar rather than sitting inside a plain one, like the `'` in `it's`. */
-function opensScalar(text: string, index: number): boolean {
-  const before = text.slice(0, index).trimEnd()
-  return before === '' || /[:\-[{,]$/.test(before)
 }
 
 function linesOf(source: readonly string[], firstLine: number): Line[] {
@@ -153,14 +163,19 @@ class BlockParser {
     return isSeqItem(line.text) ? this.seq(indent) : this.map(indent)
   }
 
+  /** The next line of a block at `indent`, or `undefined` once the block has ended. Deeper lines are an error. */
+  private nextAt(indent: number): Line | undefined {
+    const line = this.lines[this.index]
+    if (line === undefined || line.indent < indent) return undefined
+    if (line.indent > indent) throw new SyntaxProblem(line.line, line.indent + 1, '缩进不对')
+    return line
+  }
+
   map(indent: number): YamlMap {
     const start = this.lines[this.index]!
     const entries: YamlEntry[] = []
     const seen = new Set<string>()
-    while (this.index < this.lines.length) {
-      const line = this.lines[this.index]!
-      if (line.indent < indent) break
-      if (line.indent > indent) throw new SyntaxProblem(line.line, line.indent + 1, '缩进不对')
+    for (let line = this.nextAt(indent); line !== undefined; line = this.nextAt(indent)) {
       if (isSeqItem(line.text)) {
         throw new SyntaxProblem(line.line, line.indent + 1, '这里应该是"键: 值"，不是列表项')
       }
@@ -197,10 +212,7 @@ class BlockParser {
   private seq(indent: number): YamlSeq {
     const start = this.lines[this.index]!
     const items: YamlNode[] = []
-    while (this.index < this.lines.length) {
-      const line = this.lines[this.index]!
-      if (line.indent < indent) break
-      if (line.indent > indent) throw new SyntaxProblem(line.line, line.indent + 1, '缩进不对')
+    for (let line = this.nextAt(indent); line !== undefined; line = this.nextAt(indent)) {
       if (!isSeqItem(line.text)) break
       const after = line.text.slice(1)
       const content = after.trimStart()
@@ -273,66 +285,73 @@ class FlowReader {
   }
 
   private sequence(): YamlSeq {
-    const column = this.column + this.at
-    this.at++
-    const items: YamlNode[] = []
-    this.skipSpaces()
-    if (this.text[this.at] === ']') {
-      this.at++
-      return { kind: 'sequence', items, line: this.line, column }
-    }
-    for (;;) {
-      items.push(this.value(true))
-      this.skipSpaces()
-      const char = this.text[this.at]
-      if (char === ',') {
-        this.at++
-        continue
-      }
-      if (char === ']') {
-        this.at++
-        return { kind: 'sequence', items, line: this.line, column }
-      }
-      this.fail('列表缺少 "," 或 "]"；流式列表必须写在一行里')
-    }
+    const { items, column } = this.collection(
+      ']',
+      () => this.value(true),
+      '列表缺少 "," 或 "]"；流式列表必须写在一行里',
+    )
+    return { kind: 'sequence', items, line: this.line, column }
   }
 
   private mapping(): YamlMap {
+    const seen = new Set<string>()
+    const { items: entries, column } = this.collection(
+      '}',
+      () => this.entry(seen),
+      '映射缺少 "," 或 "}"；流式映射必须写在一行里',
+    )
+    return { kind: 'mapping', entries, line: this.line, column }
+  }
+
+  /**
+   * A flow collection, from its opening bracket to `close`: items separated by commas, on this one line. `missing`
+   * is the error when an item is followed by neither a comma nor `close`.
+   */
+  private collection<T>(
+    close: ']' | '}',
+    item: () => T,
+    missing: string,
+  ): { readonly items: T[]; readonly column: number } {
     const column = this.column + this.at
     this.at++
-    const entries: YamlEntry[] = []
-    const seen = new Set<string>()
+    const items: T[] = []
     this.skipSpaces()
-    if (this.text[this.at] === '}') {
+    if (this.text[this.at] === close) {
       this.at++
-      return { kind: 'mapping', entries, line: this.line, column }
+      return { items, column }
     }
     for (;;) {
-      this.skipSpaces()
-      const keyAt = this.at
-      const match = /^[A-Za-z0-9_][A-Za-z0-9_-]*/.exec(this.text.slice(this.at))
-      if (match === null) this.fail('这里应该是键')
-      const key = match[0]
-      this.at += key.length
-      this.skipSpaces()
-      if (this.text[this.at] !== ':') this.fail(`键 "${key}" 后面缺少 ":"`)
-      this.at++
-      if (seen.has(key)) this.fail(`键 "${key}" 重复了`, keyAt)
-      seen.add(key)
-      const value = this.value(true)
-      entries.push({ key, line: this.line, column: this.column + keyAt, value })
+      items.push(item())
       this.skipSpaces()
       const char = this.text[this.at]
       if (char === ',') {
         this.at++
         continue
       }
-      if (char === '}') {
+      if (char === close) {
         this.at++
-        return { kind: 'mapping', entries, line: this.line, column }
+        return { items, column }
       }
-      this.fail('映射缺少 "," 或 "}"；流式映射必须写在一行里')
+      this.fail(missing)
     }
+  }
+
+  /** One `key: value` of a flow mapping. */
+  private entry(seen: Set<string>): YamlEntry {
+    this.skipSpaces()
+    const keyAt = this.at
+    FLOW_KEY.lastIndex = this.at
+    const match = FLOW_KEY.exec(this.text)
+    if (match === null) this.fail('这里应该是键')
+    const key = match[0]
+    this.at += key.length
+    this.skipSpaces()
+    if (this.text[this.at] !== ':') this.fail(`键 "${key}" 后面缺少 ":"`)
+    this.at++
+    if (seen.has(key)) this.fail(`键 "${key}" 重复了`, keyAt)
+    seen.add(key)
+    const value = this.value(true)
+    return { key, line: this.line, column: this.column + keyAt, value }
   }
 
   private quoted(quote: '"' | "'"): string {
