@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
+import type { Launched } from '@mindlink/platform'
 import { startMindLink, type StartOptions } from './app.js'
 
 /**
@@ -70,8 +71,7 @@ export function parseServeArgs(argv: readonly string[]): StartOptions {
 
 async function main(argv: readonly string[]): Promise<void> {
   if (wantsHelp(argv)) {
-    process.stdout.write(`${USAGE}
-`)
+    process.stdout.write(`${USAGE}\n`)
     return
   }
   let options: StartOptions
@@ -82,7 +82,16 @@ async function main(argv: readonly string[]): Promise<void> {
     process.exitCode = 2
     return
   }
-  const service = await startMindLink(options)
+  let service: Launched
+  try {
+    service = await startMindLink(options)
+  } catch (error) {
+    // A start that fails, such as on a graph another process holds or a stale lock a killed run left behind, says
+    // why in its message, with what to do. A stack trace would bury that.
+    process.stderr.write(`MindLink did not start: ${(error as Error).message}\n`)
+    process.exitCode = 1
+    return
+  }
   const lines = [
     `MindLink is serving ${service.graph} (${service.mode} mode)`,
     `  MCP for agents: ${service.mcpUrl}`,
