@@ -1,45 +1,35 @@
-import { describe, expect, it } from 'vitest'
-import type { Fetch } from '../../apps/mindlink/web/client.js'
-import { el } from '../../apps/mindlink/web/components/dom.js'
-import { form, levelField } from '../../apps/mindlink/web/components/form.js'
-import { createRegistry, type Feature } from '../../apps/mindlink/web/features.js'
-import { REFUSAL_TEXT } from '../../apps/mindlink/web/refusals.js'
-import { start } from '../../apps/mindlink/web/shell.js'
-import {
-  FakeDocument,
-  FakeElement,
-  all,
-  asDocument,
-  byTag,
-  byText,
-  click,
-  settle,
-} from './fake-dom.js'
+// @vitest-environment happy-dom
+import { flushPromises } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import { defineComponent, h } from 'vue'
+import { createMemoryHistory, useRoute } from 'vue-router'
+import { createMindLink, type MindLink } from '../../apps/mindlink/web/src/app.js'
+import type { Fetch } from '../../apps/mindlink/web/src/client.js'
+import AsyncView from '../../apps/mindlink/web/src/components/AsyncView.vue'
+import FormView from '../../apps/mindlink/web/src/components/FormView.vue'
+import { levelField } from '../../apps/mindlink/web/src/form.js'
+import { useLoad } from '../../apps/mindlink/web/src/load.js'
+import { REFUSAL_TEXT } from '../../apps/mindlink/web/src/refusals.js'
+import { createRegistry, type Feature } from '../../apps/mindlink/web/src/registry.js'
+import { useApi, useConfirm, useVocabulary } from '../../apps/mindlink/web/src/services.js'
 
 interface Answer {
   readonly status: number
   readonly body: unknown
 }
 
-/** A window whose hash the test sets, and a fetch answering each path from `answers`, as they are when asked. */
-function harness(features: readonly Feature[], answers: Record<string, Answer>) {
+let mounted: MindLink | undefined
+
+afterEach(() => {
+  mounted?.app.unmount()
+  mounted = undefined
+  document.body.replaceChildren()
+})
+
+/** The shell with `features`, mounted in the page, and a fetch answering each path from `answers`, as they are when asked. */
+async function harness(features: readonly Feature[], answers: Record<string, Answer>) {
   const registry = createRegistry()
   for (const feature of features) registry.register(feature)
-  const doc = new FakeDocument()
-  const root = new FakeElement('div')
-  const listeners: (() => void)[] = []
-  let reloads = 0
-  const window = {
-    location: {
-      hash: '',
-      reload: () => {
-        reloads++
-      },
-    },
-    addEventListener: (_type: 'hashchange', listener: () => void) => listeners.push(listener),
-    removeEventListener: (_type: 'hashchange', listener: () => void) =>
-      listeners.splice(listeners.indexOf(listener), 1),
-  }
   const asked: string[] = []
   const fetch: Fetch = (path) => {
     asked.push(path)
@@ -50,42 +40,57 @@ function harness(features: readonly Feature[], answers: Record<string, Answer>) 
       json: () => Promise.resolve(answer.body),
     })
   }
-  const shell = start({
-    document: asDocument(doc),
-    window,
-    fetch,
+  let reloads = 0
+  const shell = createMindLink({
     registry,
-    root: root as unknown as HTMLElement,
+    fetch,
+    history: createMemoryHistory(),
+    reload: () => reloads++,
   })
-  const page = (): FakeElement => all(root).find((node) => node.tagName === 'main')!
-  const notice = (): FakeElement =>
-    all(root).find((node) => node.getAttribute('class') === 'notice')!
-  /** Goes to `hash` the way a click on a link does, and waits for the page. */
-  const go = async (hash: string): Promise<void> => {
-    window.location.hash = hash
-    for (const listener of [...listeners]) listener()
-    await settle()
+  mounted = shell
+  const root = document.createElement('div')
+  document.body.append(root)
+  shell.app.mount(root)
+  const go = async (path: string): Promise<void> => {
+    await shell.router.push(path)
+    await flushPromises()
   }
-  return { doc, root, window, shell, page, notice, go, asked, listeners, reloads: () => reloads }
+  await go('/')
+  const page = (): HTMLElement => root.querySelector('main')!
+  const notice = (): HTMLElement | null => root.querySelector('.notice')
+  const link = (text: string): HTMLAnchorElement =>
+    [...root.querySelectorAll('a')].find((each) => each.textContent === text)!
+  return { root, shell, go, page, notice, link, asked, reloads: () => reloads }
 }
+
+const ProjectList = defineComponent(() => () => h('p', '项目列表'))
+
+/** A page reading its project, by the route's parameter, with the query's tab. */
+const ProjectPage = defineComponent(() => {
+  const route = useRoute()
+  const api = useApi()
+  const load = useLoad(
+    () =>
+      api.get(`/api/v1/scene/mindlink/projects/${encodeURIComponent(String(route.params['id']))}`),
+    [() => route.params['id']],
+  )
+  return () =>
+    h(
+      AsyncView,
+      { load },
+      {
+        default: ({ data }: { data: Record<string, unknown> }) =>
+          h('p', `${String(data['title'])}·${String(route.query['tab'] ?? '')}`),
+      },
+    )
+})
 
 const projects: Feature = {
   id: 'project',
   nav: [{ label: '学习项目', path: '/projects' }],
   routes: [
-    {
-      path: '/projects',
-      title: '学习项目',
-      render: ({ document }) => el(document, 'p', {}, '项目列表'),
-    },
-    {
-      path: '/projects/:id',
-      title: '项目',
-      render: async ({ document, api, params, query }) => {
-        const answer = await api.get(`/api/v1/scene/mindlink/projects/${params['id'] ?? ''}`)
-        return el(document, 'p', {}, `${String(answer['title'])}·${query.get('tab') ?? ''}`)
-      },
-    },
+    { path: '/projects', title: '学习项目', component: ProjectList },
+    { path: '/projects/:id', title: '项目', component: () => Promise.resolve(ProjectPage) },
   ],
 }
 
@@ -101,55 +106,36 @@ const vocabulary = (levels: readonly { id: string; legacy: boolean }[]): Answer 
 describe('the shell', () => {
   it('lays out the header, the navigation from every feature and the page', async () => {
     const other: Feature = { id: 'threads', nav: [{ label: '线程', path: '/threads' }], routes: [] }
-    const { root, shell } = harness([projects, other], {})
-    await shell.show()
-    const nav = byTag(root, 'nav')[0]!
-    expect(byTag(nav, 'a').map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
-      ['学习项目', '#/projects'],
-      ['线程', '#/threads'],
+    const { root, link } = await harness([projects, other], {})
+    const nav = root.querySelector('nav')!
+    expect(nav.getAttribute('aria-label')).toBe('主导航')
+    expect(
+      [...nav.querySelectorAll('a')].map((each) => [each.textContent, each.getAttribute('href')]),
+    ).toEqual([
+      ['学习项目', '/projects'],
+      ['线程', '/threads'],
     ])
-    expect(byText(root, 'MindLink').getAttribute('href')).toBe('#/')
+    expect(link('MindLink').getAttribute('href')).toBe('/')
   })
 
-  it('shows the route the hash names, with its title and the current link marked', async () => {
-    const { doc, root, page, go } = harness([projects], {})
-    await go('#/projects')
+  it('shows the route, with its title and the current link marked', async () => {
+    const { page, go, link } = await harness([projects], {})
+    await go('/projects')
     expect(page().textContent).toBe('项目列表')
-    expect(doc.title).toBe('学习项目 · MindLink')
-    expect(byText(root, '学习项目').getAttribute('aria-current')).toBe('page')
-    await go('#/elsewhere')
-    expect(byText(root, '学习项目').hasAttribute('aria-current')).toBe(false)
+    expect(document.title).toBe('学习项目 · MindLink')
+    expect(link('学习项目').getAttribute('aria-current')).toBe('page')
+    await go('/elsewhere')
+    expect(link('学习项目').hasAttribute('aria-current')).toBe(false)
+    expect(document.title).toBe('MindLink')
   })
 
-  it('gives a page its parameters, its query and the request client', async () => {
-    const { page, go, asked } = harness([projects], {
+  it('gives a page its decoded parameters, its query and the request client', async () => {
+    const { page, go, asked } = await harness([projects], {
       '/api/v1/scene/mindlink/projects/p%201': { status: 200, body: { title: '线性代数' } },
     })
-    await go('#/projects/p%25201?tab=settings')
+    await go('/projects/p%201?tab=settings')
     expect(asked).toEqual(['/api/v1/scene/mindlink/projects/p%201'])
     expect(page().textContent).toBe('线性代数·settings')
-  })
-
-  it('shows loading while a page renders, and drops a page that finishes after the person moved on', async () => {
-    let finish: (node: Node) => void = () => {}
-    const slow: Feature = {
-      id: 'slow',
-      routes: [
-        {
-          path: '/slow',
-          title: '慢',
-          render: () => new Promise<Node>((resolve) => (finish = resolve)),
-        },
-        { path: '/fast', title: '快', render: ({ document }) => el(document, 'p', {}, '快页面') },
-      ],
-    }
-    const { doc, page, go } = harness([slow], {})
-    await go('#/slow')
-    expect(page().textContent).toBe('加载中…')
-    await go('#/fast')
-    finish(asDocument(doc).createElement('p'))
-    await settle()
-    expect(page().textContent).toBe('快页面')
   })
 
   it('shows a refusal a page ran into in Chinese, and retries', async () => {
@@ -159,37 +145,41 @@ describe('the shell', () => {
         body: { error: 'there is no such record of yours', code: 'unknown_record' },
       },
     }
-    const { page, go } = harness([projects], answers)
-    await go('#/projects/p1')
+    const { page, go } = await harness([projects], answers)
+    await go('/projects/p1')
     expect(page().textContent).toContain(REFUSAL_TEXT['unknown_record'])
     answers['/api/v1/scene/mindlink/projects/p1'] = { status: 200, body: { title: '概率论' } }
-    click(byText(page(), '重试'))
-    await settle()
+    page().querySelector('button')!.click()
+    await flushPromises()
     expect(page().textContent).toBe('概率论·')
   })
 
   it('welcomes a person at the root and says when a page does not exist', async () => {
-    const { page, go } = harness([projects], {})
-    await go('')
+    const { page, go } = await harness([projects], {})
     expect(page().textContent).toBe('欢迎使用 MindLink。')
-    await go('#/nowhere')
+    await go('/nowhere/at/all')
     expect(page().textContent).toBe('找不到这个页面。回到首页')
+    const empty = await harness([], {})
+    expect(empty.page().textContent).toBe('欢迎使用 MindLink。还没有可用的页面。')
   })
 
-  it('offers what the vocabulary lists when the page renders, so a changed vocabulary changes the form', async () => {
+  it('offers what the vocabulary lists when the page opens, so a changed vocabulary changes the form', async () => {
+    const RecordPage = defineComponent(() => {
+      const read = useVocabulary()
+      const load = useLoad(read)
+      return () =>
+        h(
+          AsyncView,
+          { load },
+          {
+            default: ({ data }: { data: Awaited<ReturnType<typeof read>> }) =>
+              h(FormView, { fields: [levelField(data, 'learn.mastery')], submit: () => {} }),
+          },
+        )
+    })
     const levels: Feature = {
       id: 'levels',
-      routes: [
-        {
-          path: '/record',
-          title: '记录',
-          render: async ({ document, vocabulary }) =>
-            form(document, {
-              fields: [levelField(await vocabulary(), 'learn.mastery')],
-              onSubmit: () => {},
-            }),
-        },
-      ],
+      routes: [{ path: '/record', title: '记录', component: RecordPage }],
     }
     const answers: Record<string, Answer> = {
       '/api/v1/vocabulary': vocabulary([
@@ -197,82 +187,86 @@ describe('the shell', () => {
         { id: 'solid', legacy: false },
       ]),
     }
-    const { page, go } = harness([levels], answers)
-    const offered = () => byTag(page(), 'option').map((option) => option.textContent)
-    await go('#/record')
+    const { page, go } = await harness([levels], answers)
+    const offered = () => [...page().querySelectorAll('option')].map((option) => option.value)
+    await go('/record')
     expect(offered()).toEqual(['none', 'solid'])
     answers['/api/v1/vocabulary'] = vocabulary([
       { id: 'none', legacy: true },
       { id: 'solid', legacy: false },
       { id: 'fluent', legacy: false },
     ])
-    await go('#/elsewhere')
-    await go('#/record')
+    await go('/elsewhere')
+    await go('/record')
     expect(offered()).toEqual(['solid', 'fluent'])
   })
 
   it('asks a person to reload when their session ends and no sign-in page is registered', async () => {
-    const { page, notice, go, reloads } = harness([projects], {
+    const { page, notice, go, reloads } = await harness([projects], {
       '/api/v1/scene/mindlink/projects/p1': {
         status: 401,
         body: { error: 'this token is not valid', code: 'unauthenticated' },
       },
     })
-    expect(notice().hasAttribute('hidden')).toBe(true)
-    await go('#/projects/p1')
-    expect(notice().hasAttribute('hidden')).toBe(false)
-    expect(notice().textContent).toContain('登录已过期')
+    expect(notice()).toBeNull()
+    await go('/projects/p1')
+    expect(notice()?.getAttribute('role')).toBe('alert')
+    expect(notice()?.textContent).toContain('登录已过期')
     expect(page().textContent).toContain(REFUSAL_TEXT['unauthenticated'])
-    click(byText(notice(), '重新载入'))
+    notice()!.querySelector('button')!.click()
     expect(reloads()).toBe(1)
   })
 
   it('sends a person to the sign-in page when one is registered, remembering where they were', async () => {
-    const signIn: Feature = {
+    const SignIn = defineComponent(() => {
+      const route = useRoute()
+      return () => h('p', `登录后回到 ${String(route.query['return'] ?? '')}`)
+    })
+    const account: Feature = {
       id: 'account',
-      routes: [
-        {
-          path: '/sign-in',
-          title: '登录',
-          render: ({ document, query }) =>
-            el(document, 'p', {}, `登录后回到 ${query.get('return') ?? ''}`),
-        },
-      ],
+      routes: [{ path: '/sign-in', title: '登录', component: SignIn }],
     }
-    const { window, notice, page, go } = harness([projects, signIn], {
+    const { shell, notice, page, go } = await harness([projects, account], {
       '/api/v1/scene/mindlink/projects/p1': {
         status: 401,
         body: { error: 'this token is not valid', code: 'unauthenticated' },
       },
     })
-    await go('#/projects/p1?tab=x')
-    expect(window.location.hash).toBe('#/sign-in?return=%2Fprojects%2Fp1%3Ftab%3Dx')
-    await go(window.location.hash)
+    await go('/projects/p1?tab=x')
+    await flushPromises()
+    const { path, query } = shell.router.currentRoute.value
+    expect([path, query['return']]).toEqual(['/sign-in', '/projects/p1?tab=x'])
     expect(page().textContent).toBe('登录后回到 /projects/p1?tab=x')
-    expect(notice().hasAttribute('hidden')).toBe(true)
+    expect(notice()).toBeNull()
   })
 
-  it('lets a page navigate, and stops following the hash once closed', async () => {
-    let navigate: (pattern: string, params?: Record<string, string>) => void = () => {}
-    const home: Feature = {
-      id: 'home',
-      routes: [
-        {
-          path: '/',
-          title: '首页',
-          render: (context) => {
-            navigate = context.navigate
-            return el(context.document, 'p', {}, '首页')
-          },
-        },
-      ],
+  it('shows the question a page asks, and gives the page its answer', async () => {
+    let answer: Promise<boolean> | undefined
+    const Withdraw = defineComponent(() => {
+      const confirm = useConfirm()
+      return () =>
+        h(
+          'button',
+          { onClick: () => (answer = confirm({ message: '撤回这条发布？', danger: true })) },
+          '撤回',
+        )
+    })
+    const sharing: Feature = {
+      id: 'sharing',
+      routes: [{ path: '/share', title: '共享', component: Withdraw }],
     }
-    const { window, shell, listeners, go } = harness([home], {})
-    await go('#/')
-    navigate('/projects/:id', { id: 'a b' })
-    expect(window.location.hash).toBe('#/projects/a%20b')
-    shell.close()
-    expect(listeners).toEqual([])
+    const { root, go, page } = await harness([sharing], {})
+    await go('/share')
+    page().querySelector('button')!.click()
+    await flushPromises()
+    const dialog = root.querySelector('[role="alertdialog"]')!
+    expect(dialog.textContent).toContain('撤回这条发布？')
+    ;[...dialog.querySelectorAll('button')]
+      .find((each) => each.textContent?.trim() === '确定')!
+      .click()
+    expect(await answer).toBe(true)
+    await flushPromises()
+    expect(root.querySelector('[role="alertdialog"]')).toBeNull()
   })
 })
 
@@ -290,21 +284,19 @@ describe('the feature registry', () => {
     registry.register(projects)
     expect(() => registry.register(projects)).toThrow(/registered twice/)
     expect(() => registry.register({ id: 'Bad Id', routes: [] })).toThrow(/must be lowercase/)
-    const render = () => {
-      throw new Error('unused')
-    }
+    const component = ProjectList
     expect(() =>
-      registry.register({ id: 'x', routes: [{ path: 'x', title: 'x', render }] }),
+      registry.register({ id: 'x', routes: [{ path: 'x', title: 'x', component }] }),
     ).toThrow(/must start with "\/"/)
     expect(() =>
-      registry.register({ id: 'y', routes: [{ path: '/projects/:key', title: 'y', render }] }),
+      registry.register({ id: 'y', routes: [{ path: '/projects/:key', title: 'y', component }] }),
     ).toThrow(/already "project"'s/)
     expect(() =>
       registry.register({
         id: 'z',
         routes: [
-          { path: '/z', title: 'z', render },
-          { path: '/z/', title: 'z', render },
+          { path: '/z', title: 'z', component },
+          { path: '/z/', title: 'z', component },
         ],
       }),
     ).toThrow(/already "z"'s/)

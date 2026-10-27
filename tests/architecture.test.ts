@@ -46,7 +46,22 @@ async function repository(root: string = ROOT): Promise<{
     const dirs = await readdir(join(root, group), { withFileTypes: true }).catch(() => [])
     for (const dir of dirs.filter((entry) => entry.isDirectory())) {
       const base = join(root, group, dir.name)
-      const manifest = JSON.parse(await readFile(join(base, 'package.json'), 'utf8')) as {
+      const sources = [...(await walk(join(base, 'src'))), ...(await walk(join(base, 'web')))]
+      const text = await readFile(join(base, 'package.json'), 'utf8').catch((error: unknown) => {
+        if ((error as { code?: string }).code === 'ENOENT') return undefined
+        throw error
+      })
+      if (text === undefined) {
+        // A directory without a manifest is not a package, such as build output left behind by a deleted one.
+        // Skipping it is safe only when it holds no source; source without a manifest would escape every rule.
+        if (sources.length > 0) {
+          throw new Error(
+            `${group}/${dir.name} has source but no package.json, so no rule can check it`,
+          )
+        }
+        continue
+      }
+      const manifest = JSON.parse(text) as {
         name: string
         exports?: Record<string, unknown>
       }
@@ -55,7 +70,7 @@ async function repository(root: string = ROOT): Promise<{
         dir: `${group}/${dir.name}`,
         exports: Object.keys(manifest.exports ?? { '.': true }),
       })
-      for (const file of [...(await walk(join(base, 'src'))), ...(await walk(join(base, 'web')))]) {
+      for (const file of sources) {
         files.set(toPosix(relative(root, file)), await readFile(file, 'utf8'))
       }
     }
@@ -86,7 +101,7 @@ describe('the repository', () => {
         layers: [{ name: 'L2', modules: ['apps/mindlink/src/blocks'] }],
         episteme: {},
         assembly: 'apps/mindlink/src/app.ts',
-        web: 'apps/mindlink/web',
+        web: 'apps/mindlink/web/src',
         blocks: { engine: 'apps/mindlink/src/blocks', library: 'apps/mindlink/blocks' },
       }
       await write('architecture.json', JSON.stringify(config))
@@ -115,6 +130,40 @@ describe('the repository', () => {
   })
 })
 
+describe('the repository reader', () => {
+  it('skips a directory left without a package.json, but not one that still holds source', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mindlink-architecture-'))
+    try {
+      const write = async (path: string, text: string): Promise<void> => {
+        await mkdir(dirname(join(root, path)), { recursive: true })
+        await writeFile(join(root, path), text)
+      }
+      const config: ArchitectureConfig = {
+        layers: [{ name: 'L3', modules: ['apps/mindlink/src/app.ts'] }],
+        episteme: {},
+        assembly: 'apps/mindlink/src/app.ts',
+        web: 'apps/mindlink/web',
+      }
+      await write('architecture.json', JSON.stringify(config))
+      await write('apps/mindlink/package.json', JSON.stringify({ name: '@mindlink/app' }))
+      await write('apps/mindlink/src/app.ts', 'export const app = 1')
+      // What a deleted package leaves behind: build output and installed modules, no manifest.
+      await write('apps/learn/dist/cli.js', 'export {}')
+      await write('apps/learn/node_modules/x/index.js', 'export {}')
+      const read = await repository(root)
+      expect(read.packages.map((pkg) => pkg.dir)).toEqual(['apps/mindlink'])
+      expect(check(read.files, read.config, read.packages)).toEqual([])
+
+      await write('apps/learn/src/cli.ts', 'export const stray = 1')
+      await expect(repository(root)).rejects.toThrow(
+        'apps/learn has source but no package.json, so no rule can check it',
+      )
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
 /** A small repository: the platform, two features in different layers, the assembly and a web shell. */
 const CONFIG: ArchitectureConfig = {
   layers: [
@@ -125,7 +174,7 @@ const CONFIG: ArchitectureConfig = {
   ],
   episteme: { 'packages/platform': ['@episteme/application'] },
   assembly: 'apps/mindlink/src/app.ts',
-  web: 'apps/mindlink/web',
+  web: 'apps/mindlink/web/src',
   blocks: { engine: 'packages/platform/src/engine', library: 'packages/platform/library' },
 }
 const PACKAGES: PackageInfo[] = [
@@ -156,10 +205,16 @@ function violationsOf(extra: Record<string, string>): readonly number[] {
       'apps/mindlink/src/app.ts',
       "import { tools } from './project/mcp.js'\nimport { view } from './understanding/index.js'\nexport const all = [tools, view]",
     ],
-    ['apps/mindlink/web/router.js', 'export const route = 1'],
+    ['apps/mindlink/web/src/paths.ts', 'export const route = 1'],
+    ['apps/mindlink/web/src/components/ListView.vue', '<template><ul /></template>'],
+    ['apps/mindlink/web/src/features/index.ts', "import './project/index.js'"],
     [
-      'apps/mindlink/web/project/list.js',
-      "import { route } from '../router.js'\nexport const page = route",
+      'apps/mindlink/web/src/features/project/index.ts',
+      "import { route } from '../../paths.js'\nimport ProjectList from './ProjectList.vue'\nexport const page = [route, ProjectList]",
+    ],
+    [
+      'apps/mindlink/web/src/features/project/ProjectList.vue',
+      '<script setup lang="ts">\nimport ListView from \'../../components/ListView.vue\'\nimport { page } from \'./index.js\'\n</script>\n<!-- never v-html -->\n<template><ListView :items="page" /></template>',
     ],
     ...Object.entries(extra),
   ])
@@ -234,8 +289,26 @@ describe('each rule catches its violation', () => {
   it('5: a page importing another feature’s pages', () => {
     expect(
       violationsOf({
-        'apps/mindlink/web/understanding/view.js':
-          "import { page } from '../project/list.js'\nexport const v = page",
+        'apps/mindlink/web/src/features/understanding/view.ts':
+          "import { page } from '../project/index.js'\nexport const v = page",
+      }),
+    ).toEqual([5])
+  })
+
+  it('5: a component importing another feature’s component', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/understanding/ReviewPage.vue':
+          '<script setup lang="ts">\nimport ProjectList from \'../project/ProjectList.vue\'\n</script>',
+      }),
+    ).toEqual([5])
+  })
+
+  it('5: the front end importing past its own source', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/project/direct.ts':
+          "import { project } from '../../../../src/project/index.js'\nexport const d = project",
       }),
     ).toEqual([5])
   })
@@ -252,8 +325,26 @@ describe('each rule catches its violation', () => {
   it('6: a page writing HTML', () => {
     expect(
       violationsOf({
-        'apps/mindlink/web/project/bad.js':
-          'export function show(el, text) { el.innerHTML = text }',
+        'apps/mindlink/web/src/features/project/bad.ts':
+          'export function show(el: HTMLElement, text: string) { el.innerHTML = text }',
+      }),
+    ).toEqual([6])
+  })
+
+  it('6: a component writing HTML with v-html', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/project/Bad.vue':
+          '<script setup lang="ts">\ndefineProps<{ text: string }>()\n</script>\n<template><p v-html="text" /></template>',
+      }),
+    ).toEqual([6])
+  })
+
+  it('6: the shell writing HTML too', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/components/Raw.vue':
+          '<template><div :innerHTML="html" /></template>',
       }),
     ).toEqual([6])
   })
