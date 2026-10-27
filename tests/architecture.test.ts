@@ -46,7 +46,22 @@ async function repository(root: string = ROOT): Promise<{
     const dirs = await readdir(join(root, group), { withFileTypes: true }).catch(() => [])
     for (const dir of dirs.filter((entry) => entry.isDirectory())) {
       const base = join(root, group, dir.name)
-      const manifest = JSON.parse(await readFile(join(base, 'package.json'), 'utf8')) as {
+      const sources = [...(await walk(join(base, 'src'))), ...(await walk(join(base, 'web')))]
+      const text = await readFile(join(base, 'package.json'), 'utf8').catch((error: unknown) => {
+        if ((error as { code?: string }).code === 'ENOENT') return undefined
+        throw error
+      })
+      if (text === undefined) {
+        // A directory without a manifest is not a package, such as build output left behind by a deleted one.
+        // Skipping it is safe only when it holds no source; source without a manifest would escape every rule.
+        if (sources.length > 0) {
+          throw new Error(
+            `${group}/${dir.name} has source but no package.json, so no rule can check it`,
+          )
+        }
+        continue
+      }
+      const manifest = JSON.parse(text) as {
         name: string
         exports?: Record<string, unknown>
       }
@@ -55,7 +70,7 @@ async function repository(root: string = ROOT): Promise<{
         dir: `${group}/${dir.name}`,
         exports: Object.keys(manifest.exports ?? { '.': true }),
       })
-      for (const file of [...(await walk(join(base, 'src'))), ...(await walk(join(base, 'web')))]) {
+      for (const file of sources) {
         files.set(toPosix(relative(root, file)), await readFile(file, 'utf8'))
       }
     }
@@ -109,6 +124,40 @@ describe('the repository', () => {
           message: 'names the built-in block "guide"; the engine knows no specific block',
         },
       ])
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('the repository reader', () => {
+  it('skips a directory left without a package.json, but not one that still holds source', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mindlink-architecture-'))
+    try {
+      const write = async (path: string, text: string): Promise<void> => {
+        await mkdir(dirname(join(root, path)), { recursive: true })
+        await writeFile(join(root, path), text)
+      }
+      const config: ArchitectureConfig = {
+        layers: [{ name: 'L3', modules: ['apps/mindlink/src/app.ts'] }],
+        episteme: {},
+        assembly: 'apps/mindlink/src/app.ts',
+        web: 'apps/mindlink/web',
+      }
+      await write('architecture.json', JSON.stringify(config))
+      await write('apps/mindlink/package.json', JSON.stringify({ name: '@mindlink/app' }))
+      await write('apps/mindlink/src/app.ts', 'export const app = 1')
+      // What a deleted package leaves behind: build output and installed modules, no manifest.
+      await write('apps/learn/dist/cli.js', 'export {}')
+      await write('apps/learn/node_modules/x/index.js', 'export {}')
+      const read = await repository(root)
+      expect(read.packages.map((pkg) => pkg.dir)).toEqual(['apps/mindlink'])
+      expect(check(read.files, read.config, read.packages)).toEqual([])
+
+      await write('apps/learn/src/cli.ts', 'export const stray = 1')
+      await expect(repository(root)).rejects.toThrow(
+        'apps/learn has source but no package.json, so no rule can check it',
+      )
     } finally {
       await rm(root, { recursive: true, force: true })
     }
