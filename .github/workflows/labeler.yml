@@ -21,49 +21,46 @@ jobs:
             const pr = context.payload.pull_request;
             const title = pr.title;
 
-            // Match Conventional Commit title format: type(scope)!: message or type!: message
+            // Match Conventional Commit title: type(scope)!: message or type!: message
             const match = title.match(/^([a-z]+)(?:\(([a-z0-9_/, -]+)\))?!?:/i);
             if (!match) return;
 
             const type = match[1].toLowerCase();
             const rawScope = match[2] ? match[2].toLowerCase() : '';
 
-            const validTypes = new Set(['feat', 'fix', 'refactor', 'docs', 'test', 'chore', 'ci', 'build']);
-            const validScopes = new Set([
-              'web',
-              'blocks',
-              'project',
-              'platform',
-              'cli',
-              'host',
-              'understanding'
+            // Standard Conventional Commits types
+            const COMMIT_TYPES = new Set([
+              'feat', 'fix', 'refactor', 'perf', 'docs', 'test', 'build', 'ci', 'chore', 'revert', 'style'
             ]);
 
-            const currentLabels = (pr.labels || []).map(l => l.name);
-
-            // Determine target type label
-            const newTypeLabel = validTypes.has(type) ? type : null;
-
-            // Determine target scope labels (supports comma or slash separated, e.g. web, project)
-            const targetScopes = rawScope
-              .split(/[,/ ]+/)
-              .map(s => s.trim())
-              .filter(s => validScopes.has(s));
+            // Dynamically query available repo labels to avoid maintaining hardcoded scope sets
+            const { data: repoLabels } = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+            const availableLabels = new Set(repoLabels.map(l => l.name));
+            const currentLabels = new Set((pr.labels || []).map(l => l.name));
 
             const labelsToAdd = [];
-            if (newTypeLabel && !currentLabels.includes(newTypeLabel)) {
-              labelsToAdd.push(newTypeLabel);
+
+            // Match type
+            if (COMMIT_TYPES.has(type) && availableLabels.has(type) && !currentLabels.has(type)) {
+              labelsToAdd.push(type);
             }
-            for (const s of targetScopes) {
-              if (!currentLabels.includes(s)) {
+
+            // Match scope(s) dynamically against available repository labels
+            const scopes = rawScope.split(/[,/ ]+/).map(s => s.trim());
+            for (const s of scopes) {
+              if (s && availableLabels.has(s) && !currentLabels.has(s)) {
                 labelsToAdd.push(s);
               }
             }
 
-            // Remove stale type labels if title type changed
+            // Remove stale type label if PR title type changed (e.g. from feat to fix)
             const labelsToRemove = [];
             for (const l of currentLabels) {
-              if (validTypes.has(l) && newTypeLabel && l !== newTypeLabel) {
+              if (COMMIT_TYPES.has(l) && COMMIT_TYPES.has(type) && l !== type) {
                 labelsToRemove.push(l);
               }
             }
@@ -73,9 +70,9 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: pr.number,
-                labels: labelsToAdd
+                labels: labelsToAdd,
               });
-              console.log(`Added labels to PR #${pr.number}:`, labelsToAdd);
+              console.log(`PR #${pr.number}: added labels:`, labelsToAdd);
             }
 
             for (const label of labelsToRemove) {
@@ -84,9 +81,9 @@ jobs:
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: pr.number,
-                  name: label
+                  name: label,
                 });
-                console.log(`Removed stale label from PR #${pr.number}:`, label);
+                console.log(`PR #${pr.number}: removed stale label:`, label);
               } catch (e) {
                 console.warn(`Could not remove label ${label}:`, e.message);
               }
