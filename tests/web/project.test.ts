@@ -44,13 +44,32 @@ describe('what the pages call things', () => {
     expect(['tell', 'hint', 'ask'].map(guidanceText)).toEqual(['直接讲', '给提示', '只提问'])
   })
 
-  it('offers the built-in workflows, and keeps the project’s own when it uses another', () => {
-    expect(workflowOptions('builtin:deep').map((option) => option.value)).toEqual([
-      'builtin:speedrun',
-      'builtin:apply',
-      'builtin:deep',
+  it('offers the built-in workflows, disabled as coming soon when the library lacks them', () => {
+    const all = ['builtin:speedrun', 'builtin:apply', 'builtin:deep']
+    expect(workflowOptions('builtin:deep', all).map((option) => option.value)).toEqual(all)
+    expect(workflowOptions('builtin:deep', all).some((option) => option.disabled)).toBe(false)
+    expect(workflowOptions('builtin:speedrun', ['builtin:speedrun'])).toEqual([
+      { value: 'builtin:speedrun', label: '速通', disabled: false },
+      { value: 'builtin:apply', label: '应用（即将推出）', disabled: true },
+      { value: 'builtin:deep', label: '长期积累（即将推出）', disabled: true },
     ])
-    expect(workflowOptions('user:mine').at(-1)).toEqual({ value: 'user:mine', label: 'user:mine' })
+  })
+
+  it('keeps the project’s own workflow, disabled when the library lacks it', () => {
+    expect(workflowOptions('user:mine', ['user:mine', 'builtin:speedrun']).at(-1)).toEqual({
+      value: 'user:mine',
+      label: 'user:mine',
+      disabled: false,
+    })
+    expect(workflowOptions('builtin:apply', ['builtin:speedrun']).at(-1)).toMatchObject({
+      value: 'builtin:deep',
+      disabled: true,
+    })
+    expect(workflowOptions('course:gone', ['builtin:speedrun']).at(-1)).toEqual({
+      value: 'course:gone',
+      label: 'course:gone（暂不可用）',
+      disabled: true,
+    })
   })
 
   it('says how to start, and what the conversation has yet to ask', () => {
@@ -60,7 +79,12 @@ describe('what the pages call things', () => {
   })
 
   it('has Chinese text for every refusal the project routes give', () => {
-    for (const code of ['invalid_project', 'project_not_found', 'project_archived']) {
+    for (const code of [
+      'invalid_project',
+      'project_not_found',
+      'project_archived',
+      'workflow_unavailable',
+    ]) {
       expect(REFUSAL_TEXT[code]).toMatch(/[一-鿿]/)
     }
   })

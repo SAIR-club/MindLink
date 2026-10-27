@@ -33,7 +33,7 @@ const WORKFLOW: Record<string, string> = {
   deep: 'builtin:deep',
 }
 
-function backend(initial: readonly Project[] = []) {
+function backend(initial: readonly Project[] = [], available = ['builtin:speedrun']) {
   const projects = new Map(initial.map((project) => [project.id, project]))
   const sent: [string, Json | undefined][] = []
   let next = 1
@@ -50,6 +50,7 @@ function backend(initial: readonly Project[] = []) {
         },
       }
     }
+    if (url.pathname === `${BASE}/workflows`) return { status: 200, body: { workflows: available } }
     if (url.pathname === `${BASE}/show`) {
       const project = projects.get(url.searchParams.get('id') ?? '')
       return project === undefined
@@ -57,6 +58,9 @@ function backend(initial: readonly Project[] = []) {
         : { status: 200, body: { project } }
     }
     if (url.pathname === `${BASE}/create` && body !== undefined) {
+      if (!available.includes(WORKFLOW[String(body['goalType'])] ?? '')) {
+        return refuse('workflow_unavailable')
+      }
       const project: Project = {
         id: `p${next++}`,
         title: String(body['title']),
@@ -74,6 +78,10 @@ function backend(initial: readonly Project[] = []) {
     if (current === undefined) return refuse('project_not_found')
     if (url.pathname === `${BASE}/update` && body !== undefined) {
       if (current.archived) return refuse('project_archived')
+      const workflowId = body['workflowId']
+      if (typeof workflowId === 'string' && !available.includes(workflowId)) {
+        return refuse('workflow_unavailable')
+      }
       const { id: _id, ...patch } = body
       const updated: Record<string, unknown> = { ...current }
       for (const [field, value] of Object.entries(patch)) {
@@ -92,15 +100,15 @@ function backend(initial: readonly Project[] = []) {
   }
   const fetch: Fetch = (path, init) => {
     const body = typeof init.body === 'string' ? (JSON.parse(init.body) as Json) : undefined
-    sent.push([path, body])
+    if (!path.includes('/workflows')) sent.push([path, body])
     const { status, body: reply } = answer(path, body)
     return Promise.resolve({ ok: status < 300, status, json: () => Promise.resolve(reply) })
   }
   return { projects, sent, fetch }
 }
 
-function harness(initial: readonly Project[] = []) {
-  const server = backend(initial)
+function harness(initial: readonly Project[] = [], available?: string[]) {
+  const server = backend(initial, available)
   const registry = createRegistry()
   registry.register({
     id: 'project',
@@ -182,7 +190,7 @@ describe('the project list', () => {
 
 describe('a new project', () => {
   it('explains the three goal types and creates with the chosen one, then says how to start', async () => {
-    const { page, go, set, submit, server, shell } = harness()
+    const { page, go, set, submit, server, shell } = harness([], Object.values(WORKFLOW))
     await go('/projects/new')
     const choices = [...page().querySelectorAll('.choice')].map((each) => each.textContent ?? '')
     expect(choices.map((text) => text.slice(0, 4))).toEqual(['速通时间', '应用为了', '长期积累'])
@@ -203,6 +211,29 @@ describe('a new project', () => {
     expect(page().textContent).toContain('项目已创建，接下来这样开始')
     expect(page().textContent).toContain('host/claude-code/README.md')
     expect(page().textContent).toContain('我想用 MindLink 学 概率论')
+  })
+
+  it('shows the workflows the library lacks as coming soon and cannot select them', async () => {
+    const { page, go, set, submit, server, shell } = harness()
+    await go('/projects/new')
+    const radio = (value: string) =>
+      page().querySelector<HTMLInputElement>(`input[value="${value}"]`)!
+    expect(radio('speedrun').disabled).toBe(false)
+    expect(radio('speedrun').checked).toBe(true)
+    expect(radio('apply').disabled).toBe(true)
+    expect(radio('deep').disabled).toBe(true)
+    const soon = [...page().querySelectorAll('.choice')].map((each) => each.textContent ?? '')
+    expect(soon[0]).not.toContain('即将推出')
+    expect(soon[1]).toContain('即将推出')
+    expect(soon[2]).toContain('即将推出')
+    expect(page().textContent).toContain('时间紧，比如考试前')
+    await set('title', '概率论')
+    await submit()
+    expect(server.sent.at(-2)).toEqual([
+      `${BASE}/create`,
+      { title: '概率论', goalType: 'speedrun' },
+    ])
+    expect(shell.router.currentRoute.value.fullPath).toBe('/projects/p1?created=1')
   })
 
   it('asks for a name before sending anything', async () => {
@@ -241,6 +272,24 @@ describe('a project’s settings', () => {
       guidance: 'ask',
     })
     expect(server.projects.get('p-linear')?.course).toBeUndefined()
+  })
+
+  it('shows a workflow the library lacks, disabled, and lets the person switch to an available one', async () => {
+    const { go, set, submit, input, server } = harness([linear])
+    await go('/projects/p-linear')
+    const options = [...input('workflowId').querySelectorAll('option')]
+    expect(options.map((o) => [o.value, o.disabled, o.textContent?.trim()])).toEqual([
+      ['builtin:speedrun', false, '速通'],
+      ['builtin:apply', true, '应用（即将推出）'],
+      ['builtin:deep', true, '长期积累（即将推出）'],
+    ])
+    expect((input('workflowId') as HTMLSelectElement).value).toBe('builtin:apply')
+    await set('title', '线性代数 2')
+    await submit()
+    expect(server.sent.at(-1)).toEqual([`${BASE}/update`, { title: '线性代数 2', id: 'p-linear' }])
+    await set('workflowId', 'builtin:speedrun')
+    await submit()
+    expect(server.projects.get('p-linear')?.workflowId).toBe('builtin:speedrun')
   })
 
   it('archives after asking, is read-only while archived, and restores', async () => {

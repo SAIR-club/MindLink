@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { messageOf } from '../../client.js'
 import { pathOf, useApi } from '../../components/index.js'
-import { GOAL_CHOICES, courseProblem, projectApi, type GoalType } from './project.js'
+import {
+  COMING_SOON,
+  GOAL_CHOICES,
+  courseProblem,
+  isAvailable,
+  projectApi,
+  type GoalType,
+} from './project.js'
 
 /**
  * `#/projects/new`: a name, an optional course and a goal type, which decides the workflow. The goal, deadline and
@@ -18,9 +25,32 @@ const course = ref('')
 const goalType = ref<GoalType>('speedrun')
 const message = ref('')
 const busy = ref(false)
+/** The workflows that can run; empty until the service answers, so nothing is selectable before then. */
+const available = ref<readonly string[]>([])
+
+onMounted(async () => {
+  try {
+    available.value = await projects.workflows()
+    const first = GOAL_CHOICES.find((choice) => isAvailable(choice.workflowId, available.value))
+    const chosen = GOAL_CHOICES.find((choice) => choice.id === goalType.value)
+    if (
+      first !== undefined &&
+      (chosen === undefined || !isAvailable(chosen.workflowId, available.value))
+    ) {
+      goalType.value = first.id
+    }
+  } catch (error) {
+    message.value = messageOf(error)
+  }
+})
 
 async function create(): Promise<void> {
   if (busy.value) return
+  const chosen = GOAL_CHOICES.find((choice) => choice.id === goalType.value)
+  if (chosen === undefined || !isAvailable(chosen.workflowId, available.value)) {
+    message.value = '请选择一个可以用的目标类型。'
+    return
+  }
   if (title.value.trim() === '') {
     message.value = '请填写“项目名称”。'
     return
@@ -64,10 +94,24 @@ async function create(): Promise<void> {
     </label>
     <fieldset class="field choices">
       <legend class="field-label">目标类型</legend>
-      <label v-for="choice in GOAL_CHOICES" :key="choice.id" class="choice">
-        <input v-model="goalType" type="radio" name="goalType" :value="choice.id" />
+      <label
+        v-for="choice in GOAL_CHOICES"
+        :key="choice.id"
+        class="choice"
+        :class="{ 'choice-disabled': !isAvailable(choice.workflowId, available) }"
+      >
+        <input
+          v-model="goalType"
+          type="radio"
+          name="goalType"
+          :value="choice.id"
+          :disabled="!isAvailable(choice.workflowId, available)"
+        />
         <span>
           <span class="choice-label">{{ choice.label }}</span>
+          <span v-if="available.length > 0 && !isAvailable(choice.workflowId, available)" class="choice-soon"
+            >（{{ COMING_SOON }}）</span
+          >
           <span class="choice-detail">{{ choice.description }}</span>
         </span>
       </label>

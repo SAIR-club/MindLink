@@ -70,12 +70,39 @@ export function guidanceText(guidance: string): string {
   return GUIDANCE_CHOICES.find((choice) => choice.value === guidance)?.label ?? guidance
 }
 
-/** The workflows to choose from: the three built-in ones, and the project's own when it uses another. */
-export function workflowOptions(current: string): readonly Option[] {
-  const options = GOAL_CHOICES.map((choice) => ({ value: choice.workflowId, label: choice.label }))
-  return options.some((option) => option.value === current)
-    ? options
-    : [...options, { value: current, label: current }]
+export const COMING_SOON = '即将推出'
+
+export interface WorkflowOption extends Option {
+  /** Shown but not selectable: the block library does not have it. */
+  readonly disabled: boolean
+}
+
+/** Whether the goal type's built-in workflow can run, given the ids the service says exist. */
+export function isAvailable(workflowId: string, available: readonly string[]): boolean {
+  return available.includes(workflowId)
+}
+
+/**
+ * The workflows to choose from: the three built-in ones, those the block library lacks shown disabled as coming soon,
+ * and the project's own when it uses another. A workflow the project already has that the library lacks (old data)
+ * is shown, disabled, so the person can see it and switch away.
+ */
+export function workflowOptions(
+  current: string,
+  available: readonly string[],
+): readonly WorkflowOption[] {
+  const options: WorkflowOption[] = GOAL_CHOICES.map((choice) =>
+    isAvailable(choice.workflowId, available)
+      ? { value: choice.workflowId, label: choice.label, disabled: false }
+      : { value: choice.workflowId, label: `${choice.label}（${COMING_SOON}）`, disabled: true },
+  )
+  if (options.some((option) => option.value === current)) return options
+  return [
+    ...options,
+    isAvailable(current, available)
+      ? { value: current, label: current, disabled: false }
+      : { value: current, label: `${current}（暂不可用）`, disabled: true },
+  ]
 }
 
 /** What to say to Claude Code to start learning in a project. */
@@ -142,6 +169,10 @@ export function projectApi(api: Client) {
     async list(includeArchived: boolean): Promise<readonly Project[]> {
       const answer = await api.get(includeArchived ? `${PROJECTS}?archived=include` : PROJECTS)
       return answer['projects'] as Project[]
+    },
+    /** The full ids of the workflows that can run. */
+    async workflows(): Promise<readonly string[]> {
+      return (await api.get(`${PROJECTS}/workflows`))['workflows'] as string[]
     },
     async show(id: string): Promise<Project> {
       const answer = await api.get(`${PROJECTS}/show?id=${encodeURIComponent(id)}`)

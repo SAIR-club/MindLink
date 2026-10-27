@@ -10,12 +10,20 @@ import { projectApi } from './project.js'
 const projects = projectApi(useApi())
 const route = useRoute()
 const id = () => String(route.params['id'])
-const project = useLoad(() => projects.show(id()), [id])
+const project = useLoad(
+  async () => ({ project: await projects.show(id()), workflows: await projects.workflows() }),
+  [id],
+)
 const created = computed(() => route.query['created'] === '1')
 </script>
 
 <template>
   <AsyncView v-slot="{ data }" :load="project">
-    <ProjectEditor :key="data.id" :project="data" :created="created" />
+    <ProjectEditor
+      :key="data.project.id"
+      :project="data.project"
+      :workflows="data.workflows"
+      :created="created"
+    />
   </AsyncView>
 </template>

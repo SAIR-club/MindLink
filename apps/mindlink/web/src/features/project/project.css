@@ -148,3 +148,12 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+.choice-disabled {
+  opacity: 0.6;
+}
+
+.choice-soon {
+  color: var(--muted, inherit);
+  font-size: 0.9em;
+}

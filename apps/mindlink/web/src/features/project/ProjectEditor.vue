@@ -21,6 +21,8 @@ import {
 
 const props = defineProps<{
   readonly project: Project
+  /** The full ids of the workflows that can run. */
+  readonly workflows: readonly string[]
   /** Whether the project was just created, so the page says first how to start. */
   readonly created?: boolean
 }>()
@@ -34,7 +36,7 @@ const message = ref('')
 const saved = ref('')
 const busy = ref(false)
 
-const workflows = computed(() => workflowOptions(current.value.workflowId))
+const workflowChoices = computed(() => workflowOptions(current.value.workflowId, props.workflows))
 
 function valuesOf(project: Project) {
   return {
@@ -144,7 +146,11 @@ async function archive(archived: boolean): Promise<void> {
         <label class="field">
           <span class="field-label">工作流</span>
           <select v-model="values.workflowId" name="workflowId">
-            <option v-for="option in workflows" :key="option.value" :value="option.value">
+            <option v-for="option in workflowChoices"
+              :key="option.value"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
               {{ option.label }}
             </option>
           </select>
