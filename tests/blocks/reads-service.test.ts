@@ -112,7 +112,7 @@ describe('the block reads through the launcher', () => {
     const created = await rest('POST', `${SCENE}/projects/create`, {
       title: '线性代数',
       course: 'linalg',
-      goalType: 'deep',
+      goalType: 'speedrun',
     })
     const projectId = String((created['project'] as Json)['id'])
     const bare = await rest('POST', `${SCENE}/projects/create`, {
