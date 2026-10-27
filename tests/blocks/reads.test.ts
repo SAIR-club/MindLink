@@ -89,7 +89,7 @@ describe('state_gaps', () => {
     nodes: () => nodes,
     progress: () =>
       progress([
-        item('n1', 'conflict', { openConflicts: ['n5'] }),
+        item('n1', 'conflict', { openConflicts: ['open'] }),
         item('n2', 'shaky', { dimensions: [{ id: 'confidence', level: 'low' }] }),
         item('n3', 'unexplained'),
         item('n4', 'settled'),
@@ -107,8 +107,29 @@ describe('state_gaps', () => {
       ['n3', 'unexplained'],
     ])
     expect(gaps.counts).toEqual({ conflict: 1, shaky: 1, unexplained: 1 })
-    expect(gaps.items[0]!.openConflicts).toEqual([{ nodeId: 'n5', label: 'label n5' }])
+    expect(gaps.items[0]!.conflict).toEqual({ level: 'open' })
+    expect(gaps.items[1]!.conflict).toBeUndefined()
     expect(gaps.items[1]!.dimensions).toEqual([{ id: 'confidence', level: 'low' }])
+  })
+
+  it('reports a conflict as its level, never as a node id', () => {
+    const levels = stubState({
+      nodes: () => nodes,
+      progress: () =>
+        progress([
+          item('n1', 'conflict', { openConflicts: ['suspected'] }),
+          item('n2', 'conflict', { openConflicts: ['open'] }),
+        ]),
+    })
+    const gaps = stateGaps(memoryPorts(FEATURE, { state: levels }), undefined)
+    expect(gaps.items.map((entry) => entry.conflict)).toEqual([
+      { level: 'suspected' },
+      { level: 'open' },
+    ])
+    const text = JSON.stringify(gaps)
+    expect(text).not.toContain('openConflicts')
+    expect(text).not.toContain('"nodeId":"open"')
+    expect(text).not.toContain('"nodeId":"suspected"')
   })
 
   it('reads every item when the project has no course', () => {
@@ -312,7 +333,7 @@ describe('course_hotspots', () => {
         progress([
           item('a1', 'conflict', {
             dimensions: [{ id: 'conflict', level: 'open' }],
-            openConflicts: ['b1'],
+            openConflicts: ['open'],
           }),
         ]),
       ),

@@ -76,9 +76,7 @@ export const blockReadTools: readonly SceneTool[] = [
           : gaps.items.map(
               (item) =>
                 `- [${item.reason}] ${item.label} (${item.nodeId})` +
-                (item.openConflicts.length === 0
-                  ? ''
-                  : `; conflicts with ${item.openConflicts.map((end) => end.label).join(', ')}`),
+                (item.conflict === undefined ? '' : `; conflict: ${item.conflict.level}`),
             )
       return { text: lines.join('\n'), structured: { ...gaps } }
     },

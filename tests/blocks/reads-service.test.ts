@@ -161,6 +161,17 @@ describe('the block reads through the launcher', () => {
       items: [],
     })
 
+    // A real recorded conflict reads as its level, not as the id of another item.
+    await rest('POST', `${API}/record`, { target: nodeId, dimensions: { conflict: 'open' } })
+    const conflicted = await call('state_gaps', { projectId: bareId })
+    expect(conflicted.isError, textOf(conflicted)).not.toBe(true)
+    expect(conflicted.structuredContent).toMatchObject({
+      items: [{ nodeId, reason: 'conflict', conflict: { level: 'open' } }],
+    })
+    expect(textOf(conflicted)).toContain('; conflict: open')
+    expect(textOf(conflicted)).not.toContain('conflicts with')
+    await rest('POST', `${API}/record`, { target: nodeId, dimensions: { conflict: 'none' } })
+
     const recent = await call('recent_turns', { threadId, limit: 2 })
     expect(recent.isError, textOf(recent)).not.toBe(true)
     expect(recent.structuredContent).toMatchObject({
