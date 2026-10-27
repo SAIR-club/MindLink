@@ -52,7 +52,7 @@ export function stateGaps(ports: Ports, scope: string | undefined): StateGaps {
   for (const item of ports.state.progress().items) {
     if (item.attention === 'settled') continue
     if (inScope !== undefined && !inScope.has(item.nodeId)) continue
-    // `openConflicts` lists the levels of the conflict dimension that are not `none`: at most one.
+    // `openConflicts` lists the conflict level when it is still open (`suspected`, `open`): at most one.
     const level = item.openConflicts[0]
     items.push({
       nodeId: item.nodeId,

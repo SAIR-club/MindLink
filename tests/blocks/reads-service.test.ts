@@ -170,7 +170,15 @@ describe('the block reads through the launcher', () => {
     })
     expect(textOf(conflicted)).toContain('; conflict: open')
     expect(textOf(conflicted)).not.toContain('conflicts with')
-    await rest('POST', `${API}/record`, { target: nodeId, dimensions: { conflict: 'none' } })
+
+    // Once the learner marks it resolved it is no longer a conflict: only suspected and open are.
+    await rest('POST', `${API}/record`, { target: nodeId, dimensions: { conflict: 'resolved' } })
+    const resolved = await call('state_gaps', { projectId: bareId })
+    expect(resolved.structuredContent).toMatchObject({
+      items: [{ nodeId, reason: 'shaky' }],
+      counts: { conflict: 0, shaky: 1 },
+    })
+    expect(textOf(resolved)).not.toContain('conflict:')
 
     const recent = await call('recent_turns', { threadId, limit: 2 })
     expect(recent.isError, textOf(recent)).not.toBe(true)
