@@ -18,8 +18,11 @@ export interface GapItem {
   readonly type: string
   readonly reason: GapReason
   readonly dimensions: readonly { readonly id: string; readonly level: string }[]
-  /** What the item clashes with, among the caller's own items. */
-  readonly openConflicts: readonly { readonly nodeId: string; readonly label: string }[]
+  /**
+   * The level of the item's conflict dimension as Episteme records it (`open`, `suspected`, ...); absent when the item
+   * has none. Episteme's progress does not say which other item it clashes with.
+   */
+  readonly conflict?: { readonly level: string }
 }
 
 export interface StateGaps {
@@ -45,21 +48,19 @@ function scopedIds(ports: Ports, scope: string | undefined): ReadonlySet<string>
 /** The caller's items needing attention in a scope, most in need first, as `progress()` orders them. */
 export function stateGaps(ports: Ports, scope: string | undefined): StateGaps {
   const inScope = scopedIds(ports, scope)
-  const labels = new Map(ports.state.nodes().map((node) => [node.nodeId, node.label]))
   const items: GapItem[] = []
   for (const item of ports.state.progress().items) {
     if (item.attention === 'settled') continue
     if (inScope !== undefined && !inScope.has(item.nodeId)) continue
+    // `openConflicts` lists the levels of the conflict dimension that are not `none`: at most one.
+    const level = item.openConflicts[0]
     items.push({
       nodeId: item.nodeId,
       label: item.label,
       type: item.type,
       reason: item.attention,
       dimensions: item.dimensions,
-      openConflicts: item.openConflicts.map((nodeId) => ({
-        nodeId,
-        label: labels.get(nodeId) ?? nodeId,
-      })),
+      ...(level === undefined ? {} : { conflict: { level } }),
     })
   }
   const counts = Object.fromEntries(
