@@ -1,15 +1,39 @@
 /**
- * The YAML subset a block's frontmatter is written in (block format, section 3.1).
+ * The YAML a block's frontmatter is written in (block format, section 3.1).
  *
- * Block mappings and sequences indented with spaces, single-line flow sequences and mappings, plain and quoted
- * strings, decimal integers, `true` / `false` and `#` comments. Nothing else: no anchors, aliases, tags, multi-line
- * strings, floats or nulls. The subset is enough for blocks, every value keeps the line it was written on, and a
- * block shared by someone else cannot reach anything a full YAML loader would do.
+ * Standard YAML 1.2 (core schema), read by the `yaml` library, so whatever layout an editor or Prettier produces is
+ * accepted. Four features are refused, because a block can be shared and these are the ones that let a document
+ * mean something other than what it shows: anchors (`&a`), aliases (`*a`), explicit tags (`!x`, `!!python/...`) and
+ * merge keys (`<<`). Duplicate keys and a top level that is not a mapping are refused as well. Every node keeps the
+ * line and column it was written at, so a problem in a block can be reported where it is.
  */
+
+import {
+  type Document,
+  isAlias,
+  isMap,
+  isScalar,
+  isSeq,
+  LineCounter,
+  type Node,
+  parseDocument,
+  Scalar,
+  visit,
+  type YAMLError,
+} from 'yaml'
+
+/** A floating-point number (`1.5`, `1e3`, `.inf`). Blocks have no use for one: it fails every typed field check. */
+export interface YamlFloat {
+  readonly float: number
+}
 
 export interface YamlScalar {
   readonly kind: 'scalar'
-  readonly value: string | number | boolean
+  /**
+   * `null` is an empty value (`key:`, `~`, `null`) and a {@link YamlFloat} is a float. Neither is a string, an
+   * integer or a boolean, so every `typeof` check on a field rejects them without a special case.
+   */
+  readonly value: string | number | boolean | null | YamlFloat
   readonly quoted: boolean
   readonly line: number
   readonly column: number
@@ -48,373 +72,166 @@ export type YamlResult =
   | { readonly ok: true; readonly value: YamlMap }
   | { readonly ok: false; readonly error: YamlError }
 
-class SyntaxProblem extends Error {
-  constructor(
-    readonly line: number,
-    readonly column: number,
-    message: string,
-  ) {
-    super(message)
-  }
+/** Something wrong, at an offset into the source. */
+interface Problem {
+  readonly offset: number
+  readonly message: string
 }
 
-interface Line {
-  readonly indent: number
-  /** The content after the indent, comment and trailing spaces removed. */
-  readonly text: string
-  readonly line: number
-}
-
-/** A key: block keys, the start of `- key: value`, and flow-mapping keys all share it. */
-const NAME = '[A-Za-z0-9_][A-Za-z0-9_-]*'
-const KEY = new RegExp(`^(${NAME})[ ]*:(?:[ ]+(.*))?$`)
-const MAP_START = new RegExp(`^${NAME}[ ]*:(?:[ ]|$)`)
-/** Sticky, so a flow-mapping key is matched where the reader stands, without copying the rest of the line. */
-const FLOW_KEY = new RegExp(NAME, 'y')
-
-/** The characters after which a quote opens a scalar, rather than sitting inside a plain one like `it's`. */
-const OPENS_SCALAR_AFTER = new Set([':', '-', '[', '{', ','])
-
-/**
- * Where a `#` starts a comment: at the start, or after a space, and not inside a quoted scalar.
- *
- * One pass: whether a quote opens a scalar depends only on the last non-blank character before it, which is kept as
- * the scan goes rather than recomputed from the start of the line at every quote.
- */
-function stripComment(text: string): string {
-  let quote: '"' | "'" | undefined
-  let previous = ''
-  let lastNonBlank: string | undefined
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index]!
-    if (quote === undefined) {
-      if (char === '#' && (index === 0 || previous === ' ')) return text.slice(0, index)
-      const opens = lastNonBlank === undefined || OPENS_SCALAR_AFTER.has(lastNonBlank)
-      if ((char === '"' || char === "'") && opens) quote = char
-    } else if (quote === '"' && char === '\\') {
-      // The escaped character is inside the scalar: it can be neither the scalar's end nor what a later quote follows.
-      index++
-    } else if (char === quote) {
-      if (quote === "'" && text[index + 1] === "'") index++
-      else quote = undefined
-    }
-    if (!/\s/.test(char)) lastNonBlank = char
-    previous = char
-  }
-  return text
-}
-
-function linesOf(source: readonly string[], firstLine: number): Line[] {
-  const lines: Line[] = []
-  source.forEach((raw, offset) => {
-    const line = firstLine + offset
-    const leading = /^[ \t]*/.exec(raw)![0]
-    if (leading.includes('\t')) {
-      throw new SyntaxProblem(line, leading.indexOf('\t') + 1, '缩进里有制表符；请只用空格缩进')
-    }
-    const text = stripComment(raw.slice(leading.length)).trimEnd()
-    if (text === '') return
-    lines.push({ indent: leading.length, text, line })
-  })
-  return lines
-}
+const INTEGER = /^(?:[-+]?[0-9]+|0o[0-7]+|0x[0-9a-fA-F]+)$/
+/** Anchors and tags written before a node, with the spaces between them and the node. */
+const PROPERTIES = /(?:[&!][^\s,[\]{}]*\s+)+$/
 
 /** Reads a frontmatter whose first line is `firstLine` in its file. The top level must be a mapping. */
 export function parseYaml(source: readonly string[], firstLine: number): YamlResult {
-  try {
-    const lines = linesOf(source, firstLine)
-    if (lines.length === 0) {
-      return { ok: true, value: { kind: 'mapping', entries: [], line: firstLine, column: 1 } }
-    }
-    const parser = new BlockParser(lines)
-    const first = lines[0]!
-    if (first.indent !== 0) throw new SyntaxProblem(first.line, 1, '第一行不能缩进')
-    if (isSeqItem(first.text)) throw new SyntaxProblem(first.line, 1, '最外层必须是"键: 值"的映射')
-    const value = parser.map(0)
-    parser.expectEnd()
-    return { ok: true, value }
-  } catch (error) {
-    if (error instanceof SyntaxProblem) {
-      return {
-        ok: false,
-        error: { line: error.line, column: error.column, message: error.message },
+  const text = source.join('\n')
+  const counter = new LineCounter()
+  const doc = parseDocument(text, {
+    lineCounter: counter,
+    version: '1.2',
+    schema: 'core',
+    uniqueKeys: true,
+  })
+  const locate: Located = (offset) => {
+    const { line, col } = counter.linePos(offset)
+    return { line: firstLine - 1 + line, column: col }
+  }
+  const fail = (problem: Problem): YamlResult => ({
+    ok: false,
+    error: { ...locate(problem.offset), message: problem.message },
+  })
+
+  // The earliest problem wins; on a tie the refusal does, since an alias to an unknown anchor is an alias first.
+  const problems = [
+    ...refusals(doc, text),
+    ...doc.errors.map((error) => syntaxProblem(error, doc, text)),
+  ]
+  const first = problems.reduce<Problem | undefined>(
+    (best, next) => (best === undefined || next.offset < best.offset ? next : best),
+    undefined,
+  )
+  if (first !== undefined) return fail(first)
+
+  const contents = doc.contents
+  if (contents === null) {
+    return { ok: true, value: { kind: 'mapping', entries: [], line: firstLine, column: 1 } }
+  }
+  if (!isMap(contents)) {
+    return fail({ offset: contents.range?.[0] ?? 0, message: '最外层必须是"键: 值"的映射' })
+  }
+  const converted = convert(contents, locate, text)
+  return converted.ok ? { ok: true, value: converted.node as YamlMap } : fail(converted.problem)
+}
+
+/** The library's own complaint, without the excerpt of the source it appends. */
+function syntaxProblem(error: YAMLError, doc: Document, text: string): Problem {
+  const offset = error.pos[0]
+  if (error.code === 'TAB_AS_INDENT') return { offset, message: '缩进里有制表符；请只用空格缩进' }
+  if (error.code === 'DUPLICATE_KEY') {
+    return { offset, message: `键 "${text.slice(error.pos[0], error.pos[1])}" 重复了` }
+  }
+  if (error.code === 'MULTIPLE_DOCS') {
+    return { offset, message: '只能有一个 YAML 文档；frontmatter 里不要再写 "---" 或 "..."' }
+  }
+  if (error.message.startsWith('Missing closing')) {
+    // The library notices at the end of the file; the problem is where the quote opened.
+    let opened = offset
+    visit(doc, {
+      Scalar(_, node) {
+        if (node.range?.[1] === offset && node.range[0] < opened) opened = node.range[0]
+      },
+    })
+    return { offset: opened, message: '引号没有闭合' }
+  }
+  const message = error.message.replace(/ at line \d+, column \d+:[\s\S]*$/, '')
+  return { offset, message: `YAML 语法错误：${message}` }
+}
+
+/** Anchors, aliases, explicit tags and merge keys, wherever they are in the document. */
+function refusals(doc: Document, text: string): Problem[] {
+  const found: Problem[] = []
+  const propertiesAt = (node: Node, message: string): void => {
+    const start = node.range?.[0] ?? 0
+    const before = PROPERTIES.exec(text.slice(Math.max(0, start - 256), start))
+    found.push({ offset: before === null ? start : start - before[0].length, message })
+  }
+  visit(doc, {
+    Alias(_, node) {
+      found.push({ offset: node.range?.[0] ?? 0, message: '不支持别名（*）；请把内容直接写出来' })
+    },
+    Node(_, node) {
+      if (isAlias(node)) return
+      if (node.anchor !== undefined) propertiesAt(node, '不支持锚点（&）；请把内容直接写出来')
+      if (node.tag !== undefined) propertiesAt(node, '不支持标签（!）；值的类型由写法决定')
+    },
+    Pair(_, pair) {
+      const key = pair.key
+      if (isScalar(key) && key.type === Scalar.PLAIN && key.value === '<<') {
+        found.push({
+          offset: key.range?.[0] ?? 0,
+          message: '不支持合并键（<<）；请把内容直接写出来',
+        })
+      } else if (isMap(key) || isSeq(key)) {
+        found.push({ offset: key.range?.[0] ?? 0, message: '键必须是文字，不能是列表或映射' })
       }
-    }
-    throw error
-  }
+    },
+  })
+  return found
 }
 
-function isSeqItem(text: string): boolean {
-  return text === '-' || text.startsWith('- ')
-}
+type Located = (offset: number) => { line: number; column: number }
+type Converted =
+  | { readonly ok: true; readonly node: YamlNode }
+  | { readonly ok: false; readonly problem: Problem }
 
-class BlockParser {
-  private index = 0
-
-  constructor(private readonly lines: Line[]) {}
-
-  expectEnd(): void {
-    const rest = this.lines[this.index]
-    if (rest !== undefined) throw new SyntaxProblem(rest.line, rest.indent + 1, '缩进不对')
-  }
-
-  private node(indent: number): YamlNode {
-    const line = this.lines[this.index]!
-    return isSeqItem(line.text) ? this.seq(indent) : this.map(indent)
-  }
-
-  /** The next line of a block at `indent`, or `undefined` once the block has ended. Deeper lines are an error. */
-  private nextAt(indent: number): Line | undefined {
-    const line = this.lines[this.index]
-    if (line === undefined || line.indent < indent) return undefined
-    if (line.indent > indent) throw new SyntaxProblem(line.line, line.indent + 1, '缩进不对')
-    return line
-  }
-
-  map(indent: number): YamlMap {
-    const start = this.lines[this.index]!
+/** The tree of nodes, once the document has passed every refusal. `at` is where an empty value is reported. */
+function convert(node: unknown, locate: Located, text: string, at?: number): Converted {
+  if (isMap(node)) {
     const entries: YamlEntry[] = []
-    const seen = new Set<string>()
-    for (let line = this.nextAt(indent); line !== undefined; line = this.nextAt(indent)) {
-      if (isSeqItem(line.text)) {
-        throw new SyntaxProblem(line.line, line.indent + 1, '这里应该是"键: 值"，不是列表项')
-      }
-      const match = KEY.exec(line.text)
-      if (match === null) {
-        throw new SyntaxProblem(line.line, line.indent + 1, '无法识别这一行；应该写成"键: 值"')
-      }
-      const key = match[1]!
-      const column = line.indent + 1
-      if (seen.has(key)) throw new SyntaxProblem(line.line, column, `键 "${key}" 重复了`)
-      seen.add(key)
-      const rest = match[2]
-      let value: YamlNode
-      if (rest === undefined || rest === '') {
-        this.index++
-        const next = this.lines[this.index]
-        if (next !== undefined && next.indent > indent) {
-          value = this.node(next.indent)
-        } else if (next !== undefined && next.indent === indent && isSeqItem(next.text)) {
-          value = this.seq(indent)
-        } else {
-          throw new SyntaxProblem(line.line, column, `键 "${key}" 没有值；不支持空值`)
-        }
-      } else {
-        const offset = line.indent + line.text.length - rest.length
-        value = parseInline(rest, line.line, offset + 1)
-        this.index++
-      }
-      entries.push({ key, line: line.line, column, value })
+    for (const pair of node.items) {
+      if (!isScalar(pair.key)) continue
+      const keyAt = pair.key.range?.[0] ?? 0
+      const value = convert(pair.value, locate, text, keyAt)
+      if (!value.ok) return value
+      entries.push({ key: keyText(pair.key, text), ...locate(keyAt), value: value.node })
     }
-    return { kind: 'mapping', entries, line: start.line, column: start.indent + 1 }
+    return { ok: true, node: { kind: 'mapping', entries, ...locate(node.range?.[0] ?? 0) } }
   }
-
-  private seq(indent: number): YamlSeq {
-    const start = this.lines[this.index]!
+  if (isSeq(node)) {
     const items: YamlNode[] = []
-    for (let line = this.nextAt(indent); line !== undefined; line = this.nextAt(indent)) {
-      if (!isSeqItem(line.text)) break
-      const after = line.text.slice(1)
-      const content = after.trimStart()
-      const contentIndent = line.indent + 1 + (after.length - content.length)
-      if (content === '') {
-        this.index++
-        const next = this.lines[this.index]
-        if (next === undefined || next.indent <= indent) {
-          throw new SyntaxProblem(line.line, line.indent + 1, '列表项没有内容；不支持空值')
-        }
-        items.push(this.node(next.indent))
-      } else if (MAP_START.test(content) && !/^["'[{]/.test(content)) {
-        // `- key: value` starts a mapping whose keys line up after the dash.
-        this.lines[this.index] = { indent: contentIndent, text: content, line: line.line }
-        items.push(this.map(contentIndent))
-      } else {
-        items.push(parseInline(content, line.line, contentIndent + 1))
-        this.index++
-      }
+    for (const item of node.items) {
+      const value = convert(item, locate, text)
+      if (!value.ok) return value
+      items.push(value.node)
     }
-    return { kind: 'sequence', items, line: start.line, column: start.indent + 1 }
+    return { ok: true, node: { kind: 'sequence', items, ...locate(node.range?.[0] ?? 0) } }
+  }
+  if (!isScalar(node)) {
+    // Nothing at all after a `key:` is a missing value, reported at the key.
+    return { ok: true, node: { kind: 'scalar', value: null, quoted: false, ...locate(at ?? 0) } }
+  }
+  const start = node.range?.[0] ?? 0
+  const empty = node.range?.[0] === node.range?.[1]
+  const value = scalarValue(node, text)
+  if (value === undefined) return { ok: false, problem: { offset: start, message: '整数太大' } }
+  const quoted = node.type === Scalar.QUOTE_DOUBLE || node.type === Scalar.QUOTE_SINGLE
+  return {
+    ok: true,
+    node: { kind: 'scalar', value, quoted, ...locate(empty && at !== undefined ? at : start) },
   }
 }
 
-/** Reads one value written on a single line: a scalar, or a flow sequence or mapping. */
-function parseInline(text: string, line: number, column: number): YamlNode {
-  const reader = new FlowReader(text, line, column)
-  const value = reader.value(false)
-  reader.expectEnd()
-  return value
+/** The value of a scalar, or `undefined` for an integer too large to be exact. */
+function scalarValue(node: Scalar, text: string): YamlScalar['value'] | undefined {
+  const value: unknown = node.value
+  if (typeof value !== 'number') return value as string | boolean | null
+  const written = node.range ? text.slice(node.range[0], node.range[1]).trim() : ''
+  if (!INTEGER.test(written)) return { float: value }
+  return Number.isSafeInteger(value) ? value : undefined
 }
 
-class FlowReader {
-  private at = 0
-
-  constructor(
-    private readonly text: string,
-    private readonly line: number,
-    private readonly column: number,
-  ) {}
-
-  private fail(message: string, at = this.at): never {
-    throw new SyntaxProblem(this.line, this.column + at, message)
-  }
-
-  private skipSpaces(): void {
-    while (this.text[this.at] === ' ') this.at++
-  }
-
-  expectEnd(): void {
-    this.skipSpaces()
-    if (this.at < this.text.length) this.fail('值后面多了内容；含有特殊字符的值请加引号')
-  }
-
-  value(inFlow: boolean): YamlNode {
-    this.skipSpaces()
-    const char = this.text[this.at]
-    const column = this.column + this.at
-    if (char === undefined) this.fail('缺少值；不支持空值')
-    if (char === '[') return this.sequence()
-    if (char === '{') return this.mapping()
-    if (char === '"' || char === "'") {
-      return { kind: 'scalar', value: this.quoted(char), quoted: true, line: this.line, column }
-    }
-    if (char === '|' || char === '>') this.fail('不支持多行字符串')
-    if (char === '&' || char === '*') this.fail('不支持锚点和别名')
-    if (char === '!') this.fail('不支持标签')
-    if (char === '%' || char === '@' || char === '`') this.fail(`"${char}" 开头的值请加引号`)
-    return { kind: 'scalar', value: this.plain(inFlow), quoted: false, line: this.line, column }
-  }
-
-  private sequence(): YamlSeq {
-    const { items, column } = this.collection(
-      ']',
-      () => this.value(true),
-      '列表缺少 "," 或 "]"；流式列表必须写在一行里',
-    )
-    return { kind: 'sequence', items, line: this.line, column }
-  }
-
-  private mapping(): YamlMap {
-    const seen = new Set<string>()
-    const { items: entries, column } = this.collection(
-      '}',
-      () => this.entry(seen),
-      '映射缺少 "," 或 "}"；流式映射必须写在一行里',
-    )
-    return { kind: 'mapping', entries, line: this.line, column }
-  }
-
-  /**
-   * A flow collection, from its opening bracket to `close`: items separated by commas, on this one line. `missing`
-   * is the error when an item is followed by neither a comma nor `close`.
-   */
-  private collection<T>(
-    close: ']' | '}',
-    item: () => T,
-    missing: string,
-  ): { readonly items: T[]; readonly column: number } {
-    const column = this.column + this.at
-    this.at++
-    const items: T[] = []
-    this.skipSpaces()
-    if (this.text[this.at] === close) {
-      this.at++
-      return { items, column }
-    }
-    for (;;) {
-      items.push(item())
-      this.skipSpaces()
-      const char = this.text[this.at]
-      if (char === ',') {
-        this.at++
-        continue
-      }
-      if (char === close) {
-        this.at++
-        return { items, column }
-      }
-      this.fail(missing)
-    }
-  }
-
-  /** One `key: value` of a flow mapping. */
-  private entry(seen: Set<string>): YamlEntry {
-    this.skipSpaces()
-    const keyAt = this.at
-    FLOW_KEY.lastIndex = this.at
-    const match = FLOW_KEY.exec(this.text)
-    if (match === null) this.fail('这里应该是键')
-    const key = match[0]
-    this.at += key.length
-    this.skipSpaces()
-    if (this.text[this.at] !== ':') this.fail(`键 "${key}" 后面缺少 ":"`)
-    this.at++
-    if (seen.has(key)) this.fail(`键 "${key}" 重复了`, keyAt)
-    seen.add(key)
-    const value = this.value(true)
-    return { key, line: this.line, column: this.column + keyAt, value }
-  }
-
-  private quoted(quote: '"' | "'"): string {
-    const start = this.at
-    this.at++
-    let value = ''
-    for (;;) {
-      const char = this.text[this.at]
-      if (char === undefined) this.fail('引号没有闭合；字符串必须写在一行里', start)
-      if (char === quote) {
-        if (quote === "'" && this.text[this.at + 1] === "'") {
-          value += "'"
-          this.at += 2
-          continue
-        }
-        this.at++
-        return value
-      }
-      if (quote === '"' && char === '\\') {
-        const next = this.text[this.at + 1]
-        const escapes: Record<string, string> = { '"': '"', '\\': '\\', n: '\n', t: '\t' }
-        const escaped = next === undefined ? undefined : escapes[next]
-        if (escaped === undefined) this.fail('只支持 \\" \\\\ \\n \\t 这几种转义')
-        value += escaped
-        this.at += 2
-        continue
-      }
-      value += char
-      this.at++
-    }
-  }
-
-  private plain(inFlow: boolean): string | number | boolean {
-    const start = this.at
-    let end = this.at
-    while (end < this.text.length) {
-      const char = this.text[end]!
-      if (inFlow && (char === ',' || char === ']' || char === '}')) break
-      if (char === ':' && (end + 1 === this.text.length || this.text[end + 1] === ' ')) {
-        this.fail('值里的 ": " 会被当成映射；请给这个值加引号', end)
-      }
-      if (inFlow && (char === '[' || char === '{')) this.fail('请给这个值加引号', end)
-      end++
-    }
-    const raw = this.text.slice(start, end).trimEnd()
-    if (raw === '') this.fail('缺少值；不支持空值')
-    if (raw.startsWith('- ') || raw === '-') this.fail('这里不能写列表项')
-    this.at = start + raw.length
-    if (raw === 'true') return true
-    if (raw === 'false') return false
-    if (/^(true|false|yes|no|on|off)$/i.test(raw)) {
-      this.fail('布尔值只写 true 或 false；要写文字请加引号', start)
-    }
-    if (/^(null|~)$/i.test(raw)) this.fail('不支持空值', start)
-    if (/^-?(0|[1-9][0-9]*)$/.test(raw)) {
-      const value = Number(raw)
-      if (!Number.isSafeInteger(value)) this.fail('整数太大', start)
-      return value
-    }
-    if (/^[-+]?[0-9]+$/.test(raw)) this.fail('整数不能有前导零或加号；要写文字请加引号', start)
-    if (/^[-+]?(\.[0-9]|[0-9][0-9_]*\.|[0-9]+[eE])|^[-+]?\.(inf|nan)$|^0[xob]/i.test(raw)) {
-      this.fail('只支持十进制整数；要写文字请加引号', start)
-    }
-    return raw
-  }
+/** A key is the text it was written as, so `1:` and `true:` are the keys "1" and "true". */
+function keyText(key: Scalar, text: string): string {
+  if (typeof key.value === 'string') return key.value
+  return key.range ? text.slice(key.range[0], key.range[1]).trim() : String(key.value)
 }
