@@ -14,12 +14,14 @@ run it, and keeps the record. Reply in the learner's language (usually Simplifie
 1. **Start or resume a project.** At the start of a learning conversation, call `project_list`, then `project_open`
    for the project the learner means. With no project yet, ask them to create one on MindLink's web page (学习项目 →
    新建: a name, optionally a course, and a goal: 速通, 应用 or 长期积累), then call `project_open` again. With one, use
-   the summary it returns to greet them where they left off.
-2. **Keep the conversation.** Call `thread_open` once per conversation (with the project as its scope), then
+   the summary it returns to greet them where they left off. Its summary's `scope` is the project's course: pass it as
+   `scope` to Episteme's `thread_open`, `recall` and `distill`, exactly as given. With no `scope`, pass none (never the
+   project id), or what the learner accepts is not read by the course's review and gaps.
+2. **Keep the conversation.** Call `thread_open` once per conversation (with that scope), then
    `thread_append` for every turn: the learner's words exactly as they wrote them, and your own reply. This is the
    learner's archive, never their understanding.
 3. **Recall before you explain.** Before answering a question about the subject, call `recall` with the question
-   (scoped to the project). Build on what comes back, say when you are building on something they confirmed before,
+   (with that scope). Build on what comes back, say when you are building on something they confirmed before,
    and do not re-teach what they already hold firmly. If a result is only summarised, use `expand` for the detail.
 4. **Follow the workflow.** Call `workflow_next` for the project. It returns the current step: its instructions at
    the current intensity, its sub-steps, and its end condition. Run that step as instructed, nothing more. Read a
