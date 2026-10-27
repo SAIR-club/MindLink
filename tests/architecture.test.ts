@@ -101,7 +101,7 @@ describe('the repository', () => {
         layers: [{ name: 'L2', modules: ['apps/mindlink/src/blocks'] }],
         episteme: {},
         assembly: 'apps/mindlink/src/app.ts',
-        web: 'apps/mindlink/web',
+        web: 'apps/mindlink/web/src',
         blocks: { engine: 'apps/mindlink/src/blocks', library: 'apps/mindlink/blocks' },
       }
       await write('architecture.json', JSON.stringify(config))
@@ -174,7 +174,7 @@ const CONFIG: ArchitectureConfig = {
   ],
   episteme: { 'packages/platform': ['@episteme/application'] },
   assembly: 'apps/mindlink/src/app.ts',
-  web: 'apps/mindlink/web',
+  web: 'apps/mindlink/web/src',
   blocks: { engine: 'packages/platform/src/engine', library: 'packages/platform/library' },
 }
 const PACKAGES: PackageInfo[] = [
@@ -205,10 +205,16 @@ function violationsOf(extra: Record<string, string>): readonly number[] {
       'apps/mindlink/src/app.ts',
       "import { tools } from './project/mcp.js'\nimport { view } from './understanding/index.js'\nexport const all = [tools, view]",
     ],
-    ['apps/mindlink/web/router.js', 'export const route = 1'],
+    ['apps/mindlink/web/src/paths.ts', 'export const route = 1'],
+    ['apps/mindlink/web/src/components/ListView.vue', '<template><ul /></template>'],
+    ['apps/mindlink/web/src/features/index.ts', "import './project/index.js'"],
     [
-      'apps/mindlink/web/project/list.js',
-      "import { route } from '../router.js'\nexport const page = route",
+      'apps/mindlink/web/src/features/project/index.ts',
+      "import { route } from '../../paths.js'\nimport ProjectList from './ProjectList.vue'\nexport const page = [route, ProjectList]",
+    ],
+    [
+      'apps/mindlink/web/src/features/project/ProjectList.vue',
+      '<script setup lang="ts">\nimport ListView from \'../../components/ListView.vue\'\nimport { page } from \'./index.js\'\n</script>\n<!-- never v-html -->\n<template><ListView :items="page" /></template>',
     ],
     ...Object.entries(extra),
   ])
@@ -283,8 +289,26 @@ describe('each rule catches its violation', () => {
   it('5: a page importing another feature’s pages', () => {
     expect(
       violationsOf({
-        'apps/mindlink/web/understanding/view.js':
-          "import { page } from '../project/list.js'\nexport const v = page",
+        'apps/mindlink/web/src/features/understanding/view.ts':
+          "import { page } from '../project/index.js'\nexport const v = page",
+      }),
+    ).toEqual([5])
+  })
+
+  it('5: a component importing another feature’s component', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/understanding/ReviewPage.vue':
+          '<script setup lang="ts">\nimport ProjectList from \'../project/ProjectList.vue\'\n</script>',
+      }),
+    ).toEqual([5])
+  })
+
+  it('5: the front end importing past its own source', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/project/direct.ts':
+          "import { project } from '../../../../src/project/index.js'\nexport const d = project",
       }),
     ).toEqual([5])
   })
@@ -301,8 +325,26 @@ describe('each rule catches its violation', () => {
   it('6: a page writing HTML', () => {
     expect(
       violationsOf({
-        'apps/mindlink/web/project/bad.js':
-          'export function show(el, text) { el.innerHTML = text }',
+        'apps/mindlink/web/src/features/project/bad.ts':
+          'export function show(el: HTMLElement, text: string) { el.innerHTML = text }',
+      }),
+    ).toEqual([6])
+  })
+
+  it('6: a component writing HTML with v-html', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/features/project/Bad.vue':
+          '<script setup lang="ts">\ndefineProps<{ text: string }>()\n</script>\n<template><p v-html="text" /></template>',
+      }),
+    ).toEqual([6])
+  })
+
+  it('6: the shell writing HTML too', () => {
+    expect(
+      violationsOf({
+        'apps/mindlink/web/src/components/Raw.vue':
+          '<template><div :innerHTML="html" /></template>',
       }),
     ).toEqual([6])
   })

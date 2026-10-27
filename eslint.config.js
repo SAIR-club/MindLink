@@ -4,6 +4,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
+    // `.vue` files are not linted here (no Vue parser); vue-tsc type-checks them in `pnpm typecheck`.
     ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/*.tsbuildinfo'],
   },
   js.configs.recommended,
