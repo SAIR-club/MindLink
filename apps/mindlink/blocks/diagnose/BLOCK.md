@@ -38,7 +38,7 @@ result:
 ### 先读已有的记录
 
 1. 调用 `project_open`（`id`：当前项目），看目标、截止时间和已经写下的 `baseline`。已有 `baseline` 时，这一步只核对它还对不对。
-2. 调用 Episteme 的 `recall`：`question` 写这次要学的主题（来自目标），`scope` 写当前项目，`depth: summary`；需要细看的条目再用 `expand`。这是学习者已经确认过的理解。
+2. 调用 Episteme 的 `recall`：`question` 写这次要学的主题（来自目标），`scope` 写项目的课程，即 `project_open` 返回的 `scope`；项目没有课程时不写，`depth: summary`；需要细看的条目再用 `expand`。这是学习者已经确认过的理解。
 3. 调用 `state_gaps`（当前项目），看哪些条目冲突、不牢或讲不清。
 
 记录是空的（新项目、新学习者）很正常，不要因此认定学习者什么都不会，照常往下问。

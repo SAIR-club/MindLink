@@ -37,7 +37,7 @@ result:
 ### 素材
 
 1. 调用 `project_open`（`id`：当前项目），读目标、截止时间和已有基础。地图的范围由目标决定：速通只画目标用得到的部分，不求全。
-2. 调用 Episteme 的 `recall`（`question` 写领域名，`scope` 写当前项目，`depth: summary`），看学习者已经确认过哪些概念，地图上标成"你已经会"。
+2. 调用 Episteme 的 `recall`（`question` 写领域名，`scope` 写项目的课程，即 `project_open` 返回的 `scope`；项目没有课程时不写，`depth: summary`），看学习者已经确认过哪些概念，地图上标成"你已经会"。
 3. 调用 `course_hotspots`（当前项目）。和地图上某一块对得上的卡点，在那一块后面标"同课很多同学卡在这里"；不写人数以外的任何细节，不写是谁。
 
 ### 地图的样子

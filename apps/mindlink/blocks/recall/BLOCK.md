@@ -40,7 +40,7 @@ result:
 ### 开始之前
 
 1. 调用 `project_open`（`id`：当前项目），读目标。题目对准目标：速通考计算题的，就出计算和判断的小题。
-2. 回顾这次对话讲过的内容；拿不准时调用 Episteme 的 `recall`（`question` 写这次学的主题，`scope` 写当前项目，`depth: summary`）。注意：Episteme 的 `recall` 工具是给你查记录用的，结果**不要给学习者看**，自测时学习者不能看材料。
+2. 回顾这次对话讲过的内容；拿不准时调用 Episteme 的 `recall`（`question` 写这次学的主题，`scope` 写项目的课程，即 `project_open` 返回的 `scope`；项目没有课程时不写，`depth: summary`）。注意：Episteme 的 `recall` 工具是给你查记录用的，结果**不要给学习者看**，自测时学习者不能看材料。
 3. 告诉学习者：接下来 {{count}} 道小题，不翻材料、不看前面的对话，不会就说"不会"，这不是考试。
 
 ### 自测

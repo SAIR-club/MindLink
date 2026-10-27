@@ -20,7 +20,9 @@ function opened(project: Project): ToolAnswer {
   const lines = [
     `Project "${project.title}" (${project.id})${project.archived ? ', archived' : ''}.`,
     `Workflow ${project.workflowId}, guidance ${project.guidance}.`,
-    summary.scope === undefined ? 'No course.' : `Course scope tag: ${summary.scope}.`,
+    summary.scope === undefined
+      ? "No course: call Episteme's thread_open, recall and distill without a scope."
+      : `Course ${summary.scope}: pass scope "${summary.scope}" to Episteme's thread_open, recall and distill.`,
     summary.missing.length === 0
       ? 'Goal, deadline and baseline are set.'
       : `Not yet asked: ${summary.missing.join(', ')}.`,

@@ -29,6 +29,7 @@ intensities: [hint, ask, tell]
 - `text`：这一段对话的原文，只发用到的那一段，不发整份记录；每行写成 `学习者: ……` 或 `agent: ……`。
 - `learner`：`学习者`（和 `text` 里的说话人标签完全一致）。
 - `title`：这一段学了什么，一句话。
+- `scope`：项目的课程，即 `project_open` 返回的 `scope`；项目没有课程时不写。学习者接受的条目会带上这门课的标签，之后课程里的复习和缺口才读得到它们。
 - `candidates`：清单里留下的每一条。概念、问题、观点写 `kind: node`，给一个 `ref`；它们之间的关系写 `kind: relation`，用 `cand:<ref>` 指向；对已有节点的状态写 `kind: state`，`target` 用 `recall` 查到的节点 id。每条都带 `quote`、`basis`、`rationale`（为什么提这一条，让学习者能判断）。
 - `hostSession`：当前对话的标识；`submissionId`：这次提交的唯一标识，重试时用同一个，避免重复提交。
 
