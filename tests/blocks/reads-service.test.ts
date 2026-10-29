@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
  * The block reads (MindLink#11) through the launcher: an agent calls each tool over MCP against a real graph, where
  * the learner accepted a claim, recorded it shaky, talked in a thread and published it.
  *
- * At the pinned Episteme ref nothing a person or agent does tags a node `scope:<course>` (a proposal's scope is the
- * delegation's, not a tag), so here the claim belongs to no course: a project without a course reads it, and the
- * course project reads neither it nor its publication. Scoped reads are covered on in-memory ports (`reads.test.ts`).
+ * The first claim is proposed without a scope, so it belongs to no course: a project without a course reads it, and
+ * the course project reads neither it nor its publication. The second test follows a course end to end: the scope
+ * `project_open` gives is passed to `distill`, and what the learner accepts is read by the course's tools.
  */
 
 type Json = Record<string, unknown>
@@ -218,5 +218,57 @@ describe('the block reads through the launcher', () => {
     const missing = await call('state_gaps', { projectId: 'nope' })
     expect(missing.isError).toBe(true)
     expect(textOf(missing)).toContain('project_not_found')
+  })
+
+  it('reads what the learner accepted from a distillation given the project’s course as its scope', async () => {
+    const call = agent('scripted-host')
+    const created = await rest('POST', `${SCENE}/projects/create`, {
+      title: '线性代数',
+      course: 'linalg',
+      goalType: 'speedrun',
+    })
+    const projectId = String((created['project'] as Json)['id'])
+
+    const opened = await call('project_open', { id: projectId })
+    expect(opened.isError, textOf(opened)).not.toBe(true)
+    const scope = (opened.structuredContent?.['summary'] as Json)['scope']
+    expect(scope).toBe('linalg')
+    expect(textOf(opened)).toContain('pass scope "linalg"')
+
+    const distilled = await call('distill', {
+      text: '学习者：特征值是线性变换沿特征向量方向的伸缩倍数。\nagent：对，负的特征值表示方向反过来。',
+      learner: '学习者',
+      candidates: [
+        {
+          kind: 'node',
+          ref: 'eigen',
+          role: 'claim',
+          label: '特征值是线性变换沿特征向量方向的伸缩倍数',
+          quote: '特征值是线性变换沿特征向量方向的伸缩倍数',
+          basis: 'stated',
+          rationale: '学习者用自己的话说出了特征值的含义',
+        },
+      ],
+      scope,
+    })
+    expect(distilled.isError, textOf(distilled)).not.toBe(true)
+    const pending = (await rest('GET', `${API}/suggestions`))['suggestions'] as Json[]
+    const node = pending.find((suggestion) => (suggestion['proposal'] as Json)['kind'] === 'node')
+    expect(node?.['scope']).toBe('linalg')
+    await rest('POST', `${API}/suggestions/decide`, { id: node!['id'], action: 'accept' })
+
+    const nodes = (await rest('GET', `${API}/state`))['nodes'] as Json[]
+    const accepted = nodes.find((entry) => (entry['tags'] as string[]).includes('scope:linalg'))
+    expect(accepted).toBeDefined()
+    const nodeId = String(accepted!['nodeId'])
+    await rest('POST', `${API}/record`, { target: nodeId, dimensions: { confidence: 'low' } })
+
+    expect((await call('state_gaps', { projectId })).structuredContent).toMatchObject({
+      scope: 'scope:linalg',
+      items: [{ nodeId, reason: 'shaky' }],
+    })
+    expect(
+      (await call('items_due', { projectId, intervals: { low: 0 } })).structuredContent,
+    ).toMatchObject({ items: [{ nodeId, confidence: 'low' }] })
   })
 })
