@@ -6,13 +6,13 @@
   "type": "module",
   "packageManager": "pnpm@11.5.0",
   "engines": {
-    "node": ">=20.11"
+    "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && pnpm --filter @mindlink/app build:web",
     "clean": "tsc -b --clean",
-    "typecheck": "tsc -b --force",
-    "pretest": "tsc -b --force",
+    "typecheck": "tsc -b --force && pnpm --filter @mindlink/app typecheck:web",
+    "pretest": "tsc -b --force && pnpm --filter @mindlink/app build:web",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -30,6 +30,7 @@
     "@biomejs/biome": "^2.5.15",
     "@eslint/js": "^9.15.0",
     "@types/node": "^22.10.0",
+    "@vitejs/plugin-vue": "6.0.9",
     "dotenv": "^16.4.7",
     "eslint": "^9.15.0",
     "globals": "^15.12.0",
@@ -37,6 +38,7 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.16.0",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "vue": "3.5.43"
   }
 }

@@ -2,18 +2,18 @@ import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { REFUSAL_TEXT, refusalText } from '../../apps/mindlink/web/refusals.js'
+import { REFUSAL_TEXT, refusalText } from '../../apps/mindlink/web/src/refusals.js'
 
 /**
- * Every refusal code a person can meet has Chinese text (MindLink#23).
+ * Every refusal code MindLink itself can answer with has Chinese text (MindLink#23).
  *
- * The codes are collected from source rather than listed by hand: Episteme's checkout beside this repository (the
- * one the build links, at the pinned commit in CI) and MindLink's own packages. A refusal added on either side
- * without text here fails this test.
+ * The codes are collected from MindLink's own source (`packages/<name>/src`, `apps/<name>/src`) rather than listed by hand, so
+ * a refusal added here without its text fails this test. Episteme's codes are not collected: reading another
+ * repository's internals would tie these tests to them. The texts for the ones a learner commonly meets are written
+ * out, and any other gets `refusalText`'s general Chinese message.
  */
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
-const EPISTEME = join(ROOT, '..', 'Episteme')
 
 /** Every non-test TypeScript source file under `<root>/{packages,apps}/<name>/src`. */
 async function sources(root: string): Promise<string[]> {
@@ -95,21 +95,6 @@ describe('refusal texts', () => {
     ])
   })
 
-  it('has Chinese text for every code Episteme can refuse with', async () => {
-    const codes = await codesUnder(EPISTEME)
-    // The scan itself working: Episteme refuses with dozens of codes, these among them.
-    expect(codes.size).toBeGreaterThan(50)
-    for (const known of [
-      'unauthenticated',
-      'unknown_node',
-      'invalid_request',
-      'sharing_disabled',
-    ]) {
-      expect(codes).toContain(known)
-    }
-    expect([...codes].filter((code) => !Object.hasOwn(REFUSAL_TEXT, code)).sort()).toEqual([])
-  })
-
   it('has Chinese text for every code MindLink itself refuses with', async () => {
     const codes = await codesUnder(ROOT)
     expect(codes).toContain('invalid_record_id')
@@ -123,8 +108,21 @@ describe('refusal texts', () => {
     }
   })
 
-  it('still says nothing was done for a code it does not know', () => {
-    expect(refusalText('brand_new')).toBe('操作没有完成（brand_new）。')
-    expect(refusalText('toString')).toBe('操作没有完成（toString）。')
+  it('says in Chinese that the service did not do it, for a code it has no text for', () => {
+    expect(refusalText('brand_new')).toBe('服务没有完成这个操作（代码：brand_new）。')
+    expect(refusalText('toString')).toBe('服务没有完成这个操作（代码：toString）。')
+  })
+
+  it('keeps the texts a learner commonly meets from Episteme', () => {
+    for (const code of [
+      'unauthenticated',
+      'human_required',
+      'invalid_request',
+      'unknown_node',
+      'unknown_suggestion',
+      'sharing_disabled',
+    ]) {
+      expect(Object.hasOwn(REFUSAL_TEXT, code), code).toBe(true)
+    }
   })
 })
