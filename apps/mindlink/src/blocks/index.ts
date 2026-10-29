@@ -4,6 +4,7 @@
  *
  * Blocks are declarative content, never code (MindLink spec, D7). `checkBlocks` reads blocks from their files and
  * returns every problem as a value with its file and line; the registry it returns holds only blocks with none.
+ * The generic reads blocks may name in `tools:` are in `reads/` (MindLink#11).
  */
 
 export { checkLibrary, formatIssue, LIBRARY, type LibraryCheck } from './check-library.js'
@@ -75,6 +76,25 @@ export {
   type RegistryProvider,
 } from './engine/runs.js'
 export { loadBlockDirectory } from './load.js'
+export {
+  courseHotspots,
+  DEFAULT_INTERVALS,
+  itemsDue,
+  RAW_LIMIT,
+  recentTurns,
+  stateGaps,
+  type Contradiction,
+  type CourseHotspots,
+  type DueItem,
+  type GapItem,
+  type GapReason,
+  type Hotspot,
+  type ItemsDue,
+  type RecentTurn,
+  type RecentTurns,
+  type ReviewIntervals,
+  type StateGaps,
+} from './reads/logic.js'
 export { checkBlocks, type BlockRegistry, type CheckOptions, type CheckResult } from './registry.js'
 export { blockToolNames } from './tools.js'
 export {
