@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mindlink": {
+      "type": "http",
+      "url": "https://mindlink.example.edu/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MINDLINK_AGENT_TOKEN}"
+      }
+    }
+  }
+}
