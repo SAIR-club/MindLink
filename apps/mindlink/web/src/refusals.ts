@@ -77,6 +77,7 @@ export const REFUSAL_TEXT: Readonly<Record<string, string>> = Object.freeze({
   // Learning projects.
   invalid_project: '项目设置填写得不对，请检查后再保存。',
   project_not_found: '找不到这个学习项目。',
+  workflow_unavailable: '这个工作流还不能用，请换一个可用的。',
   project_archived: '这个学习项目已经归档，不能再修改。',
 
   // Workflows and runs.

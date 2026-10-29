@@ -74,6 +74,7 @@ export {
   type ProjectSource,
   type RegistryProvider,
 } from './engine/runs.js'
+export { builtinRegistry } from './engine/view.js'
 export { loadBlockDirectory } from './load.js'
 export { checkBlocks, type BlockRegistry, type CheckOptions, type CheckResult } from './registry.js'
 export { blockToolNames } from './tools.js'
