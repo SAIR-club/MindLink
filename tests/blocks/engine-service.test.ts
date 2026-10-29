@@ -52,7 +52,7 @@ beforeEach(async () => {
     tools: [...workflowTools(options), ...real, ...projectTools],
     routes: [...workflowRoutes(options), ...projectRoutes],
     mode: 'local',
-    graph: join(directory, 'graph.jsonl'),
+    graph: join(directory, 'graph.db'),
     port: 0,
   })
 })

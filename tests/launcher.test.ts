@@ -1,10 +1,11 @@
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addPerson, addToken } from '@episteme/service'
 import { startMindLink, type StartOptions } from '@mindlink/app'
 import type { Launched } from '@mindlink/platform'
+import Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -31,7 +32,7 @@ afterEach(async () => {
 async function serve(options: Partial<StartOptions> = {}): Promise<Launched> {
   service = await startMindLink({
     mode: 'local',
-    graph: join(directory, 'graph.jsonl'),
+    graph: join(directory, 'graph.db'),
     port: 0,
     ...options,
   })
@@ -165,13 +166,43 @@ describe('a graph written by v0.1.0', () => {
   )
 
   it('opens under the MindLink scene and reads as it did', async () => {
-    await cp(GOLDEN, directory, { recursive: true })
+    const lines = async (name: string) =>
+      (await readFile(join(GOLDEN, name), 'utf8'))
+        .split(/\r?\n/)
+        .filter((line) => line.trim() !== '')
+    const graphPath = join(directory, 'graph.db')
+    const db = new Database(graphPath)
+    try {
+      db.pragma('locking_mode = EXCLUSIVE')
+      db.pragma('journal_mode = WAL')
+      db.pragma('synchronous = FULL')
+      db.exec('CREATE TABLE records (seq INTEGER PRIMARY KEY, body TEXT NOT NULL)')
+      db.exec(
+        'CREATE TABLE companions (name TEXT NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (name, seq))',
+      )
+      db.pragma('user_version = 2')
+      const records = await lines('graph.jsonl')
+      const suggestions = await lines('graph.jsonl.suggestions.jsonl')
+      const sources = await lines('graph.jsonl.sources.jsonl')
+      db.transaction(() => {
+        const insertRecord = db.prepare('INSERT INTO records (seq, body) VALUES (?, ?)')
+        records.forEach((body, index) => insertRecord.run(index + 1, body))
+        const insertCompanion = db.prepare(
+          'INSERT INTO companions (name, seq, body) VALUES (?, ?, ?)',
+        )
+        suggestions.forEach((body, index) => insertCompanion.run('suggestions', index + 1, body))
+        sources.forEach((body, index) => insertCompanion.run('sources', index + 1, body))
+      })()
+    } finally {
+      db.close()
+    }
+
     const expected = JSON.parse(await readFile(join(GOLDEN, 'expected.json'), 'utf8')) as {
       nodes: readonly string[]
       understanding: Record<string, unknown>
       events: number
     }
-    await serve()
+    await serve({ graph: graphPath })
 
     const state = await call('GET', '/api/v1/state')
     expect(state.status).toBe(200)
