@@ -183,7 +183,7 @@ describe('projects over MCP', () => {
     const first = await call('project_open', { id })
     expect(first.isError).not.toBe(true)
     expect(first.structuredContent?.['summary']).toEqual({
-      scope: 'scope:MATH201',
+      scope: 'MATH201',
       missing: ['goal', 'deadline', 'baseline'],
     })
 

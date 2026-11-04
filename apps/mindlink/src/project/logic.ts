@@ -298,15 +298,18 @@ export function scopeTag(project: Project): string | undefined {
 
 /** What an agent opening the project is told beside its settings. */
 export interface ProjectSummary {
+  /**
+   * The course, when the project has one: the `scope` an agent passes to Episteme's `thread_open`, `recall` and
+   * `distill`, which tag what is accepted `scope:<course>` (see `scopeTag`). Not the tag itself.
+   */
   readonly scope?: string
   /** The settings the `goal` and `diagnose` blocks have yet to ask about, in that order. */
   readonly missing: readonly ('goal' | 'deadline' | 'baseline')[]
 }
 
 export function summaryOf(project: Project): ProjectSummary {
-  const scope = scopeTag(project)
   return {
-    ...(scope === undefined ? {} : { scope }),
+    ...(project.course === undefined ? {} : { scope: project.course }),
     missing: (['goal', 'deadline', 'baseline'] as const).filter(
       (field) => project[field] === undefined,
     ),
