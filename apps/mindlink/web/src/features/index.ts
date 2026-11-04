@@ -5,4 +5,4 @@
  *   import './project/index.js'
  */
 
-export {}
+import './project/index.js'

@@ -92,6 +92,12 @@ export const PERSON_WRITABLE: readonly PatchField[] = [
  */
 export const AGENT_WRITABLE: readonly PatchField[] = ['goal', 'deadline', 'baseline']
 
+/**
+ * The full ids of the workflows that can run, read when a project is written. The project feature cannot see the
+ * block library (it is a layer above), so the assembly passes this in.
+ */
+export type WorkflowCatalog = (ports: Ports) => readonly string[] | Promise<readonly string[]>
+
 export interface NewProject {
   readonly title: string
   readonly course?: string
@@ -138,6 +144,17 @@ function workflowId(value: unknown): string {
     refuse('invalid_project', '"workflowId" must be a full id such as builtin:speedrun')
   }
   return value
+}
+
+/** Refuses a workflow the block library does not have: a project on it could never run. */
+export async function requireWorkflow(
+  ports: Ports,
+  catalog: WorkflowCatalog,
+  id: string,
+): Promise<void> {
+  if (!(await catalog(ports)).includes(id)) {
+    refuse('workflow_unavailable', `工作流 ${id} 还不能用，请换一个可用的工作流`)
+  }
 }
 
 function guidance(value: unknown): Guidance {
@@ -251,7 +268,13 @@ function stored(project: Project): StoredProject {
   return rest
 }
 
-export async function createProject(ports: Ports, input: NewProject): Promise<Project> {
+/** Creates a project. With `workflows`, refuses a goal type whose workflow the library does not have. */
+export async function createProject(
+  ports: Ports,
+  input: NewProject,
+  workflows?: WorkflowCatalog,
+): Promise<Project> {
+  if (workflows !== undefined) await requireWorkflow(ports, workflows, WORKFLOW_OF[input.goalType])
   const project: Project = {
     id: newId(ports),
     title: input.title,
@@ -271,9 +294,13 @@ export async function updateProject(
   ports: Ports,
   id: unknown,
   patch: ProjectPatch,
+  workflows?: WorkflowCatalog,
 ): Promise<Project> {
   const current = requireProject(ports, id)
   if (current.archived) refuse('project_archived', `project "${current.id}" is archived`)
+  if (workflows !== undefined && patch.workflowId !== undefined) {
+    await requireWorkflow(ports, workflows, patch.workflowId)
+  }
   const next: Record<string, unknown> = { ...current }
   for (const [field, value] of Object.entries(patch)) {
     if (value === null) delete next[field]

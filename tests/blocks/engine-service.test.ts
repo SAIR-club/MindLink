@@ -35,6 +35,7 @@ let registry: BlockRegistry
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), 'mindlink-engine-'))
   registry = await registryOf()
+  const catalog = () => ['builtin:apply']
   const options = {
     registry: () => registry,
     projects: fakeProjects({
@@ -49,8 +50,8 @@ beforeEach(async () => {
   }))
   service = await launch({
     scene: mindlinkScene,
-    tools: [...workflowTools(options), ...real, ...projectTools],
-    routes: [...workflowRoutes(options), ...projectRoutes],
+    tools: [...workflowTools(options), ...real, ...projectTools(catalog)],
+    routes: [...workflowRoutes(options), ...projectRoutes(catalog)],
     mode: 'local',
     graph: join(directory, 'graph.jsonl'),
     port: 0,
