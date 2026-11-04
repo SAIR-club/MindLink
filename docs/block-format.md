@@ -503,7 +503,7 @@ interface BlockIssue {
 
 ## 9. 完整例子
 
-例子里的工具名（`state_gaps`、`recent_turns`、`course_hotspots`）是暂定的，最终以 #11 为准（见第 11 节）。
+例子里的工具名（`state_gaps`、`recent_turns`、`course_hotspots`）由 #11 定下（见第 11 节）。
 
 ### 9.1 基础积木 `predict-questions`（供 `guide` 引用，节选）
 
@@ -766,7 +766,7 @@ steps:
 
 ## 11. 与其他 issue 的约定
 
-- **#11 积木用到的工具**：工具名由 #11 定，本文例子里用的是暂定名 `state_gaps`（读状态缺口）、`recent_turns`（读最近对话）、`course_hotspots`（读同课卡点）、`review_due`（列出待复习条目）。#11 定名后改例子即可；格式只要求工具名符合 `^[a-z][a-z0-9_]*$` 并且已注册。
+- **#11 积木用到的工具**：`state_gaps`（读状态缺口）、`recent_turns`（读最近对话）、`course_hotspots`（读同课卡点）、`items_due`（列出待复习条目），列在 `apps/mindlink/src/blocks/tools.ts` 的 `blockToolNames` 里。格式只要求工具名符合 `^[a-z][a-z0-9_]*$` 并且已注册。
 - **#9 编排引擎**：步骤路径、强度优先级（5.3）、`workflow_next` / `block_read` 返回的切片（4.4）、`cost` 和 `orchestration` 的含义在这里定义，具体推进、精简、排序、计划快照、项目里的调整由 #9 实现。项目调整的 patch 格式归 #9，只约定按步骤路径定位。
 - **#10 学习项目**：`workflowId` 存完整 id；Q1 选 A 时，目标类型"应用"对应 `builtin:apply`。
 - **#28 积木页面**：编辑器调用同一个校验函数，按 8.1 的 `file`、`line`、`column` 标出错误；导入、导出按 2.3 的"路径 → 文本"映射。
