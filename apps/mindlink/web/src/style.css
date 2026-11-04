@@ -194,6 +194,7 @@ button:disabled {
 
 .dialog-detail {
   color: var(--muted);
+  white-space: pre-line;
 }
 
 .dialog-actions {
