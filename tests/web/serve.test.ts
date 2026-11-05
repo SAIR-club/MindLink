@@ -24,7 +24,7 @@ beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'mindlink-web-'))
   const running = spawn(
     process.execPath,
-    [CLI, 'serve', '--local', '--port', '0', '--graph', join(directory, 'graph.jsonl')],
+    [CLI, 'serve', '--local', '--port', '0', '--graph', join(directory, 'graph.db')],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   )
   child = running
