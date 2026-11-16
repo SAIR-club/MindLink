@@ -9,10 +9,10 @@
     "node": ">=22"
   },
   "scripts": {
-    "build": "tsc -b && pnpm --filter @mindlink/app build:web",
+    "build": "tsc -b && pnpm --filter @mindlink/app build:web && pnpm --filter @mindlink/workbench-web build",
     "clean": "tsc -b --clean",
     "typecheck": "tsc -b --force && pnpm --filter @mindlink/app typecheck:web",
-    "pretest": "tsc -b --force && pnpm --filter @mindlink/app build:web",
+    "pretest": "tsc -b --force && pnpm --filter @mindlink/app build:web && pnpm --filter @mindlink/workbench-web build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -21,7 +21,9 @@
     "prepare": "simple-git-hooks",
     "mindlink": "pnpm --filter @mindlink/app serve",
     "modules:check": "tsc -b && node apps/mindlink/dist/blocks/check-library.js",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm test && pnpm modules:check"
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm build && pnpm test && pnpm modules:check",
+    "workbench:build": "pnpm --filter @mindlink/workbench build && pnpm --filter @mindlink/workbench-web build",
+    "workbench": "pnpm workbench:build && node apps/workbench/dist/serve.js"
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm format:check"

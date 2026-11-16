@@ -12,6 +12,12 @@
       "path": "apps/mindlink"
     },
     {
+      "path": "apps/workbench"
+    },
+    {
+      "path": "apps/workbench/web"
+    },
+    {
       "path": "packages/platform/test"
     },
     {

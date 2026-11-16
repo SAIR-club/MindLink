@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  - 'apps/workbench/web'
   - 'tests'
 
 allowBuilds:
