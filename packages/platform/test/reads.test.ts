@@ -1,4 +1,4 @@
-import { CognitiveSession, learnScene, sceneViewOf } from '@episteme/application'
+import { baseScene, CognitiveSession, sceneViewOf } from '@episteme/application'
 import { asId, type ActorId, type NodeId, type PublicationId } from '@episteme/core'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -41,7 +41,7 @@ afterEach(async () => {
 })
 
 async function episteme(): Promise<World> {
-  const owner = await CognitiveSession.open({ scene: learnScene, sharing: true })
+  const owner = await CognitiveSession.open({ scene: baseScene, sharing: true })
   closers.push(() => owner.close())
   const lin = owner.forActor(LIN, 'Lin')
   const wei = owner.forActor(WEI, 'Wei')
