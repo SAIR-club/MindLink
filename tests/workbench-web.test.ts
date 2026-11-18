@@ -74,7 +74,7 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
 
   const newSpace = async (name: string): Promise<void> => {
     await page.getByLabel('新空间的名字').fill(name)
-    await page.getByRole('button', { name: '新建' }).click()
+    await page.getByRole('button', { name: '新建', exact: true }).click()
     await page.getByRole('heading', { name }).waitFor()
   }
 
@@ -256,7 +256,7 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
   }
 
   const newPlan = async (topic: string, minutes: number, mode: string): Promise<void> => {
-    // With plans already in the space, the form waits behind a link.
+    // The form waits behind a link.
     const adding = page.getByRole('button', { name: '新建学习计划' })
     if ((await adding.count()) > 0) await adding.click()
     await page.getByLabel('想学什么').fill(topic)

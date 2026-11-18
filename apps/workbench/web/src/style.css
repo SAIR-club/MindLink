@@ -143,19 +143,68 @@ select {
  * opened. Panes sit flush and are split by hairlines.
  */
 .desk {
+  /* Widths the person dragged to, never more than the window can spare. */
+  --shelf: min(var(--shelf-w, 260px), 36vw);
+  --right: min(var(--right-w, 380px), 45vw);
+  position: relative;
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-columns: var(--shelf) minmax(0, 1fr);
   height: 100%;
   background: var(--canvas);
 }
 
 .desk:is([data-right="rail"], [data-right="source"]) {
-  grid-template-columns: 252px minmax(0, 1fr) minmax(320px, 30%);
+  grid-template-columns: var(--shelf) minmax(0, 1fr) var(--right);
 }
 
+.desk[data-shelf="closed"] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.desk[data-shelf="closed"]:is([data-right="rail"], [data-right="source"]) {
+  grid-template-columns: minmax(0, 1fr) var(--right);
+}
+
+.desk[data-shelf="closed"] .shelf,
 .desk:not([data-right="source"]) .side,
 .desk:not([data-right="rail"]) .rail {
   display: none;
+}
+
+/* The hairline between panes, wide enough to catch with a pointer. */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 7px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resizer-shelf {
+  left: calc(var(--shelf) - 4px);
+}
+
+.resizer-right {
+  right: calc(var(--right) - 3px);
+}
+
+.resizer:hover,
+.resizer:focus-visible {
+  outline: none;
+  background: linear-gradient(
+    to right,
+    transparent 2px,
+    var(--accent) 2px,
+    var(--accent) 4px,
+    transparent 4px
+  );
+}
+
+body[data-resizing="true"] {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .switcher {
@@ -172,17 +221,23 @@ select {
   scrollbar-width: thin;
 }
 
-.wordmark {
+.shelf-head {
   position: sticky;
   top: 0;
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: space-between;
   height: 48px;
-  margin: 0 -10px 6px;
-  padding: 0 16px;
+  margin: 0 -10px 4px;
+  padding: 0 8px 0 16px;
   background: var(--canvas);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   font-family: var(--display);
   font-size: 14px;
   font-weight: 600;
@@ -197,6 +252,101 @@ select {
 
 .shelf section + section {
   margin-top: 18px;
+}
+
+/* The one button at the top of the sidebar, as in a desktop client: a new conversation in the open space. */
+.new-thread {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  margin: 0 0 14px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.new-thread:hover {
+  border-color: var(--ink-soft);
+}
+
+.icon-tool {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--ink-soft);
+}
+
+.topbar .shelf-show {
+  margin-left: -12px;
+}
+
+/* A space is a group, as a project is in a desktop client: the open one unfolds its conversations under it. */
+.space-row .folder {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.space-group[data-open="true"] > .space-row .folder {
+  color: var(--ink-soft);
+}
+
+.space-group[data-open="true"] > .space-row[aria-current="true"] {
+  background: none;
+}
+
+.space-body {
+  margin: 2px 0 10px 15px;
+  padding-left: 6px;
+  border-left: 1px solid var(--rule);
+}
+
+.space-body section + section {
+  margin-top: 10px;
+}
+
+.space-body h2 {
+  margin-left: 8px;
+}
+
+.space-body .thread-tree .row {
+  font-weight: 400;
+}
+
+.space-body .thread-tree .row[aria-current="true"] {
+  font-weight: 600;
+}
+
+.plan-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shelf .plan-form-actions .link {
+  margin: 0;
+}
+
+.shelf-empty {
+  margin: 2px 8px;
+  font-size: 12.5px;
+}
+
+.space-pages .row {
+  min-height: 26px;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.space-pages .row[aria-current="page"] {
+  color: var(--ink);
 }
 
 .shelf h2 {
@@ -643,13 +793,17 @@ button:disabled {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  width: min(720px, calc(100% - 48px));
-  margin: 0 auto 16px;
-  padding: 8px 8px 8px 14px;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto 18px;
+  padding: 10px 10px 10px 16px;
   border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--paper);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 6%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.composer button[type="submit"] {
+  border-radius: 9px;
 }
 
 .composer:focus-within {
@@ -1709,7 +1863,9 @@ li[data-status="skipped"] > span:first-child {
   }
 
   /* On a phone the switcher at the bottom opens the layer; the title bar keeps only where you are. */
-  .topbar .tool {
+  .topbar .tool,
+  .shelf-head .tool,
+  .resizer {
     display: none;
   }
 

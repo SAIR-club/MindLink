@@ -45,7 +45,7 @@ describe.skipIf(browser === undefined)('addresses in a browser', () => {
 
   const newSpace = async (name: string): Promise<void> => {
     await page.getByLabel('新空间的名字').fill(name)
-    await page.getByRole('button', { name: '新建' }).click()
+    await page.getByRole('button', { name: '新建', exact: true }).click()
     await page.getByRole('heading', { name }).waitFor()
   }
 
