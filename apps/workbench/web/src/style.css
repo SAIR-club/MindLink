@@ -344,13 +344,90 @@ body[data-resizing="true"] {
   font-size: 12.5px;
 }
 
-.space-pages .row {
-  min-height: 26px;
-  color: var(--ink-soft);
-  font-size: 12.5px;
+/* The open space's pages, as a row of small tabs under its conversations. */
+.space-pills .list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 4px 0;
 }
 
-.space-pages .row[aria-current="page"] {
+.space-pills .row {
+  width: auto;
+  min-height: 24px;
+  padding: 1px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.space-pills .row:hover {
+  border-color: var(--rule-strong);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.space-pills .row[aria-current="page"] {
+  border-color: var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.space-pills .count {
+  min-width: 0;
+  margin-left: 2px;
+  padding: 0;
+  font-size: 11px;
+  line-height: inherit;
+}
+
+.space-pills .row[data-waiting="true"] {
+  border-color: color-mix(in srgb, var(--wait) 45%, var(--rule));
+}
+
+.space-pills .row[data-waiting="true"] .count {
+  background: none;
+  color: var(--wait);
+}
+
+/* Making a space: a quiet row at the end of the list until something is typed into it. */
+.shelf .new-space {
+  margin-top: 4px;
+}
+
+.shelf .new-space input {
+  border-color: transparent;
+  background: transparent;
+  font-size: 13px;
+}
+
+.shelf .new-space input:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.shelf .new-space input:focus {
+  border-color: var(--rule-strong);
+  background: var(--paper);
+}
+
+.shelf .new-space[data-typing="false"] button {
+  display: none;
+}
+
+.shelf .quiet-actions {
+  margin: 2px 0 0 8px;
+  font-size: 12px;
+}
+
+.shelf .quiet-actions .link {
+  margin: 0 12px 0 0;
+  color: var(--ink-faint);
+}
+
+.shelf .quiet-actions .link:hover {
   color: var(--ink);
 }
 
@@ -462,7 +539,17 @@ input[type="checkbox"] {
 }
 
 /* Buttons: ink for the one thing to do, outlined for the rest, and plain links for the quiet ways. */
-button:not(.row, .link, .cite, .node-row, .material-title, .tool, .tree-toggle, [role="tab"]),
+button:not(
+  .row,
+  .link,
+  .cite,
+  .node-row,
+  .material-title,
+  .tool,
+  .tree-toggle,
+  .plain,
+  [role="tab"]
+),
 .upload {
   flex: none;
   min-height: 30px;
@@ -487,6 +574,7 @@ button:not(
   .material-title,
   .tool,
   .tree-toggle,
+  .plain,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {
@@ -1352,13 +1440,31 @@ li[data-status="skipped"] > span:first-child {
   padding: 4px 0;
 }
 
-.learner-turn .question {
-  margin-bottom: 2px;
+/* What the person said: their own words, set to the right as in any conversation, ink-edged once they kept them. */
+.learner-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: none;
+  margin-top: 28px;
 }
 
-.learner-turn {
-  margin-top: 24px;
-  max-width: 62ch;
+.learner-turn .question {
+  max-width: min(52ch, 82%);
+  margin: 0 0 4px;
+  padding: 9px 14px;
+  border-radius: 16px 16px 4px 16px;
+  background: color-mix(in srgb, var(--ink) 6%, var(--paper));
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.learner-turn .question[data-held="true"] {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.learner-turn .turn-actions {
+  justify-content: flex-end;
 }
 
 /* Marker over the words someone came back to find. */
@@ -1373,18 +1479,109 @@ li[data-status="skipped"] > span:first-child {
   font-size: 13px;
 }
 
+/*
+ * What the person confirmed before, brought back to this question: a note in their own ink in the margin of the
+ * answer, set apart from the material it is not.
+ */
 .recalled {
-  margin-bottom: 10px;
-  padding-left: 12px;
-  border-left: 3px solid var(--rule);
+  max-width: 62ch;
+  margin: 14px 0 12px;
+  padding: 8px 12px 9px;
+  border-left: 2px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  background: var(--accent-soft);
+}
+
+.recalled-head {
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.recalled-head span {
+  margin-left: 6px;
+  color: var(--ink-soft);
+  font-weight: 400;
 }
 
 .recalled li {
+  position: relative;
+  padding-left: 18px;
   font-size: 14px;
+  line-height: 1.6;
+}
+
+.recalled li::before {
+  position: absolute;
+  top: 0.45em;
+  left: 3px;
+  width: 4px;
+  height: 8px;
+  border-right: 1.6px solid var(--accent);
+  border-bottom: 1.6px solid var(--accent);
+  content: "";
+  transform: rotate(40deg);
 }
 
 .recalled button {
+  color: var(--ink);
   text-align: left;
+  text-decoration: none;
+}
+
+.recalled button:hover {
+  text-decoration: underline;
+}
+
+/* Under an answer: the parts of the material it stands on, by section. */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 280px;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.source-chip:hover {
+  border-color: var(--ink-soft);
+}
+
+.source-n {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.source-where {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-title {
+  margin-left: 6px;
+  color: var(--ink-faint);
 }
 
 .extract {
@@ -1497,6 +1694,548 @@ li[data-status="skipped"] > span:first-child {
 .map figcaption {
   margin: 8px 4px 4px;
   font-size: 12px;
+}
+
+/*
+ * The understanding graph, drawn as a notebook page. Sections of the material are headings run over with a
+ * highlighter; what the person confirmed is an ink dot, sized by how much bears on it; what waits on them is a
+ * dashed pencil ring; an open contradiction is red. Lines are faint pencil until pointed at.
+ */
+.knowledge-graph {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--ink) 9%, transparent) 0.8px, transparent 1px) 0
+    0 / 16px 16px,
+    var(--paper);
+}
+
+.graph-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 240px;
+  overflow: hidden;
+}
+
+.graph-canvas > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.graph-ground {
+  fill: transparent;
+  cursor: grab;
+}
+
+.graph-ground:active {
+  cursor: grabbing;
+}
+
+.knowledge-graph .map-edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  stroke-width: 1.2;
+  transition:
+    opacity 0.2s,
+    stroke-width 0.2s;
+}
+
+.knowledge-graph .map-belongs {
+  stroke: color-mix(in srgb, var(--ink-faint) 45%, transparent);
+  stroke-width: 0.8;
+}
+
+.knowledge-graph .map-part {
+  stroke: color-mix(in srgb, var(--ink-faint) 60%, transparent);
+  stroke-width: 0.8;
+  stroke-dasharray: 2 4;
+}
+
+.knowledge-graph .map-supports {
+  stroke: color-mix(in srgb, var(--accent) 70%, transparent);
+  stroke-width: 1.6;
+}
+
+.knowledge-graph .map-contradicts {
+  stroke: var(--red);
+  stroke-width: 1.6;
+  stroke-dasharray: 6 4;
+}
+
+.knowledge-graph .map-evolves_to,
+.knowledge-graph .map-forks_from {
+  stroke: var(--ink-faint);
+  stroke-dasharray: 1.5 3.5;
+  stroke-linecap: round;
+}
+
+.knowledge-graph .map-pending {
+  stroke: var(--wait);
+  stroke-dasharray: 3 3;
+}
+
+.knowledge-graph .map-edge[data-lit="true"] {
+  stroke-width: 2.4;
+}
+
+.knowledge-graph [data-dim="true"] {
+  opacity: 0.12;
+}
+
+.knowledge-graph .map-arrow {
+  fill: var(--ink-faint);
+}
+
+/* A section: its heading, run over with a highlighter. A material: the cover it sits on. */
+.knowledge-graph .map-hub {
+  cursor: grab;
+  transition: opacity 0.2s;
+}
+
+.knowledge-graph .map-topic rect {
+  fill: var(--marker);
+  stroke: none;
+}
+
+.knowledge-graph .map-topic text {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.knowledge-graph .map-material rect {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.knowledge-graph .map-material text {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-graph .map-node {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.knowledge-graph .map-node circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: graph-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+}
+
+@keyframes graph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+
+.knowledge-graph .map-node circle:not(.halo, .badge) {
+  fill: var(--accent);
+  stroke: var(--paper);
+  stroke-width: 2;
+}
+
+.knowledge-graph .map-node .halo {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+  stroke: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.knowledge-graph .map-node:is([data-hovered="true"], [data-selected="true"]) .halo {
+  opacity: 1;
+}
+
+.knowledge-graph .map-node[data-state="pending"] circle:not(.halo, .badge) {
+  fill: var(--paper);
+  stroke: var(--wait);
+  stroke-width: 1.6;
+  stroke-dasharray: 3 2.4;
+}
+
+.knowledge-graph .map-node[data-state="pending"] .halo {
+  fill: color-mix(in srgb, var(--wait) 16%, transparent);
+}
+
+.knowledge-graph .map-node[data-state="conflict"] circle:not(.halo, .badge) {
+  fill: var(--red);
+}
+
+.knowledge-graph .map-node[data-state="conflict"] .halo {
+  fill: color-mix(in srgb, var(--red) 18%, transparent);
+  opacity: 1;
+}
+
+.knowledge-graph .map-node[data-state="past"] circle:not(.halo, .badge) {
+  fill: var(--paper);
+  stroke: var(--ink-faint);
+  stroke-width: 1.4;
+}
+
+.knowledge-graph .map-node .badge {
+  fill: var(--wait);
+  stroke: var(--paper);
+  stroke-width: 1.5;
+}
+
+.knowledge-graph .map-node text {
+  fill: var(--ink);
+  font-size: 11.5px;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.knowledge-graph .map-node[data-hovered="true"] text {
+  font-weight: 600;
+}
+
+.knowledge-graph .map-node[data-state="past"] text {
+  fill: var(--ink-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-graph .map-node circle {
+    animation: none;
+  }
+}
+
+.graph-tools {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.graph-tools .tool svg {
+  width: 13px;
+  height: 13px;
+}
+
+.graph-tools .tool {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 7px 12px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.graph-legend [data-state]::before,
+.state-mark {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: "";
+}
+
+.graph-legend [data-state]::before {
+  vertical-align: 0;
+}
+
+.graph-legend [data-state="pending"]::before,
+.state-mark[data-state="pending"] {
+  border: 1.5px dashed var(--wait);
+  background: transparent;
+}
+
+.graph-legend [data-state="conflict"]::before,
+.state-mark[data-state="conflict"] {
+  background: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 18%, transparent);
+}
+
+.graph-legend [data-state="challenged"]::before,
+.state-mark[data-state="challenged"] {
+  background: var(--accent);
+  box-shadow: 4px -3px 0 -1px var(--wait);
+}
+
+.graph-legend [data-state="past"]::before,
+.state-mark[data-state="past"] {
+  border: 1.5px solid var(--ink-faint);
+  background: transparent;
+}
+
+.graph-edges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.graph-edges i {
+  display: inline-block;
+  width: 14px;
+  height: 0;
+  margin-left: 6px;
+  border-top: 1.6px solid var(--accent);
+}
+
+.graph-edges i.edge-contradicts {
+  border-top: 1.6px dashed var(--red);
+}
+
+.graph-edges i.edge-evolves {
+  border-top: 1.6px dotted var(--ink-faint);
+}
+
+/* The rail's two switches: how to look, and how much. */
+.segmented {
+  display: inline-flex;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.segmented button {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.segmented button:hover {
+  color: var(--ink);
+}
+
+.segmented button[aria-pressed="true"] {
+  background: var(--paper);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.rail-head .segmented + .tool {
+  margin-left: 4px;
+}
+
+.segmented.scope {
+  display: flex;
+  margin: 0 0 10px;
+}
+
+.segmented.scope button {
+  flex: 1;
+}
+
+/*
+ * The rail: a few waiting items at the top, kept short, then the structure, which takes the rest of the height.
+ * A waiting item shows its words and the decision; why it was proposed shows when it is pointed at or focused.
+ */
+.rail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 14px 16px;
+}
+
+.rail-section + .rail-section {
+  margin-top: 0;
+}
+
+.rail-structure {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.rail-body[data-view="graph"] .rail-structure {
+  min-height: 380px;
+}
+
+.rail-body[data-view="graph"] .knowledge-graph {
+  flex: 1;
+}
+
+.rail .pending > li {
+  padding: 9px 11px;
+}
+
+.rail .pending .candidate {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.rail .pending .hint {
+  display: none;
+}
+
+.rail .pending > li:is(:hover, :focus-within) .hint {
+  display: block;
+}
+
+.rail .decisions {
+  margin-top: 6px;
+}
+
+.rail-more {
+  margin: 8px 2px 0;
+  font-size: 12.5px;
+}
+
+.rail-foot {
+  margin: 0 2px;
+  font-size: 12.5px;
+}
+
+/* The tree: each section of the material as a highlighted heading, what was learned from it beneath. */
+.understanding-tree .tree-group + .tree-group {
+  margin-top: 16px;
+}
+
+.understanding-tree h4 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 2px 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.topic-mark {
+  padding: 0 3px;
+  background: linear-gradient(
+    transparent 38%,
+    var(--marker) 38%,
+    var(--marker) 92%,
+    transparent 92%
+  );
+  color: var(--ink);
+}
+
+.topic-mark[data-none="true"] {
+  background: none;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.topic-source {
+  overflow: hidden;
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.understanding-tree h4 .count {
+  margin-left: auto;
+}
+
+.held.tree-nodes button {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  padding: 5px 8px 5px 6px;
+}
+
+.held.tree-nodes button::before {
+  display: none;
+}
+
+.held.tree-nodes .state-mark {
+  position: relative;
+  top: -1px;
+}
+
+.tree-label {
+  flex: 1;
+}
+
+.tree-tag {
+  flex: none;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.tree-relations {
+  margin: 0 0 4px 22px;
+  padding-left: 10px;
+  border-left: 1px solid var(--rule-strong);
+  font-size: 12.5px;
+}
+
+.tree-relations li {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 1px 0;
+}
+
+.tree-relations .relation-word {
+  flex: none;
+  color: var(--ink-faint);
+}
+
+.tree-relations li[data-type="contradicts"] .relation-word {
+  color: var(--red);
+}
+
+.tree-relations .link {
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-past {
+  margin: 16px 2px 0;
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+
+.tree-past summary {
+  cursor: pointer;
 }
 
 .node-detail h4 {
@@ -2090,11 +2829,28 @@ li[data-status="skipped"] > span:first-child {
   content: "";
 }
 
+/* What can be done with a turn waits quietly until the turn is pointed at or reached by keyboard. */
 .turn-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 16px;
-  margin: 0 0 8px;
+  gap: 4px 14px;
+  margin: 2px 0 8px;
+  font-size: 12.5px;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+
+:is(.learner-turn, .answer-block):is(:hover, :focus-within) .turn-actions,
+.turn-actions:focus-within {
+  opacity: 1;
+}
+
+.turn-actions .link {
+  color: var(--ink-soft);
+}
+
+.turn-actions .link:hover {
+  color: var(--ink);
 }
 
 .turn-actions .own-words {

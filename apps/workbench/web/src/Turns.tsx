@@ -90,7 +90,9 @@ export function LearnerTurn({ turn, thread }: { turn: Turn; thread: string | und
   const source = sourceNote(turn)
   return (
     <div id={`turn-${turn.id}`} className="learner-turn" data-focused={links.focused === turn.id}>
-      <p className="question">{turn.text}</p>
+      <p className="question" data-held={made !== undefined}>
+        {turn.text}
+      </p>
       {source !== undefined && <p className="hint turn-source">{source}</p>}
       <p className="turn-actions">
         {made !== undefined ? (
@@ -129,8 +131,10 @@ function Recalled({ answer }: { answer: Answer }) {
   const links = useContext(Links)
   if (answer.recalled === undefined) return null
   return (
-    <aside className="recalled">
-      <p className="hint">你之前确认过（不是材料，只是提醒）：</p>
+    <aside className="recalled" aria-label="你之前确认过的理解">
+      <p className="recalled-head">
+        你之前确认过 <span>不是材料，只是提醒</span>
+      </p>
       <ul>
         {answer.recalled.map((item) => (
           <li key={item.nodeId}>
@@ -222,6 +226,43 @@ export function AgentTurn(props: {
   )
 }
 
+/**
+ * Where the answer stands in the material: each passage it cites, by the section it sits in. Opening one shows the
+ * passage beside the answer, the same as the number in the text.
+ */
+function Sources({
+  answer,
+  onCite,
+}: {
+  answer: Answer
+  onCite: (citation: Citation, evidence?: Evidence) => void
+}) {
+  if (answer.citations.length === 0) return null
+  return (
+    <ul className="sources" aria-label="这条回答引用的原文">
+      {answer.citations.map((citation) => (
+        <li key={citation.n}>
+          <button
+            type="button"
+            className="source-chip plain"
+            aria-label={`打开原文 ${citation.n}：${citation.section ?? citation.title}`}
+            title={citation.quote.slice(0, 160)}
+            onClick={() => onCite(citation)}
+          >
+            <span className="source-n">{citation.n}</span>
+            <span className="source-where">
+              {citation.section ?? citation.title}
+              {citation.section !== undefined && (
+                <span className="source-title">{citation.title}</span>
+              )}
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function AnswerBody({
   answer,
   onCite,
@@ -285,8 +326,8 @@ function AnswerBody({
           模型引用了不存在的片段（{answer.invalidCitations.join('、')}），相应的句子已按推断处理。
         </p>
       )}
+      <Sources answer={answer} onCite={onCite} />
       <p className="legend">
-        {answer.citations.length > 0 && <span>角标：点开看原文</span>}
         {answer.segments.some((segment) => segment.basis === 'inference') && (
           <span>
             <span className="inferred">波浪线</span>：模型的推断，材料里没有

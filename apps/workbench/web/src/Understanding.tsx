@@ -1,12 +1,3 @@
-import {
-  forceCenter,
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  type SimulationLinkDatum,
-  type SimulationNodeDatum,
-} from 'd3-force'
 import { useContext, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   api,
@@ -18,7 +9,9 @@ import {
   type WordsBy,
 } from './api.js'
 import { Lineage, PublishFlow } from './Commons.js'
+import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { Links, messageOf } from './Turns.js'
+import { pendingId, shownFor } from './UnderstandingView.js'
 
 /** What a person holds: every item with where it came from, what happened to it, and what they can do about it. */
 
@@ -74,7 +67,7 @@ export function UnderstandingPanel(props: PanelProps) {
   const past = understanding.nodes.filter((held) => !isHeld(held))
   return (
     <>
-      <UnderstandingMap nodes={understanding.nodes} onSelect={props.onSelect} />
+      <SpaceGraph understanding={understanding} onSelect={props.onSelect} />
       <ul className="understood">
         {current.map((held) => (
           <NodeRow key={held.nodeId} node={held} onSelect={props.onSelect} />
@@ -96,6 +89,31 @@ export function UnderstandingPanel(props: PanelProps) {
 }
 
 const isHeld = (node: HeldNode): boolean => node.revisedTo === undefined && !node.withdrawn
+
+/** The whole space as a graph, above the list that says the same in words. */
+function SpaceGraph(props: {
+  understanding: Understanding
+  onSelect: (node: string | undefined) => void
+}) {
+  const { understanding } = props
+  // What waits on the person has its own page; this one draws only what they hold or gave up.
+  const shown = useMemo(() => {
+    const all = shownFor(understanding, 'space', undefined, [])
+    return {
+      items: all.items.filter((item) => pendingId(item) === undefined),
+      edges: all.edges.filter((edge) => edge.type !== 'pending'),
+    }
+  }, [understanding])
+  if (understanding.nodes.length < 2) return null
+  return (
+    <KnowledgeGraph
+      items={shown.items}
+      edges={shown.edges}
+      height={460}
+      onSelect={(item) => props.onSelect(item.id)}
+    />
+  )
+}
 
 function NodeRow({ node, onSelect }: { node: HeldNode; onSelect: (node: string) => void }) {
   return (
@@ -124,110 +142,6 @@ function Marks({ node }: { node: HeldNode }) {
         <span key={mark}>{mark}</span>
       ))}
     </p>
-  )
-}
-
-interface Point extends SimulationNodeDatum {
-  readonly node: HeldNode
-}
-
-const MAP_WIDTH = 320
-const MAP_HEIGHT = 220
-const SHORT_LABEL = 8
-
-/**
- * The same items as the list below it, placed by what connects them.
- *
- * Laid out once, not animated: it shows structure, and something that moves is hard to point at. It is hidden from
- * assistive technology because the list says all of it, with its relations on each item's page.
- */
-function UnderstandingMap({
-  nodes,
-  onSelect,
-}: {
-  nodes: readonly HeldNode[]
-  onSelect: (node: string) => void
-}) {
-  const { points, edges } = useMemo(() => {
-    const placed: Point[] = nodes.map((node) => ({ node }))
-    const known = new Set(nodes.map((node) => node.nodeId))
-    const links: (SimulationLinkDatum<Point> & { type: string })[] = nodes.flatMap((node) =>
-      node.relations
-        .filter((relation) => relation.direction === 'out' && known.has(relation.nodeId))
-        .map((relation) => ({ source: node.nodeId, target: relation.nodeId, type: relation.type })),
-    )
-    forceSimulation(placed)
-      .force('charge', forceManyBody().strength(-90))
-      .force(
-        'link',
-        forceLink<Point, (typeof links)[number]>(links)
-          .id((point) => point.node.nodeId)
-          .distance(70),
-      )
-      .force('center', forceCenter(MAP_WIDTH / 2, MAP_HEIGHT / 2))
-      .force('collide', forceCollide(26))
-      .stop()
-      .tick(200)
-    return { points: placed, edges: links }
-  }, [nodes])
-  if (nodes.length < 2) return null
-  const inside = (value: number | undefined, max: number): number =>
-    Math.min(max - 14, Math.max(14, value ?? max / 2))
-  return (
-    <figure className="map">
-      <svg viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`} aria-hidden="true">
-        <defs>
-          <marker
-            id="map-arrow"
-            viewBox="0 0 8 8"
-            refX="12"
-            refY="4"
-            markerWidth="7"
-            markerHeight="7"
-            orient="auto"
-          >
-            <path d="M0 0 L8 4 L0 8 z" className="map-arrow" />
-          </marker>
-        </defs>
-        {edges.map((edge) => {
-          const source = edge.source as Point
-          const target = edge.target as Point
-          return (
-            <line
-              key={`${source.node.nodeId}-${edge.type}-${target.node.nodeId}`}
-              className={`map-edge map-${edge.type}`}
-              x1={inside(source.x, MAP_WIDTH)}
-              y1={inside(source.y, MAP_HEIGHT)}
-              x2={inside(target.x, MAP_WIDTH)}
-              y2={inside(target.y, MAP_HEIGHT)}
-              {...(edge.type === 'evolves_to' || edge.type === 'forks_from'
-                ? { markerEnd: 'url(#map-arrow)' }
-                : {})}
-            />
-          )
-        })}
-        {points.map((point) => {
-          const { node } = point
-          const x = inside(point.x, MAP_WIDTH)
-          const y = inside(point.y, MAP_HEIGHT)
-          return (
-            // biome-ignore lint: the list below is the keyboard path to the same pages
-            <g key={node.nodeId} className="map-node" onClick={() => onSelect(node.nodeId)}>
-              <title>{node.label}</title>
-              <circle cx={x} cy={y} r={7} data-held={isHeld(node)} data-conflict={node.conflict} />
-              <text x={x} y={y + 19} textAnchor="middle">
-                {node.label.length > SHORT_LABEL
-                  ? `${node.label.slice(0, SHORT_LABEL)}…`
-                  : node.label}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-      <figcaption className="hint">
-        实线：支持。粗虚线：矛盾。箭头：修正或分叉。黄点：有未解决的矛盾。空心：已修正或撤回。
-      </figcaption>
-    </figure>
   )
 }
 

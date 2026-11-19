@@ -19,7 +19,6 @@ import {
   type Citation,
   type Evidence,
   type Failure,
-  type HeldNode,
   type MaterialSummary,
   type MaterialText,
   type Me,
@@ -56,7 +55,9 @@ import {
   type Section,
 } from './routes.js'
 import { AgentTurn, LearnerTurn, Links, messageOf } from './Turns.js'
+import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { UnderstandingPanel, wordsOf } from './Understanding.js'
+import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 import { VisionDesk } from './Vision.js'
 
 type Pane = 'shelf' | 'talk' | 'side' | 'rail'
@@ -147,6 +148,7 @@ const WITHOUT_RAIL: ReadonlySet<Place['kind']> = new Set([
 ])
 
 const NO_UNDERSTANDING: Understanding = { nodes: [], pending: [], challenges: [], dimensions: [] }
+const NO_TURNS: readonly Turn[] = []
 /** A jump to a turn waits for the conversation it lies in to load, up to this many tries, 100 ms apart. */
 const FOCUS_TRIES = 30
 
@@ -1226,11 +1228,14 @@ function Desk({
         />
         {railAllowed && spaceId !== undefined && (
           <Rail
-            pending={understanding.pending}
-            held={heldNodes}
+            understanding={understanding}
+            thread={threadInView}
+            turns={turnsOf === threadInView ? turns : NO_TURNS}
+            sessions={sessions}
             guard={guard}
             onDecided={decided}
             onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
+            onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
             onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
             onClose={() => {
               setRailOpen(false)
@@ -1309,7 +1314,7 @@ function SpaceNav(props: {
     ['understanding', '我的理解', props.held],
   ]
   return (
-    <nav className="space-nav" aria-label="这个空间">
+    <nav className="space-nav space-pills" aria-label="这个空间">
       <ul className="list">
         {entries.map(([id, label, count]) => (
           <li key={id}>
@@ -1505,10 +1510,10 @@ function Shelf(props: {
           )}
         </ul>
         {open.length === 0 && <p className="hint">给要学的东西建一个空间，比如“线性代数”。</p>}
-        <form className="inline-form" onSubmit={create}>
+        <form className="inline-form new-space" data-typing={name.trim() !== ''} onSubmit={create}>
           <input
             aria-label="新空间的名字"
-            placeholder="新空间的名字"
+            placeholder="＋ 新建空间"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
@@ -2011,59 +2016,149 @@ function LayerGlyph() {
  * The understanding layer, beside whatever page is open: what waits for the person's decision, and what they
  * already hold. Deciding here is the same as on the review page; only the person can do it.
  */
+const RAIL_VIEW = 'workbench.rail-view'
+/** The rail keeps a few waiting items at hand; the review page has them all. */
+const RAIL_PENDING = 3
+
+function railViewWas(): 'tree' | 'graph' {
+  try {
+    return localStorage.getItem(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
+  } catch {
+    return 'tree'
+  }
+}
+
+/**
+ * The understanding layer, beside whatever page is open: what waits for the person's decision, then the structure of
+ * what they hold, as a tree or a graph, for the conversation on show or the whole space. Deciding here is the same
+ * as on the review page; only the person can do it.
+ */
 function Rail(props: {
-  pending: readonly PendingCandidate[]
-  held: readonly HeldNode[]
+  understanding: Understanding
+  thread: string | undefined
+  turns: readonly Turn[]
+  sessions: readonly Session[]
   guard: (work: () => Promise<unknown>) => void
   onDecided: () => Promise<void>
   onOpenNode: (node: string) => void
+  onOpenPending: () => void
   onOpenAll: () => void
   onClose: () => void
 }) {
-  const { pending, held } = props
+  const { understanding, thread, turns } = props
+  const { pending } = understanding
+  const [view, setView] = useState<'tree' | 'graph'>(railViewWas)
+  const [wanted, setWanted] = useState<Scope>('thread')
+  // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
+  const scope: Scope = thread === undefined ? 'space' : wanted
+  const shown = useMemo(
+    () => shownFor(understanding, scope, thread, turns),
+    [understanding, scope, thread, turns],
+  )
+  const held = understanding.nodes.filter((node) => stateOf(node) !== 'past')
+  const choose = (next: 'tree' | 'graph'): void => {
+    setView(next)
+    keepValue(RAIL_VIEW, next)
+  }
   return (
     <aside className="rail" aria-label="理解层">
       <div className="rail-head">
         <h2>理解层</h2>
+        <div className="segmented" role="group" aria-label="怎么看">
+          <button
+            type="button"
+            className="plain"
+            aria-pressed={view === 'tree'}
+            onClick={() => choose('tree')}
+          >
+            结构
+          </button>
+          <button
+            type="button"
+            className="plain"
+            aria-pressed={view === 'graph'}
+            onClick={() => choose('graph')}
+          >
+            图谱
+          </button>
+        </div>
         <button type="button" className="tool" onClick={props.onClose}>
           收起
         </button>
       </div>
-      <div className="rail-body">
-        <p className="rail-rule">Agent 只能提议。只有你确认过的，才算你的理解。</p>
-        <section className="rail-section">
-          <h3 data-waiting={pending.length > 0}>
+      <div className="rail-body" data-view={view}>
+        <section className="rail-section rail-waiting">
+          <h3
+            data-waiting={pending.length > 0}
+            title="Agent 只能提议。只有你确认过的，才算你的理解。"
+          >
             等你确认
             <span className="count">{pending.length}</span>
           </h3>
           {pending.length === 0 ? (
-            <p className="rail-empty">现在没有等你确认的提议。Agent 提出的理解会先停在这里。</p>
+            <p className="rail-empty">AI 提出的理解会先停在这里，等你确认。</p>
           ) : (
-            <PendingList pending={pending} guard={props.guard} onDecided={props.onDecided} />
+            <>
+              <PendingList
+                pending={pending.slice(0, RAIL_PENDING)}
+                guard={props.guard}
+                onDecided={props.onDecided}
+              />
+              {pending.length > RAIL_PENDING && (
+                <button type="button" className="link rail-more" onClick={props.onOpenPending}>
+                  查看全部 {pending.length} 条
+                </button>
+              )}
+            </>
           )}
         </section>
-        <section className="rail-section">
+        <section className="rail-section rail-structure">
           <h3>
             你已确认
             <span className="count">{held.length}</span>
           </h3>
-          {held.length === 0 ? (
-            <p className="rail-empty">还没有。确认一条提议，它就会出现在这里。</p>
+          {thread !== undefined && (
+            <div className="segmented scope" role="group" aria-label="范围">
+              <button
+                type="button"
+                className="plain"
+                aria-pressed={scope === 'thread'}
+                onClick={() => setWanted('thread')}
+              >
+                这段对话
+              </button>
+              <button
+                type="button"
+                className="plain"
+                aria-pressed={scope === 'space'}
+                onClick={() => setWanted('space')}
+              >
+                整个空间
+              </button>
+            </div>
+          )}
+          {view === 'graph' && shown.items.length > 0 ? (
+            <KnowledgeGraph
+              items={shown.items}
+              edges={shown.edges}
+              onSelect={(item) => {
+                if (pendingId(item) !== undefined) props.onOpenPending()
+                else props.onOpenNode(item.id)
+              }}
+            />
+          ) : view === 'graph' ? (
+            <p className="rail-empty">
+              {scope === 'thread'
+                ? '这段对话还没有产生或用到你确认过的理解。'
+                : '还没有。确认一条提议，它就会出现在这里。'}
+            </p>
           ) : (
-            <ul className="held">
-              {held.map((node) => (
-                <li key={node.nodeId}>
-                  <button type="button" onClick={() => props.onOpenNode(node.nodeId)}>
-                    {node.label}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <UnderstandingTree shown={shown} scope={scope} onOpen={props.onOpenNode} />
           )}
         </section>
         <p className="rail-foot">
           <button type="button" className="link" onClick={props.onOpenAll}>
-            打开理解图和每一条的来历
+            整页查看我的理解
           </button>
         </p>
       </div>
