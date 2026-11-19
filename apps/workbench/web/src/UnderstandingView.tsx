@@ -98,9 +98,12 @@ export function shownFor(
     }
     for (const id of recalled) focus.add(id)
   }
+  // A waiting link has no words of its own; it is drawn whenever both its ends are.
   const pending = understanding.pending.filter(
     (candidate) =>
-      !inThread || (candidate.origin?.turn !== undefined && turnIds.has(candidate.origin.turn)),
+      !inThread ||
+      candidate.link !== undefined ||
+      (candidate.origin?.turn !== undefined && turnIds.has(candidate.origin.turn)),
   )
   // Beside what is in focus: what it is directly tied to, so a relation never points at nothing.
   const shownIds = new Set(inThread ? focus : all.map((node) => node.nodeId))
