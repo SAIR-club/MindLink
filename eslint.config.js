@@ -5,7 +5,14 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   {
     // `.vue` files are not linted here (no Vue parser); vue-tsc type-checks them in `pnpm typecheck`.
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/*.tsbuildinfo'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '**/*.tsbuildinfo',
+      // The desktop program's build output and the copy of the workbench it carries.
+      'apps/desktop/src-tauri/{target,resources,gen}/**',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
