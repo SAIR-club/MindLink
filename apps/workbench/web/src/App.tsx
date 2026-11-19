@@ -1314,7 +1314,7 @@ function SpaceNav(props: {
     ['understanding', '我的理解', props.held],
   ]
   return (
-    <nav className="space-nav" aria-label="这个空间">
+    <nav className="space-nav space-pills" aria-label="这个空间">
       <ul className="list">
         {entries.map(([id, label, count]) => (
           <li key={id}>
@@ -1510,10 +1510,10 @@ function Shelf(props: {
           )}
         </ul>
         {open.length === 0 && <p className="hint">给要学的东西建一个空间，比如“线性代数”。</p>}
-        <form className="inline-form" onSubmit={create}>
+        <form className="inline-form new-space" data-typing={name.trim() !== ''} onSubmit={create}>
           <input
             aria-label="新空间的名字"
-            placeholder="新空间的名字"
+            placeholder="＋ 新建空间"
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
@@ -2017,6 +2017,8 @@ function LayerGlyph() {
  * already hold. Deciding here is the same as on the review page; only the person can do it.
  */
 const RAIL_VIEW = 'workbench.rail-view'
+/** The rail keeps a few waiting items at hand; the review page has them all. */
+const RAIL_PENDING = 3
 
 function railViewWas(): 'tree' | 'graph' {
   try {
@@ -2084,20 +2086,33 @@ function Rail(props: {
           收起
         </button>
       </div>
-      <div className="rail-body">
-        <p className="rail-rule">Agent 只能提议。只有你确认过的，才算你的理解。</p>
-        <section className="rail-section">
-          <h3 data-waiting={pending.length > 0}>
+      <div className="rail-body" data-view={view}>
+        <section className="rail-section rail-waiting">
+          <h3
+            data-waiting={pending.length > 0}
+            title="Agent 只能提议。只有你确认过的，才算你的理解。"
+          >
             等你确认
             <span className="count">{pending.length}</span>
           </h3>
           {pending.length === 0 ? (
-            <p className="rail-empty">现在没有等你确认的提议。Agent 提出的理解会先停在这里。</p>
+            <p className="rail-empty">AI 提出的理解会先停在这里，等你确认。</p>
           ) : (
-            <PendingList pending={pending} guard={props.guard} onDecided={props.onDecided} />
+            <>
+              <PendingList
+                pending={pending.slice(0, RAIL_PENDING)}
+                guard={props.guard}
+                onDecided={props.onDecided}
+              />
+              {pending.length > RAIL_PENDING && (
+                <button type="button" className="link rail-more" onClick={props.onOpenPending}>
+                  查看全部 {pending.length} 条
+                </button>
+              )}
+            </>
           )}
         </section>
-        <section className="rail-section">
+        <section className="rail-section rail-structure">
           <h3>
             你已确认
             <span className="count">{held.length}</span>
@@ -2126,7 +2141,6 @@ function Rail(props: {
             <KnowledgeGraph
               items={shown.items}
               edges={shown.edges}
-              height={340}
               onSelect={(item) => {
                 if (pendingId(item) !== undefined) props.onOpenPending()
                 else props.onOpenNode(item.id)
@@ -2139,18 +2153,12 @@ function Rail(props: {
                 : '还没有。确认一条提议，它就会出现在这里。'}
             </p>
           ) : (
-            <UnderstandingTree
-              shown={shown}
-              scope={scope}
-              thread={thread}
-              sessions={props.sessions}
-              onOpen={props.onOpenNode}
-            />
+            <UnderstandingTree shown={shown} scope={scope} onOpen={props.onOpenNode} />
           )}
         </section>
         <p className="rail-foot">
           <button type="button" className="link" onClick={props.onOpenAll}>
-            打开理解图和每一条的来历
+            整页查看我的理解
           </button>
         </p>
       </div>

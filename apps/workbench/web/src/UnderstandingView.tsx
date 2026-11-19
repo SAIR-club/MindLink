@@ -1,4 +1,4 @@
-import type { HeldNode, PendingCandidate, Session, Turn, Understanding } from './api.js'
+import type { HeldNode, PendingCandidate, Topic, Turn, Understanding } from './api.js'
 import type { GraphEdge, GraphItem, ItemState } from './KnowledgeGraph.js'
 
 /**
@@ -37,6 +37,15 @@ export function relationWords(type: string, direction: 'in' | 'out'): string {
 }
 
 const PENDING = 'pending:'
+const TOPIC = 'topic:'
+const MATERIAL = 'material:'
+
+/** One section of one material; a material with no headings is a single topic of its own. */
+export function topicKey(topic: Topic): string {
+  return topic.section === undefined
+    ? `${MATERIAL}${topic.materialId}`
+    : `${TOPIC}${topic.materialId}:${topic.section}`
+}
 
 /** A candidate that would become an item of its own once confirmed, rather than a relation or a change of state. */
 function pendingItem(candidate: PendingCandidate): boolean {
@@ -122,7 +131,57 @@ export function shownFor(
       .filter(pendingItem)
       .map((candidate) => [candidate.proposal.label ?? '', `${PENDING}${candidate.id}`]),
   )
+  // The skeleton: each item to the sections it was learned from, and a section to its material once a material has
+  // more than one. Only what was shown brings its section in.
+  const hubs = new Map<string, GraphItem>()
+  const belongs: GraphEdge[] = []
+  const sectionsOf = new Map<string, Set<string>>()
+  const learnedFrom = (id: string, topics: readonly Topic[] | undefined): void => {
+    // The part it leans on most: a second part would tie every item to everything and hide the shape.
+    for (const topic of (topics ?? []).slice(0, 1)) {
+      const key = topicKey(topic)
+      if (!hubs.has(key)) {
+        hubs.set(key, {
+          id: key,
+          label: topic.section ?? topic.title,
+          state: 'held',
+          kind: topic.section === undefined ? 'material' : 'topic',
+        })
+      }
+      belongs.push({ from: id, to: key, type: 'belongs' })
+      if (topic.section !== undefined) {
+        sectionsOf.set(topic.materialId, (sectionsOf.get(topic.materialId) ?? new Set()).add(key))
+      }
+    }
+  }
+  for (const node of nodes) learnedFrom(node.nodeId, node.topics)
+  for (const candidate of pending.filter(pendingItem)) {
+    learnedFrom(`${PENDING}${candidate.id}`, candidate.topics)
+  }
+  const titles = new Map(
+    [...nodes.flatMap((node) => node.topics), ...pending.flatMap((each) => each.topics ?? [])].map(
+      (topic) => [topic.materialId, topic.title],
+    ),
+  )
+  const parts: GraphEdge[] = []
+  if (sectionsOf.size > 1 || [...sectionsOf.values()].some((sections) => sections.size > 1)) {
+    for (const [material, sections] of sectionsOf) {
+      const key = `${MATERIAL}${material}`
+      if (!hubs.has(key)) {
+        hubs.set(key, {
+          id: key,
+          label: titles.get(material) ?? '',
+          state: 'held',
+          kind: 'material',
+        })
+      }
+      for (const section of sections) parts.push({ from: section, to: key, type: 'part' })
+    }
+  }
+  items.push(...hubs.values())
   const edges: GraphEdge[] = [
+    ...belongs,
+    ...parts,
     ...nodes.flatMap((node) =>
       node.relations
         .filter((relation) => relation.direction === 'out' && shownIds.has(relation.nodeId))
@@ -149,58 +208,45 @@ export function StateMark({ state }: { state: ItemState }) {
 
 interface Group {
   readonly key: string
+  /** The section, as the material's heading says it; the material's own title when it has no headings. */
   readonly title: string
+  /** The material a section belongs to; absent for a whole material and for items no answer cited. */
+  readonly material?: string
   readonly nodes: readonly HeldNode[]
 }
 
-function groupsOf(
-  shown: Shown,
-  scope: Scope,
-  thread: string | undefined,
-  sessions: readonly Session[],
-): readonly Group[] {
+/** By the part of the material each item was learned from, in the order the space first met them. */
+function groupsOf(shown: Shown): readonly Group[] {
   const live = shown.nodes.filter((node) => stateOf(node) !== 'past')
-  if (scope === 'thread' && thread !== undefined) {
-    const made = live.filter(
-      (node) => shown.focus.has(node.nodeId) && !shown.recalled.has(node.nodeId),
-    )
-    const used = live.filter((node) => shown.recalled.has(node.nodeId))
-    const near = live.filter((node) => !shown.focus.has(node.nodeId))
-    return [
-      { key: 'made', title: '这段对话里确认的', nodes: made },
-      { key: 'used', title: '这段对话用到的（之前确认过）', nodes: used },
-      { key: 'near', title: '和它们相关的', nodes: near },
-    ].filter((group) => group.nodes.length > 0)
-  }
-  const titles = new Map(sessions.map((session) => [session.id, session.title]))
-  const groups = new Map<string, HeldNode[]>()
+  const groups = new Map<string, { topic: Topic | undefined; nodes: HeldNode[] }>()
   for (const node of live) {
-    const where = node.origin?.madeIn ?? node.origin?.thread
-    const key = where !== undefined && titles.has(where) ? where : ''
-    groups.set(key, [...(groups.get(key) ?? []), node])
+    const topic = node.topics[0]
+    const key = topic === undefined ? '' : topicKey(topic)
+    const group = groups.get(key) ?? { topic, nodes: [] }
+    group.nodes.push(node)
+    groups.set(key, group)
   }
   return [...groups.entries()]
-    .map(([key, nodes]) => ({
+    .map(([key, { topic, nodes }]) => ({
       key: key === '' ? 'elsewhere' : key,
-      title: key === '' ? '其他来源（Agent、手动添加或已不在的对话）' : (titles.get(key) ?? ''),
+      title: topic === undefined ? '没有引用材料的理解' : (topic.section ?? topic.title),
+      ...(topic?.section === undefined ? {} : { material: topic.title }),
       nodes,
     }))
     .sort((a, b) => (a.key === 'elsewhere' ? 1 : b.key === 'elsewhere' ? -1 : 0))
 }
 
 /**
- * The same items as the graph, in words: grouped by the conversation they came from (or, for one conversation, by
- * how they came into it), each with the items it bears on beneath it.
+ * The same items as the graph, in words: under the section of the material each was learned from, each with the
+ * items it bears on beneath it. In a conversation, what it brought back from before is marked as such.
  */
 export function UnderstandingTree(props: {
   readonly shown: Shown
   readonly scope: Scope
-  readonly thread: string | undefined
-  readonly sessions: readonly Session[]
   readonly onOpen: (node: string) => void
 }) {
   const { shown } = props
-  const groups = groupsOf(shown, props.scope, props.thread, props.sessions)
+  const groups = groupsOf(shown)
   const labels = new Map(shown.nodes.map((node) => [node.nodeId, node.label]))
   const past = shown.nodes.filter((node) => stateOf(node) === 'past')
   if (groups.length === 0 && past.length === 0) {
@@ -216,8 +262,13 @@ export function UnderstandingTree(props: {
     <div className="understanding-tree">
       {groups.map((group) => (
         <section key={group.key} className="tree-group">
-          <h4>
-            {group.title}
+          <h4
+            title={group.material === undefined ? group.title : `${group.material}：${group.title}`}
+          >
+            <span className="topic-mark" data-none={group.key === 'elsewhere'}>
+              {group.title}
+            </span>
+            {group.material !== undefined && <span className="topic-source">{group.material}</span>}
             <span className="count">{group.nodes.length}</span>
           </h4>
           <ul className="held tree-nodes">
@@ -225,7 +276,8 @@ export function UnderstandingTree(props: {
               <li key={node.nodeId}>
                 <button type="button" className="plain" onClick={() => props.onOpen(node.nodeId)}>
                   <StateMark state={stateOf(node)} />
-                  {node.label}
+                  <span className="tree-label">{node.label}</span>
+                  {shown.recalled.has(node.nodeId) && <span className="tree-tag">本次用到</span>}
                 </button>
                 {node.relations.length > 0 && (
                   <ul className="tree-relations">
