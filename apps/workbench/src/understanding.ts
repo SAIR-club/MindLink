@@ -182,6 +182,79 @@ export interface HeldNode {
   /** The person has recorded an unresolved contradiction. Both sides stay. */
   readonly conflict: boolean
   readonly openChallenges: number
+  /** The parts of the material it was learned from: what the answer it came from cited. Empty when none did. */
+  readonly topics: readonly Topic[]
+}
+
+/** A part of a material: a section under a heading, or the whole material when it has none. */
+export interface Topic {
+  readonly materialId: string
+  readonly title: string
+  readonly section?: string
+}
+
+/**
+ * What an item was learned from, read off the conversation it came from: the passages the answer cited. An item
+ * drawn from an answer takes that answer's; the person's own words take the answer they were said with, the reply
+ * to them first and otherwise the one before. Nothing is guessed: an item no answer cited has no topic.
+ */
+export function topicsAt(
+  view: SceneView,
+  thread: string | undefined,
+  turn: string | undefined,
+): readonly Topic[] {
+  if (thread === undefined || turn === undefined) return []
+  const turns = view.threadView(thread)?.turns ?? []
+  const at = turns.findIndex((candidate) => candidate.id === turn)
+  if (at < 0) return []
+  const said = turns[at]
+  const around =
+    said?.speaker === 'learner'
+      ? [...turns.slice(at + 1), ...turns.slice(0, at).reverse()]
+      : said === undefined
+        ? []
+        : [said]
+  for (const candidate of around) {
+    if (candidate.speaker === 'learner') continue
+    const answer = view.records.get(`${ANSWER_PREFIX}${candidate.id}`)?.value as Answer | undefined
+    if (answer === undefined || answer.citations.length === 0) continue
+    const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))
+    // Counted by the sentences that rest on each part, so the part the answer leans on most comes first.
+    const counted = new Map<string, { topic: Topic; count: number }>()
+    for (const segment of answer.segments) {
+      if (segment.basis !== 'material') continue
+      for (const n of segment.citations) {
+        const citation = byNumber.get(n)
+        if (citation === undefined) continue
+        const at = segment.evidence?.find((found) => found.n === n)?.start ?? citation.start
+        const section = sectionAt(citation, at)
+        const topic: Topic = {
+          materialId: citation.materialId,
+          title: citation.title,
+          ...(section === undefined ? {} : { section }),
+        }
+        const key = `${topic.materialId}\u0000${topic.section ?? ''}`
+        const held = counted.get(key)
+        counted.set(key, { topic, count: (held?.count ?? 0) + 1 })
+      }
+    }
+    if (counted.size === 0) continue
+    return [...counted.values()].sort((a, b) => b.count - a.count).map(({ topic }) => topic)
+  }
+  return []
+}
+
+const HEADING = /^#{1,6}[ \t]+(.+?)[ \t#]*$/gmu
+
+/**
+ * The heading a place in a cited passage sits under. A passage can run across headings, and the one it started
+ * under is only right for its first lines, so the passage's own headings are read up to that place.
+ */
+function sectionAt(citation: Answer['citations'][number], at: number): string | undefined {
+  const within = citation.quote.slice(0, Math.max(0, at - citation.start))
+  let found = citation.section
+  for (const match of within.matchAll(HEADING)) found = match[1]
+  return found
 }
 
 export type TrailEntry =
@@ -433,6 +506,7 @@ export function heldNodes(view: SceneView, space: string): readonly HeldNode[] {
         openChallenges: challenges.filter(
           (challenge) => challenge.node === node.nodeId && challenge.status === 'open',
         ).length,
+        topics: topicsAt(view, kept?.thread, kept?.turn),
       },
     ]
   })
@@ -1206,6 +1280,7 @@ export function understandingRoutes(options: UnderstandingOptions): readonly Sce
                   : 'unrecorded'
           return {
             ...suggestion,
+            topics: topicsAt(view, origin?.thread, origin?.turn),
             ...(origin === undefined ? {} : { speaker: origin.speaker }),
             ...(wordsBy === undefined ? {} : { wordsBy }),
             ...(similar === undefined ? {} : { similar }),

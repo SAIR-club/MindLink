@@ -8,6 +8,7 @@ import type {
   PublicQuestion,
   SessionOutcome,
   Space,
+  Topic,
   TrailEntry,
   WordsBy,
 } from '@mindlink/workbench'
@@ -28,6 +29,7 @@ export type {
   SessionOutcome,
   Space,
   Step,
+  Topic,
   TrailEntry,
   WordsBy,
 } from '@mindlink/workbench'
@@ -87,6 +89,8 @@ export interface PendingCandidate {
   readonly rationale: string
   readonly basis?: string
   readonly wordsBy?: WordsBy
+  /** The parts of the material it was drawn from, as the answer it came from cited them. */
+  readonly topics?: readonly Topic[]
   /** Where the proposal was proposed, and the words it was distilled from. */
   readonly proposedBy?: string
   readonly proposedAt?: number | string
