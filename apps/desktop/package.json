@@ -1,0 +1,16 @@
+{
+  "name": "@mindlink/desktop",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "description": "MindLink as a desktop program: one installer that carries its own service, the Episteme kernel and a Node runtime.",
+  "scripts": {
+    "bundle": "node scripts/bundle.mjs",
+    "tauri": "tauri",
+    "dev": "node scripts/bundle.mjs && tauri dev",
+    "build": "node scripts/bundle.mjs && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}
