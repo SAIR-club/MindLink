@@ -284,6 +284,11 @@ body[data-resizing="true"] {
   color: var(--ink-soft);
 }
 
+.topbar .tool {
+  flex: none;
+  white-space: nowrap;
+}
+
 .topbar .shelf-show {
   margin-left: -12px;
 }
