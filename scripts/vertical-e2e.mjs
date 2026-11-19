@@ -13,6 +13,11 @@
  * The learner is scripted, so this proves the wiring and the record, not that anyone learned anything.
  *
  *   pnpm build && node scripts/vertical-e2e.mjs --out D:/somewhere
+ *   pnpm build && node scripts/vertical-e2e.mjs --out D:/somewhere --host opencode --model magpie/auto/deepseek-v4.1-flash
+ *
+ * The host is Claude Code (`claude -p`) by default, or OpenCode with `--host opencode`, which takes its model provider
+ * from the person's own OpenCode configuration (scripts/opencode-host.mjs). OpenCode has no budget flag, so the turn is
+ * stopped from here once OpenCode's own cost estimate passes what is left of the budget.
  *
  * Spends real model budget: at most --budget dollars per host turn and --total over the run, with a time limit on
  * each turn. The CLI prices a gateway model it does not know by a guess (its costBasis is "unknown"), so these are caps
@@ -27,10 +32,12 @@ import { parseArgs } from 'node:util'
 // Episteme is built beside this repository (scripts/setup-episteme.mjs), at the commit in episteme.ref.
 import { startService } from '../../Episteme/apps/service/dist/index.js'
 import { objectiveIdOf, workbenchProfile } from '../apps/workbench/dist/index.js'
+import { openCodeTurn, writeOpenCodeConfig } from './opencode-host.mjs'
 
 const { values } = parseArgs({
   options: {
     out: { type: 'string' },
+    host: { type: 'string', default: 'claude' },
     model: { type: 'string', default: 'auto/deepseek-v4.1-flash' },
     budget: { type: 'string', default: '1.5' },
     total: { type: 'string', default: '6' },
@@ -40,6 +47,10 @@ const { values } = parseArgs({
   },
 })
 if (values.out === undefined) throw new Error('--out <directory> is required')
+if (values.host !== 'claude' && values.host !== 'opencode') {
+  throw new Error(`unknown host "${values.host}": claude or opencode`)
+}
+const MAX_TURNS = 25
 
 const directory = resolve(values.out)
 const hostDirectory = join(directory, 'host')
@@ -125,18 +136,9 @@ const proxy = createServer((incoming, outgoing) => {
   })
 })
 await new Promise((ready) => proxy.listen(0, '127.0.0.1', ready))
+const proxied = `http://127.0.0.1:${proxy.address().port}${target.pathname}`
 const config = join(directory, 'mcp.json')
-writeFileSync(
-  config,
-  JSON.stringify({
-    mcpServers: {
-      episteme: {
-        type: 'http',
-        url: `http://127.0.0.1:${proxy.address().port}${target.pathname}`,
-      },
-    },
-  }),
-)
+writeFileSync(config, JSON.stringify({ mcpServers: { episteme: { type: 'http', url: proxied } } }))
 
 const person = async (path, body) => {
   const response = await fetch(`${service.apiUrl}${path}`, {
@@ -164,12 +166,57 @@ let turnsRun = 0
 const tools = (day) => seen.filter((each) => each.day === day).map((each) => each.tool)
 
 /** One turn of a host session. The same id again continues it, as a person typing their next line would. */
-const hostTurn = (session, first, prompt, withEpisteme = true) =>
+const hostTurn = (session, first, prompt, withEpisteme = true) => {
+  if (spentSoFar() >= Number(values.total)) {
+    return Promise.reject(new Error(`spent ${spentSoFar()}, over the limit of ${values.total}`))
+  }
+  return values.host === 'opencode'
+    ? openCodeHostTurn(session, prompt, withEpisteme)
+    : claudeTurn(session, first, prompt, withEpisteme)
+}
+
+// OpenCode names its own sessions; this maps the run's id for a conversation to the one OpenCode gave it.
+const openCodeSessions = new Map()
+
+/** The same turn through OpenCode. Its costs are per turn, so they are added up here rather than read as a total. */
+const openCodeHostTurn = async (session, prompt, withEpisteme) => {
+  writeOpenCodeConfig(hostDirectory, withEpisteme ? proxied : undefined)
+  const left = Number(values.total) - spentSoFar()
+  const turn = await openCodeTurn({
+    cwd: hostDirectory,
+    model: values.model,
+    prompt,
+    session: openCodeSessions.get(session),
+    maxSteps: MAX_TURNS,
+    budgetUsd: Math.min(Number(values.budget), left),
+    timeoutMs: Number(values['timeout-ms']),
+    env: hostEnvironment,
+  })
+  if (turn.session !== undefined) openCodeSessions.set(session, turn.session)
+  turnsRun += 1
+  writeFileSync(
+    join(directory, `turn-${turnsRun}-${currentDay}.jsonl`),
+    `${turn.raw}\n${turn.stderr}`,
+  )
+  costs.set(session, (costs.get(session) ?? 0) + turn.costUsd)
+  return {
+    code: turn.code,
+    stderr: turn.stderr.slice(0, 1000),
+    text: turn.text,
+    ended: turn.stopped ?? turn.error,
+    turnCostUsd: turn.costUsd,
+    sessionCostUsd: costs.get(session),
+    costBasis: 'opencode-estimate',
+    inputTokens: turn.tokens.input,
+    outputTokens: turn.tokens.output,
+    reasoningTokens: turn.tokens.reasoning,
+    turns: turn.steps,
+    mcpCalls: turn.mcpCalls,
+  }
+}
+
+const claudeTurn = (session, first, prompt, withEpisteme) =>
   new Promise((done, failed) => {
-    if (spentSoFar() >= Number(values.total)) {
-      failed(new Error(`spent ${spentSoFar()}, over the limit of ${values.total}`))
-      return
-    }
     const child = spawn(
       'claude',
       [
@@ -189,7 +236,7 @@ const hostTurn = (session, first, prompt, withEpisteme = true) =>
         '--tools',
         '""',
         '--max-turns',
-        '25',
+        String(MAX_TURNS),
       ],
       { cwd: hostDirectory, shell: true, env: hostEnvironment, stdio: ['pipe', 'pipe', 'pipe'] },
     )
@@ -228,7 +275,7 @@ const hostTurn = (session, first, prompt, withEpisteme = true) =>
     child.stdin.end(prompt)
   })
 
-const report = { model: values.model, directory, checks: {} }
+const report = { host: values.host, model: values.model, directory, checks: {} }
 
 /**
  * A whole conversation: what the host was told, then each thing the learner says back. Turns reach the report as they
