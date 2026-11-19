@@ -71,11 +71,18 @@ class ScriptedModel implements ModelClient {
   challenge =
     '{"challenge":"没有位置编码时，模型真的完全不知道顺序吗？","quote":"没有它，注意力机制看不出词的先后。"}'
   reply = '位置编码把序列的顺序告诉模型[1]。'
+  relate = '{"relations":[]}'
+  relateFailing = false
 
   complete(messages: readonly ModelMessage[]) {
     this.calls.push(messages)
     if (this.failing) return Promise.reject(new ModelFailure('timeout', '模型超时了。'))
     const system = messages[0]?.content ?? ''
+    if (system.includes('编号 N 开头')) {
+      return this.relateFailing
+        ? Promise.reject(new ModelFailure('timeout', '模型超时了。'))
+        : Promise.resolve({ text: this.relate })
+    }
     if (system.includes('理解单元')) return Promise.resolve({ text: this.thread })
     if (system.includes('提出一个质疑')) return Promise.resolve({ text: this.challenge })
     return Promise.resolve({ text: this.reply })
@@ -553,6 +560,144 @@ describe('topics', () => {
     const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '空的' })).body
     const { node } = await hold(space, '我自己想到的一点')
     expect(node.topics).toEqual([])
+  })
+})
+
+describe('relations read after distilling', () => {
+  const relateCalls = (model: ScriptedModel) =>
+    model.calls.filter((messages) => messages[0]?.content.includes('编号 N 开头') === true).length
+
+  const relations = (space: Space, suggestions: readonly string[]) =>
+    call<{ related: number }>(`${scene}/understanding/relations`, {
+      space: space.id,
+      suggestions,
+    })
+
+  /** A space holding one understanding, and a new thought of the person's offered beside it, as the page does. */
+  async function waitingBeside(model: ModelClient) {
+    await start(model)
+    const space = await spaceWithNotes()
+    const { node } = await hold(space, '位置编码把序列的顺序告诉模型')
+    const asked = await ask(space, '我觉得没有位置编码模型也能分清词的先后')
+    const offer = async () => {
+      const offered = await call<Submitted>(`${scene}/candidates/turn`, {
+        space: space.id,
+        thread: asked.thread,
+        turn: asked.turn,
+      })
+      const read = await relations(
+        space,
+        offered.body.suggestions.map(({ id }) => id),
+      )
+      return { offered: offered.body, related: read.body.related }
+    }
+    return { space, node, offer }
+  }
+
+  it('links a new candidate to what is held, as the model reading, once the candidate is confirmed', async () => {
+    const model = new ScriptedModel()
+    model.relate = JSON.stringify({
+      relations: [
+        { from: 'N1', to: 'H1', relation: 'contradicts', reason: '一条说需要，一条说不需要' },
+      ],
+    })
+    const { space, node, offer } = await waitingBeside(model)
+    expect((await offer()).related).toBe(1)
+    // What the model is shown is the new thought and what is held, nothing else.
+    const asked = model.calls.at(-1)?.[1]?.content ?? ''
+    expect(asked).toContain('N1: 我觉得没有位置编码模型也能分清词的先后')
+    expect(asked).toContain('H1: 位置编码把序列的顺序告诉模型')
+
+    const waiting = await held(space)
+    const link = waiting.pending.find((item) => item.proposal.kind === 'link')
+    const candidate = waiting.pending.find((item) => item.proposal.kind === 'node')
+    expect(link?.proposal).toMatchObject({
+      from: `cand:${candidate?.id ?? ''}`,
+      to: node.nodeId,
+      relation: 'contradicts',
+    })
+    expect(link?.link).toEqual({
+      fromLabel: '我觉得没有位置编码模型也能分清词的先后',
+      toLabel: '位置编码把序列的顺序告诉模型',
+      ready: false,
+    })
+    expect((link as { rationale?: string } | undefined)?.rationale).toContain('模型读出来的关系')
+    expect((await accept(link?.id ?? '')).status).not.toBe(200)
+
+    await accept(candidate?.id ?? '')
+    const ready = (await held(space)).pending.find((item) => item.id === link?.id)
+    expect(ready?.link?.ready).toBe(true)
+    expect((await accept(link?.id ?? '')).status).toBe(200)
+    const after = await nodeNamed(space, node.nodeId)
+    expect(after.relations.map((relation) => relation.type)).toContain('contradicts')
+  })
+
+  it('keeps only links from a new candidate to something held, two at most for each', async () => {
+    const model = new ScriptedModel()
+    model.relate = JSON.stringify({
+      relations: [
+        { from: 'N1', to: 'H1', relation: 'supports' },
+        { from: 'N1', to: 'H1', relation: 'supports' },
+        { from: 'N1', to: 'H9', relation: 'supports' },
+        { from: 'H1', to: 'N1', relation: 'supports' },
+        { from: 'N1', to: 'H1', relation: 'about' },
+        { from: 'N2', to: 'H1', relation: 'contradicts' },
+      ],
+    })
+    const { space, offer } = await waitingBeside(model)
+    expect((await offer()).related).toBe(1)
+    const links = (await held(space)).pending.filter((item) => item.proposal.kind === 'link')
+    expect(links.map((item) => item.proposal.relation)).toEqual(['supports'])
+  })
+
+  it('asks once for a candidate, however often its words are offered again', async () => {
+    const model = new ScriptedModel()
+    model.relate = JSON.stringify({ relations: [{ from: 'N1', to: 'H1', relation: 'supports' }] })
+    const { space, offer } = await waitingBeside(model)
+    await offer()
+    const asked = relateCalls(model)
+    const again = await offer()
+    expect(again.offered.suggestions).toHaveLength(1)
+    expect(again.related).toBe(0)
+    expect(relateCalls(model)).toBe(asked)
+    const links = (await held(space)).pending.filter((item) => item.proposal.kind === 'link')
+    expect(links).toHaveLength(1)
+  })
+
+  it('reads only the space’s own waiting candidates', async () => {
+    const model = new ScriptedModel()
+    model.relate = JSON.stringify({ relations: [{ from: 'N1', to: 'H1', relation: 'supports' }] })
+    const { space, node } = await waitingBeside(model)
+    const other = await spaceWithNotes('另一门课')
+    const read = await relations(other, ['sg_unknown', node.nodeId])
+    expect(read.body.related).toBe(0)
+    expect(relateCalls(model)).toBe(0)
+    expect((await held(space)).pending).toHaveLength(0)
+  })
+
+  it('keeps the candidate when the model fails to read relations', async () => {
+    const model = new ScriptedModel()
+    model.relateFailing = true
+    const { space, offer } = await waitingBeside(model)
+    const { offered, related } = await offer()
+    expect(offered.suggestions).toHaveLength(1)
+    expect(related).toBe(0)
+    expect((await held(space)).pending.map((item) => item.proposal.kind)).toEqual(['node'])
+  })
+
+  it('drops a link once the candidate it waits on is turned down', async () => {
+    const model = new ScriptedModel()
+    model.relate = JSON.stringify({ relations: [{ from: 'N1', to: 'H1', relation: 'supports' }] })
+    const { space, offer } = await waitingBeside(model)
+    await offer()
+    const candidate = (await held(space)).pending.find((item) => item.proposal.kind === 'node')
+    await call('/suggestions/decide', { id: candidate?.id ?? '', action: 'dismiss' })
+    expect((await held(space)).pending).toEqual([])
+  })
+
+  it('reads no relations with a simulated model', async () => {
+    const { offer } = await waitingBeside(new SimulatedModel())
+    expect((await offer()).related).toBe(0)
   })
 })
 
