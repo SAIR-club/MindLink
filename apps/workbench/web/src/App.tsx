@@ -4,7 +4,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from 'react'
 import { useLocation, useSearch } from 'wouter'
@@ -94,6 +97,39 @@ function keepRail(open: boolean): void {
   } catch {
     // Only a convenience: it opens again next time.
     return
+  }
+}
+
+const SHELF_DEFAULT = 260
+const RIGHT_DEFAULT = 380
+const SHELF = 'workbench.shelf'
+const SHELF_WIDTH = 'workbench.shelf-width'
+const RIGHT_WIDTH = 'workbench.right-width'
+
+/** A pane width the person dragged to, or the default; kept per browser, like the rail. */
+function keptWidth(key: string, fallback: number): number {
+  try {
+    const value = Number(localStorage.getItem(key))
+    return Number.isFinite(value) && value > 0 ? value : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function keepValue(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Only a convenience: the default comes back next time.
+    return
+  }
+}
+
+function shelfWasOpen(): boolean {
+  try {
+    return localStorage.getItem(SHELF) !== 'closed'
+  } catch {
+    return true
   }
 }
 
@@ -281,6 +317,15 @@ function Desk({
   const [planNotice, setPlanNotice] = useState<string>()
   const [learned, setLearned] = useState(0)
   const [railOpen, setRailOpen] = useState(railWasOpen)
+  const [shelfOpen, setShelfOpen] = useState(shelfWasOpen)
+  const [shelfWidth, setShelfWidth] = useState(() => keptWidth(SHELF_WIDTH, SHELF_DEFAULT))
+  const [rightWidth, setRightWidth] = useState(() => keptWidth(RIGHT_WIDTH, RIGHT_DEFAULT))
+  const toggleShelf = useCallback((): void => {
+    setShelfOpen((open) => {
+      keepValue(SHELF, open ? 'closed' : 'open')
+      return !open
+    })
+  }, [])
 
   const space = spaces.find((candidate) => candidate.id === spaceId)
   const spaceKnown = space !== undefined
@@ -653,6 +698,24 @@ function Desk({
     }
     setPane(next ? 'rail' : 'talk')
   }
+  // The keys of a desktop client: Ctrl+B for the sidebar, Ctrl+I for the understanding layer beside the page.
+  const keys = useRef({ toggleShelf, toggleRail, railAllowed })
+  keys.current = { toggleShelf, toggleRail, railAllowed }
+  useEffect(() => {
+    const pressed = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return
+      const key = event.key.toLowerCase()
+      if (key === 'b') {
+        event.preventDefault()
+        keys.current.toggleShelf()
+      } else if (key === 'i' && keys.current.railAllowed) {
+        event.preventDefault()
+        keys.current.toggleRail()
+      }
+    }
+    window.addEventListener('keydown', pressed)
+    return () => window.removeEventListener('keydown', pressed)
+  }, [])
   const crumbs = crumbsOf(place, {
     space: space?.name,
     thread: sessions.find((session) => session.id === threadId)?.title,
@@ -698,8 +761,44 @@ function Desk({
         data-pane={pane}
         data-right={right}
         data-rail={railAllowed ? 'allowed' : undefined}
+        data-shelf={shelfOpen ? undefined : 'closed'}
+        style={
+          {
+            '--shelf-w': `${shelfWidth}px`,
+            '--right-w': `${rightWidth}px`,
+          } as CSSProperties
+        }
       >
+        {shelfOpen && (
+          <Resizer
+            edge="shelf"
+            label="调整侧栏宽度"
+            width={shelfWidth}
+            min={200}
+            max={420}
+            fallback={SHELF_DEFAULT}
+            onWidth={(width) => {
+              setShelfWidth(width)
+              keepValue(SHELF_WIDTH, String(width))
+            }}
+          />
+        )}
+        {right !== 'none' && (
+          <Resizer
+            edge="right"
+            label={right === 'rail' ? '调整理解层宽度' : '调整原文宽度'}
+            width={rightWidth}
+            min={300}
+            max={720}
+            fallback={RIGHT_DEFAULT}
+            onWidth={(width) => {
+              setRightWidth(width)
+              keepValue(RIGHT_WIDTH, String(width))
+            }}
+          />
+        )}
         <Shelf
+          onHide={toggleShelf}
           spaces={spaces}
           current={spaceId}
           nav={
@@ -824,6 +923,17 @@ function Desk({
         />
         <main className="talk">
           <header className="topbar">
+            {!shelfOpen && (
+              <button
+                type="button"
+                className="tool icon-tool shelf-show"
+                aria-label="展开侧栏"
+                title="展开侧栏（Ctrl+B）"
+                onClick={toggleShelf}
+              >
+                <PanelGlyph side="left" />
+              </button>
+            )}
             <p className="crumbs">
               {crumbs.map((crumb, index) => (
                 // The same words can stand twice, a space and a conversation named alike.
@@ -842,6 +952,7 @@ function Desk({
                     : '理解层'
                 }
                 data-waiting={understanding.pending.length > 0}
+                title="理解层（Ctrl+I）"
                 onClick={toggleRail}
               >
                 <LayerGlyph />
@@ -1276,6 +1387,7 @@ function Shelf(props: {
   onSelectSpace: (id: string) => void
   onSelectThread: (id: string) => void
   onNewThread: () => void
+  onHide: () => void
 }) {
   const { spaces, current, sessions, guard } = props
   const [name, setName] = useState('')
@@ -1283,6 +1395,19 @@ function Shelf(props: {
   const open = spaces.filter((space) => !space.archived)
   const archived = spaces.filter((space) => space.archived)
   const currentSpace = spaces.find((space) => space.id === current)
+
+  // The open space unfolds under its name: its conversations first, the way a desktop client lists threads under
+  // a project, then its plans and its pages.
+  const spaceBody = (
+    <div className="space-body">
+      <section className="threads" aria-label="对话">
+        <ThreadTree sessions={sessions} current={props.thread} onSelect={props.onSelectThread} />
+        {sessions.length === 0 && <p className="hint shelf-empty">还没有对话。</p>}
+      </section>
+      {props.plans}
+      <section className="space-pages">{props.nav}</section>
+    </div>
+  )
 
   const reload = async (selected?: string): Promise<void> => {
     props.onSpaces((await api.spaces()).spaces, selected)
@@ -1302,16 +1427,40 @@ function Shelf(props: {
 
   return (
     <aside className="shelf" aria-label="空间">
-      <h1 className="wordmark">
-        <img src="./icon.svg" alt="" />
-        Episteme
-      </h1>
+      <div className="shelf-head">
+        <h1 className="wordmark">
+          <img src="./icon.svg" alt="" />
+          Episteme
+        </h1>
+        <button
+          type="button"
+          className="tool icon-tool"
+          aria-label="收起侧栏"
+          title="收起侧栏（Ctrl+B）"
+          onClick={props.onHide}
+        >
+          <PanelGlyph side="left" />
+        </button>
+      </div>
+      {currentSpace !== undefined && !currentSpace.archived && (
+        <button type="button" className="new-thread" onClick={props.onNewThread}>
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M8 3v10M3 8h10"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+          开始新对话
+        </button>
+      )}
       {props.identity}
-      <section>
+      <section className="spaces">
         <h2>空间</h2>
         <ul className="list">
           {open.map((space) => (
-            <li key={space.id}>
+            <li key={space.id} className="space-group" data-open={space.id === current}>
               {renaming === space.id ? (
                 <form
                   className="inline-form"
@@ -1333,15 +1482,27 @@ function Shelf(props: {
               ) : (
                 <button
                   type="button"
-                  className="row"
+                  className="row space-row"
                   aria-current={space.id === current}
                   onClick={() => props.onSelectSpace(space.id)}
                 >
+                  <FolderGlyph open={space.id === current} />
                   {space.name}
                 </button>
               )}
+              {space.id === current && spaceBody}
             </li>
           ))}
+          {currentSpace?.archived === true && (
+            // An archived space opened from a link still shows what is in it, under its name.
+            <li className="space-group" data-open="true">
+              <p className="row space-row" aria-current="true">
+                <FolderGlyph open />
+                {currentSpace.name}
+              </p>
+              {spaceBody}
+            </li>
+          )}
         </ul>
         {open.length === 0 && <p className="hint">给要学的东西建一个空间，比如“线性代数”。</p>}
         <form className="inline-form" onSubmit={create}>
@@ -1401,28 +1562,6 @@ function Shelf(props: {
           </details>
         )}
       </section>
-
-      {currentSpace !== undefined && (
-        <>
-          <section>
-            <h2>这个空间</h2>
-            {props.nav}
-          </section>
-          {props.plans}
-          <section>
-            <h2>对话</h2>
-            <ThreadTree
-              sessions={sessions}
-              current={props.thread}
-              onSelect={props.onSelectThread}
-            />
-
-            <button type="button" className="link" onClick={props.onNewThread}>
-              开始新对话
-            </button>
-          </section>
-        </>
-      )}
       <footer className="shelf-foot">{props.connect}</footer>
     </aside>
   )
@@ -1737,6 +1876,107 @@ function crumbsOf(
   const inSpace = 'space' in place && names.space !== undefined
   return [inSpace ? names.space : undefined, page].filter(
     (crumb): crumb is string => crumb !== undefined,
+  )
+}
+
+/**
+ * The hairline between two panes, dragged to resize the one beside it: the sidebar from its right edge, the right
+ * pane from its left edge. The arrow keys move it too, and a double click puts it back.
+ */
+function Resizer(props: {
+  edge: 'shelf' | 'right'
+  label: string
+  width: number
+  min: number
+  max: number
+  fallback: number
+  onWidth: (width: number) => void
+}) {
+  const { edge, width, min, max, onWidth } = props
+  const clamp = (value: number): number => Math.round(Math.min(max, Math.max(min, value)))
+  const drag = (event: ReactPointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    const handle = event.currentTarget
+    const from = event.clientX
+    handle.setPointerCapture(event.pointerId)
+    document.body.dataset['resizing'] = 'true'
+    const move = (moved: PointerEvent): void => {
+      const delta = moved.clientX - from
+      onWidth(clamp(edge === 'shelf' ? width + delta : width - delta))
+    }
+    const stop = (): void => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', stop)
+      handle.removeEventListener('pointercancel', stop)
+      delete document.body.dataset['resizing']
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', stop)
+    handle.addEventListener('pointercancel', stop)
+  }
+  const nudge = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
+    const step = event.shiftKey ? 48 : 16
+    const grow = edge === 'shelf' ? 'ArrowRight' : 'ArrowLeft'
+    const shrink = edge === 'shelf' ? 'ArrowLeft' : 'ArrowRight'
+    if (event.key === grow) onWidth(clamp(width + step))
+    else if (event.key === shrink) onWidth(clamp(width - step))
+    else return
+    event.preventDefault()
+  }
+  return (
+    <div
+      className={`resizer resizer-${edge}`}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={props.label}
+      aria-valuenow={width}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      tabIndex={0}
+      onPointerDown={drag}
+      onKeyDown={nudge}
+      onDoubleClick={() => onWidth(props.fallback)}
+    />
+  )
+}
+
+/** A window with one side column marked: the sidebar toggle of a desktop client. */
+function PanelGlyph({ side }: { side: 'left' | 'right' }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+      <rect x="2" y="2.5" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+      <path
+        d={side === 'left' ? 'M6 2.5v11' : 'M10 2.5v11'}
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+    </svg>
+  )
+}
+
+/** A folder, open for the space on show. */
+function FolderGlyph({ open }: { open: boolean }) {
+  return (
+    <svg
+      className="folder"
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      aria-hidden="true"
+      fill="none"
+    >
+      <path
+        d={
+          open
+            ? 'M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v.8H4.3L2.4 12.8H1.8z M4.3 6.5h10.5l-1.9 6.3H2.4z'
+            : 'M1.8 4.2c0-.7.5-1.2 1.2-1.2h3l1.4 1.5H13c.7 0 1.2.5 1.2 1.2v6.1c0 .7-.5 1.2-1.2 1.2H3c-.7 0-1.2-.5-1.2-1.2z'
+        }
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
