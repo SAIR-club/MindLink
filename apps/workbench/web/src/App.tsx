@@ -1430,7 +1430,7 @@ function Shelf(props: {
       <div className="shelf-head">
         <h1 className="wordmark">
           <img src="./icon.svg" alt="" />
-          Episteme
+          MindLink
         </h1>
         <button
           type="button"
