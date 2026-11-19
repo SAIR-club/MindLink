@@ -52,7 +52,8 @@ const browser = await chromium.launch({ channel: 'msedge', headless: true })
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
-page.setDefaultTimeout(15_000)
+// A real model can take a while to answer and to distill.
+page.setDefaultTimeout(120_000)
 
 const ask = async (question) => {
   await page.getByLabel('你的问题').fill(question)
