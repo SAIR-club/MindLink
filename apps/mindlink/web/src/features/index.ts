@@ -5,4 +5,5 @@
  *   import './project/index.js'
  */
 
+import './project/index.js'
 import './understanding/index.js'
