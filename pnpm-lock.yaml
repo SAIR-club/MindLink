@@ -114,6 +114,10 @@ importers:
       '@episteme/service':
         specifier: link:../../../Episteme/apps/service
         version: link:../../../Episteme/apps/service
+    devDependencies:
+      '@episteme/domain-learn':
+        specifier: workspace:*
+        version: link:../domain-learn
 
   tests:
     dependencies:
