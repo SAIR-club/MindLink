@@ -1,12 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import {
-  writtenWithOf,
-  type HostItem,
-  type Proposal,
-  type SceneView,
-  type SceneWrites,
-  type Turn,
-} from '@episteme/application'
+import type { HostItem, Proposal, SceneView, SceneWrites, Turn } from '@episteme/application'
 import type { SceneRoute, SceneRouteContext } from '@episteme/service'
 import { relevant, type Answer, type RecalledUnderstanding } from './answer.js'
 import type { MaterialStore, SearchHit } from './materials.js'
@@ -356,7 +349,7 @@ function originOf(view: SceneView, suggestion: string | undefined): Origin | und
 /** How the words of one turn arrived. A turn that is gone can no longer say. */
 export function wordsByTurn(view: SceneView, thread: string, turn: string): WordsBy {
   const found = view.threadView(thread)?.turns.find((each) => each.id === turn)
-  return (found === undefined ? undefined : writtenWithOf(found)) ?? 'unrecorded'
+  return found?.writtenWith ?? 'unrecorded'
 }
 
 /**
