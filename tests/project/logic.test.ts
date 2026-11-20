@@ -138,6 +138,52 @@ describe('archiving a project', () => {
   })
 })
 
+describe('workflows the library lacks', () => {
+  const only =
+    (...ids: string[]) =>
+    () =>
+      ids
+
+  it('are refused on create, whatever the goal type', async () => {
+    const { ports } = setup()
+    const speedrun = only('builtin:speedrun')
+    expect(
+      (await createProject(ports, { title: 'x', goalType: 'speedrun' }, speedrun)).workflowId,
+    ).toBe('builtin:speedrun')
+    for (const goalType of ['apply', 'deep'] as const) {
+      await expect(createProject(ports, { title: 'y', goalType }, speedrun)).rejects.toThrow(
+        /builtin:/,
+      )
+    }
+    expect(listProjects(ports)).toHaveLength(1)
+  })
+
+  it('are refused on update, and an unchanged missing one does not block other changes', async () => {
+    const { ports } = setup()
+    const { id } = await createProject(ports, { title: 'x', goalType: 'apply' })
+    const speedrun = only('builtin:speedrun')
+    for (const workflowId of ['builtin:apply', 'builtin:deep', 'builtin:nothing']) {
+      await expect(
+        updateProject(ports, id, parsePatch({ workflowId }, PERSON_WRITABLE), speedrun),
+      ).rejects.toThrow(/还不能用/)
+    }
+    const renamed = await updateProject(
+      ports,
+      id,
+      parsePatch({ title: 'z' }, PERSON_WRITABLE),
+      speedrun,
+    )
+    expect(renamed).toMatchObject({ title: 'z', workflowId: 'builtin:apply' })
+    const switched = await updateProject(
+      ports,
+      id,
+      parsePatch({ workflowId: 'builtin:speedrun' }, PERSON_WRITABLE),
+      speedrun,
+    )
+    expect(switched.workflowId).toBe('builtin:speedrun')
+  })
+})
+
 describe('another feature', () => {
   it('reads a project with its own ports and cannot write one', async () => {
     const { raw, ports } = setup()
