@@ -59,7 +59,7 @@ describe('creating a project', () => {
     )
   })
 
-  it('tags its course as the project scope', async () => {
+  it('gives its course as the scope to pass to Episteme', async () => {
     const { ports } = setup()
     const project = await createProject(ports, {
       title: '机器学习',
@@ -67,7 +67,7 @@ describe('creating a project', () => {
       goalType: 'apply',
     })
     expect(summaryOf(project)).toEqual({
-      scope: 'scope:CS229',
+      scope: 'CS229',
       missing: ['goal', 'deadline', 'baseline'],
     })
   })
