@@ -24,6 +24,13 @@ interface ToolResult {
 
 const PROTOCOL = '2026-07-28'
 
+/** A block library holding the one workflow a project here starts from; the built-in content lands later. */
+const LIBRARY = {
+  get: () => undefined,
+  resolve: () => undefined,
+  list: () => [{ level: 'workflow', key: 'builtin:speedrun' }] as never,
+}
+
 let directory: string
 let service: Launched
 
@@ -34,6 +41,7 @@ beforeEach(async () => {
     graph: join(directory, 'graph.jsonl'),
     port: 0,
     sharing: true,
+    registry: () => LIBRARY,
   })
 })
 
