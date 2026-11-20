@@ -3,7 +3,7 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "MindLink as a desktop program: one installer that carries its own service, the Episteme kernel and a Node runtime.",
+  "description": "Episteme as a desktop program: one installer that carries its own service, the Episteme kernel and a Node runtime.",
   "scripts": {
     "bundle": "node scripts/bundle.mjs",
     "tauri": "tauri",

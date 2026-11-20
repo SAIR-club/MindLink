@@ -676,7 +676,7 @@ export function ConnectPage({ me }: { me: Me }) {
       <section className="panel">
         <h3>接好以后</h3>
         <p>对 Agent 说：“用 episteme 帮我学这份材料，把要点提给我确认。”</p>
-        <p className="hint">MindLink 关掉时，Agent 连不上它；再打开就好。</p>
+        <p className="hint">Episteme 关掉时，Agent 连不上它；再打开就好。</p>
       </section>
     </div>
   )
