@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MindLink</title>
+    <title>Episteme</title>
     <style>
       :root {
         color-scheme: light dark;
@@ -110,7 +110,7 @@
     <main>
       <section>
         <img class="mark" src="icon.svg" alt="" />
-        <h1 id="title">正在启动 MindLink</h1>
+        <h1 id="title">正在启动 Episteme</h1>
         <p id="hint">第一次打开要多等几秒。</p>
         <div class="bar" id="bar" aria-hidden="true"></div>
         <pre id="problem" hidden></pre>
@@ -118,7 +118,7 @@
     </main>
     <script>
       window.showProblem = (message) => {
-        document.getElementById('title').textContent = 'MindLink 没能启动'
+        document.getElementById('title').textContent = 'Episteme 没能启动'
         document.getElementById('hint').textContent = '按下面的提示处理后，从托盘菜单退出，再重新打开。'
         document.getElementById('bar').hidden = true
         const problem = document.getElementById('problem')

@@ -1,10 +1,11 @@
 // No console window next to the program on Windows, except in development builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! The desktop program: starts the MindLink workbench service it carries, shows it in its own window, and keeps a
-//! tray icon while the window is closed. Everything the person makes lives in one folder, the program's data folder
-//! (`%APPDATA%\club.sair.mindlink` on Windows): the graph `mindlink.db`, the model settings, and `logs\service.log`.
-//! Installing a newer version or uninstalling leaves that folder as it is.
+//! The desktop program, named Episteme to the person: starts the workbench service it carries, shows it in its own
+//! window, and keeps a tray icon while the window is closed. Everything the person makes lives in one folder, the
+//! program's data folder (`%APPDATA%\club.sair.mindlink` on Windows): the graph `mindlink.db`, the model settings, and
+//! `logs\service.log`. Those two names come from the code repository and stay as they are, so that installing a newer
+//! version finds what the person already has. Installing a newer version or uninstalling leaves that folder as it is.
 
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -67,7 +68,7 @@ fn start(app: &AppHandle) -> Result<(), String> {
         Port::Workbench => return Ok(()),
         Port::Taken => {
             return Err(format!(
-                "端口 {PORT} 被别的程序占用了。关掉那个程序，再重新打开 MindLink。"
+                "端口 {PORT} 被别的程序占用了。关掉那个程序，再重新打开 Episteme。"
             ))
         }
         Port::Free => {}
@@ -156,7 +157,7 @@ fn show(app: &AppHandle) {
 }
 
 fn tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "打开 MindLink", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "打开 Episteme", true, None::<&str>)?;
     let starts = app.autolaunch().is_enabled().unwrap_or(false);
     let autostart =
         CheckMenuItem::with_id(app, "autostart", "开机时启动", true, starts, None::<&str>)?;
@@ -167,12 +168,12 @@ fn tray(app: &AppHandle) -> tauri::Result<()> {
         true,
         None::<&str>,
     )?;
-    let quit = MenuItem::with_id(app, "quit", "退出 MindLink", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "退出 Episteme", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &folder, &autostart, &separator, &quit])?;
     let toggle = autostart.clone();
     let mut builder = TrayIconBuilder::with_id("main")
-        .tooltip("MindLink")
+        .tooltip("Episteme")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(move |app, event| match event.id().as_ref() {
@@ -228,7 +229,7 @@ fn main() {
         .setup(|app| {
             let hidden = std::env::args().any(|argument| argument == HIDDEN);
             WebviewWindowBuilder::new(app, MAIN, WebviewUrl::App("index.html".into()))
-                .title("MindLink")
+                .title("Episteme")
                 .inner_size(1180.0, 780.0)
                 .min_inner_size(400.0, 560.0)
                 .visible(!hidden)
