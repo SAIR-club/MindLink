@@ -31,6 +31,16 @@ export default tseslint.config(
     extends: [tseslint.configs.disableTypeChecked],
   },
   {
+    // The workbench page's service worker is plain JavaScript served as it is, outside every TypeScript project.
+    files: ['apps/workbench/web/public/**/*.js'],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: { ...globals.serviceworker } },
+  },
+  {
+    files: ['apps/workbench/web/src/**'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',

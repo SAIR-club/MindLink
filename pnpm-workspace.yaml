@@ -1,9 +1,11 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  - 'apps/workbench/web'
   - 'tests'
 
 allowBuilds:
+  better-sqlite3: false
   esbuild: true
   simple-git-hooks: true
 
@@ -16,5 +18,5 @@ overrides:
   '@episteme/mcp': 'link:../Episteme/packages/mcp'
   '@episteme/service': 'link:../Episteme/apps/service'
   '@episteme/sdk': 'link:../Episteme/packages/sdk'
-  '@episteme/storage-local': 'link:../Episteme/packages/storage-local'
+  '@episteme/storage-sqlite': 'link:../Episteme/packages/storage-sqlite'
   '@episteme/storage-memory': 'link:../Episteme/packages/storage-memory'

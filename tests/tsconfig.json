@@ -19,6 +19,9 @@
     },
     {
       "path": "../apps/mindlink"
+    },
+    {
+      "path": "../apps/workbench"
     }
   ]
 }

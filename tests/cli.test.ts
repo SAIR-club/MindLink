@@ -12,13 +12,13 @@ describe('mindlink serve', () => {
         'serve',
         '--local',
         '--graph',
-        'g.jsonl',
+        'g.db',
         '--port',
         '4400',
         '--host',
         '127.0.0.1',
       ]),
-    ).toEqual({ mode: 'local', graph: 'g.jsonl', port: 4400, host: '127.0.0.1' })
+    ).toEqual({ mode: 'local', graph: 'g.db', port: 4400, host: '127.0.0.1' })
   })
 
   it('reads a shared run', () => {
