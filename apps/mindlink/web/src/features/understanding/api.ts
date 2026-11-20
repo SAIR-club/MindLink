@@ -79,11 +79,6 @@ export async function decide(
   return suggestionsOf(await api.post(`${API}/suggestions/decide`, { id, ...decision }))
 }
 
-/** The person's delegations, live and revoked. */
-export async function readDelegations(api: Client): Promise<readonly Delegation[]> {
-  return delegationsOf(await api.get(`${API}/delegations`))
-}
-
 /** Turns delegated confirmation on for a scope. */
 export async function grant(api: Client, scope: string): Promise<void> {
   await api.post(`${API}/delegations`, { scope })
@@ -111,15 +106,15 @@ export interface DelegationState {
  * delegation channel's.
  */
 export async function readDelegationState(api: Client): Promise<DelegationState> {
-  const [delegations, delegated, all] = await Promise.all([
-    readDelegations(api),
+  const [delegationsAnswer, delegated, all] = await Promise.all([
+    api.get(`${API}/delegations`),
     api.get(`${API}/reviews?channel=delegation`),
     api.get(`${API}/reviews`),
   ])
   const undone = reviewsOf(all).filter((review) => review.outcome === 'undone')
   const decisions = delegatedDecisions([...reviewsOf(delegated), ...undone])
   return {
-    delegations,
+    delegations: delegationsOf(delegationsAnswer),
     decisions,
     nodes: decisions.length === 0 ? [] : await readNodes(api),
   }

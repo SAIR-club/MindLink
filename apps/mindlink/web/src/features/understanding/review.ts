@@ -257,17 +257,6 @@ const RELATIONS: Readonly<Record<string, string>> = {
   example_of: '是……的例子',
 }
 
-/** A node type in words, or its id when it has no Chinese name here. */
-export function nodeTypeText(nodeType: string): string {
-  return NODE_TYPES[nodeType] ?? nodeType
-}
-
-/** An edge type in words, with its id, which is what a modification must name. */
-export function relationText(relation: string): string {
-  const name = RELATIONS[relation]
-  return name === undefined ? relation : `${name}（${relation}）`
-}
-
 /** What a page knows besides the suggestion itself, to name what it refers to. */
 export interface Context {
   readonly vocabulary: Vocabulary
@@ -312,7 +301,10 @@ export interface ProposalView {
 export function describeProposal(proposal: Proposal, context: Context): ProposalView {
   switch (proposal.kind) {
     case 'node':
-      return { kind: `新${nodeTypeText(proposal.nodeType)}`, summary: `「${proposal.label}」` }
+      return {
+        kind: `新${NODE_TYPES[proposal.nodeType] ?? proposal.nodeType}`,
+        summary: `「${proposal.label}」`,
+      }
     case 'claim': {
       const about = (proposal.about ?? []).map((id) => nodeText(id, context))
       return {
@@ -323,11 +315,15 @@ export function describeProposal(proposal: Proposal, context: Context): Proposal
             : `「${proposal.label}」，关于 ${about.join('、')}`,
       }
     }
-    case 'link':
+    case 'link': {
+      const name = RELATIONS[proposal.relation]
+      // The id stays in view: a modification must name the relation by it.
+      const relation = name === undefined ? proposal.relation : `${name}（${proposal.relation}）`
       return {
         kind: '新连接',
-        summary: `${nodeText(proposal.from, context)} → ${relationText(proposal.relation)} → ${nodeText(proposal.to, context)}`,
+        summary: `${nodeText(proposal.from, context)} → ${relation} → ${nodeText(proposal.to, context)}`,
       }
+    }
     case 'state':
       return {
         kind: '理解的变化',
