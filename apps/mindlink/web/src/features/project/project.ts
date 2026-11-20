@@ -66,10 +66,6 @@ export function workflowText(workflowId: string): string {
   return GOAL_CHOICES.find((choice) => choice.workflowId === workflowId)?.label ?? workflowId
 }
 
-export function guidanceText(guidance: string): string {
-  return GUIDANCE_CHOICES.find((choice) => choice.value === guidance)?.label ?? guidance
-}
-
 export const COMING_SOON = '即将推出'
 
 export interface WorkflowOption extends Option {

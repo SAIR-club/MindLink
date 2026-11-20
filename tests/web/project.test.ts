@@ -5,7 +5,6 @@ import {
   askedText,
   courseProblem,
   createBody,
-  guidanceText,
   projectApi,
   settingsPatch,
   startPhrase,
@@ -38,10 +37,9 @@ describe('what the pages call things', () => {
     for (const choice of GOAL_CHOICES) expect(choice.description).not.toBe('')
   })
 
-  it('names built-in workflows and guidance in Chinese, and shows any other workflow by its id', () => {
+  it('names built-in workflows in Chinese, and shows any other workflow by its id', () => {
     expect(workflowText('builtin:apply')).toBe('应用')
     expect(workflowText('course:math101-exam')).toBe('course:math101-exam')
-    expect(['tell', 'hint', 'ask'].map(guidanceText)).toEqual(['直接讲', '给提示', '只提问'])
   })
 
   it('offers the built-in workflows, disabled as coming soon when the library lacks them', () => {
