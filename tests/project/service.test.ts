@@ -5,6 +5,8 @@ import { addPerson, addToken } from '@episteme/service'
 import { startMindLink } from '@mindlink/app'
 import type { Launched } from '@mindlink/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { createClient, type Fetch } from '../../apps/mindlink/web/src/client.js'
+import { projectApi } from '../../apps/mindlink/web/src/features/project/project.js'
 
 /**
  * Learning projects through the running service (MindLink#10): two people on one shared deployment, each with a
@@ -17,6 +19,13 @@ interface ToolResult {
   readonly content?: readonly { readonly type: string; readonly text: string }[]
   readonly structuredContent?: Json
   readonly isError?: boolean
+}
+
+/** A block library holding only the speedrun workflow, as the real one does until the others are written. */
+const LIBRARY = {
+  get: () => undefined,
+  resolve: () => undefined,
+  list: () => [{ level: 'workflow', key: 'builtin:speedrun' }] as never,
 }
 
 const PROTOCOL = '2026-07-28'
@@ -43,6 +52,7 @@ beforeEach(async () => {
     publicOrigin: 'https://mindlink.test',
     graph: join(directory, 'graph.jsonl'),
     port: 0,
+    registry: () => LIBRARY,
   })
 })
 
@@ -146,8 +156,8 @@ describe('projects over REST', () => {
   })
 
   it('keeps each person’s projects their own', async () => {
-    const lin = await create(tokens.linHuman, { title: 'Lin 的项目', goalType: 'deep' })
-    await create(tokens.meiHuman, { title: 'Mei 的项目', goalType: 'apply' })
+    const lin = await create(tokens.linHuman, { title: 'Lin 的项目', goalType: 'speedrun' })
+    await create(tokens.meiHuman, { title: 'Mei 的项目', goalType: 'speedrun' })
 
     const linList = (await rest(tokens.linHuman, 'GET', '/projects')).body['projects'] as Json[]
     const meiList = (await rest(tokens.meiHuman, 'GET', '/projects')).body['projects'] as Json[]
@@ -168,12 +178,49 @@ describe('projects over REST', () => {
   })
 })
 
+describe('workflows a project may use', () => {
+  it('lists only the workflows the block library has', async () => {
+    const listed = await rest(tokens.linHuman, 'GET', '/projects/workflows')
+    expect(listed.body['workflows']).toEqual(['builtin:speedrun'])
+  })
+
+  it('refuses to create a project on a workflow the library lacks, in Chinese', async () => {
+    for (const goalType of ['apply', 'deep']) {
+      const refused = await rest(tokens.linHuman, 'POST', '/projects/create', {
+        title: 'x',
+        goalType,
+      })
+      expect(refused.status).toBe(422)
+      expect(refused.body['code']).toBe('workflow_unavailable')
+      expect(String(refused.body['error'])).toMatch(/还不能用/)
+    }
+    expect((await rest(tokens.linHuman, 'GET', '/projects')).body['projects']).toEqual([])
+  })
+
+  it('refuses to switch a project to one, and keeps accepting the speedrun', async () => {
+    const { id } = (await create(tokens.linHuman, { title: 'x', goalType: 'speedrun' })) as {
+      id: string
+    }
+    for (const workflowId of ['builtin:apply', 'builtin:deep', 'builtin:nothing', 'user:mine']) {
+      const refused = await rest(tokens.linHuman, 'POST', '/projects/update', { id, workflowId })
+      expect(refused.status).toBe(422)
+      expect(refused.body['code']).toBe('workflow_unavailable')
+    }
+    const same = await rest(tokens.linHuman, 'POST', '/projects/update', {
+      id,
+      workflowId: 'builtin:speedrun',
+    })
+    expect(same.status).toBe(200)
+    expect(same.body['project']).toMatchObject({ workflowId: 'builtin:speedrun' })
+  })
+})
+
 describe('projects over MCP', () => {
   it('opens a project, writes back a goal, and reads it on the next open', async () => {
     const { id } = (await create(tokens.linHuman, {
       title: '概率论',
       course: 'MATH201',
-      goalType: 'apply',
+      goalType: 'speedrun',
     })) as { id: string }
     const call = agent(tokens.linAgent, 'claude-code')
 
@@ -204,7 +251,7 @@ describe('projects over MCP', () => {
   })
 
   it('refuses an agent anything beyond goal, deadline and baseline', async () => {
-    const { id } = (await create(tokens.linHuman, { title: 'x', goalType: 'deep' })) as {
+    const { id } = (await create(tokens.linHuman, { title: 'x', goalType: 'speedrun' })) as {
       id: string
     }
     const refused = await agent(tokens.linAgent, 'claude-code')('project_update', {
@@ -215,5 +262,57 @@ describe('projects over MCP', () => {
     expect(JSON.stringify(refused)).toContain('must NOT have additional properties')
     const shown = await rest(tokens.linHuman, 'GET', `/projects/show?id=${id}`)
     expect(shown.body['project']).toMatchObject({ delegation: false })
+  })
+})
+
+describe('projects through the pages’ data calls', () => {
+  /** The calls the project pages make, over the pages' own request client, signed in as `token`. */
+  function pages(token: string) {
+    const fetcher: Fetch = (path, init) =>
+      fetch(`${service.url}${path}`, {
+        ...init,
+        headers: { ...(init.headers as Record<string, string>), authorization: `Bearer ${token}` },
+      })
+    return projectApi(createClient({ fetch: fetcher }))
+  }
+
+  it('creates, lists, changes settings, archives and restores, and the agent opens what was made', async () => {
+    const lin = pages(tokens.linHuman)
+    const made = await lin.create({ title: '线性代数', course: ' MATH101 ', goalType: 'speedrun' })
+    expect(made).toMatchObject({
+      title: '线性代数',
+      course: 'MATH101',
+      workflowId: 'builtin:speedrun',
+      guidance: 'hint',
+      archived: false,
+    })
+    expect(await lin.list(false)).toEqual([made])
+    expect(await pages(tokens.meiHuman).list(true)).toEqual([])
+
+    const changed = await lin.update(made.id, {
+      course: null,
+      guidance: 'tell',
+      workflowId: 'builtin:speedrun',
+    })
+    expect(changed.course).toBeUndefined()
+    expect(changed).toMatchObject({ guidance: 'tell', workflowId: 'builtin:speedrun' })
+    expect(await lin.show(made.id)).toEqual(changed)
+
+    await lin.archive(made.id, true)
+    expect(await lin.list(false)).toEqual([])
+    expect(await lin.list(true)).toEqual([expect.objectContaining({ id: made.id, archived: true })])
+    await expect(lin.update(made.id, { title: '改名' })).rejects.toMatchObject({
+      code: 'project_archived',
+      message: '这个学习项目已经归档，不能再修改。',
+    })
+    await lin.archive(made.id, false)
+    expect(await lin.list(false)).toEqual([
+      expect.objectContaining({ id: made.id, archived: false }),
+    ])
+    await expect(lin.show('nowhere')).rejects.toMatchObject({ code: 'project_not_found' })
+
+    const fresh = await lin.create({ title: '概率论', course: '', goalType: 'speedrun' })
+    const opened = await agent(tokens.linAgent, 'claude-code')('project_open', { id: fresh.id })
+    expect(opened.structuredContent?.['project']).toMatchObject({ workflowId: 'builtin:speedrun' })
   })
 })
