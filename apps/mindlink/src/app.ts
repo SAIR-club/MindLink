@@ -4,6 +4,7 @@ import { learnDistillationPolicy } from '@episteme/domain-learn/distillation'
 import { launch, sceneOf, type LaunchOptions, type Launched } from '@mindlink/platform'
 import { builtinRegistry, type RegistryProvider } from './blocks/index.js'
 import { workflowTools } from './blocks/mcp.js'
+import { blockReadTools } from './blocks/reads/mcp.js'
 import { workflowRoutes } from './blocks/routes.js'
 import type { WorkflowCatalog } from './project/index.js'
 import { projectTools } from './project/mcp.js'
@@ -51,7 +52,7 @@ export function startMindLink(options: StartOptions): Promise<Launched> {
     web: WEB,
     ...launchOptions,
     scene: mindlinkScene,
-    tools: [...projectTools(workflows), ...workflowTools({ registry })],
+    tools: [...projectTools(workflows), ...workflowTools({ registry }), ...blockReadTools],
     routes: [...projectRoutes(workflows), ...workflowRoutes({ registry })],
   })
 }

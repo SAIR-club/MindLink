@@ -18,6 +18,7 @@ export const REFUSAL_TEXT: Readonly<Record<string, string>> = Object.freeze({
 
   // Requests the service could not read.
   invalid_request: '请求的格式不对，没有做任何改动。',
+  invalid_scope: '课程名不能用：不能为空，不超过 100 个字，也不能有换行或 *。没有做任何改动。',
   no_route: '找不到这个接口。',
   internal: '服务出了故障，请稍后再试。',
 
