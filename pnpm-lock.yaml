@@ -31,7 +31,7 @@ importers:
         version: 22.20.5
       '@vitejs/plugin-vue':
         specifier: 6.0.9
-        version: 6.0.9(vite@7.3.6(@types/node@22.20.5))(vue@3.5.43(typescript@5.9.3))
+        version: 6.0.9(vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0))(vue@3.5.43(typescript@5.9.3))
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -52,7 +52,7 @@ importers:
         version: 8.71.0(eslint@9.39.5)(typescript@5.9.3)
       vite-tsconfig-paths:
         specifier: ^5.1.4
-        version: 5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@22.20.5))
+        version: 5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0))
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.20.5)(happy-dom@20.14.5)
@@ -74,13 +74,16 @@ importers:
       vue-router:
         specifier: 4.6.4
         version: 4.6.4(vue@3.5.43(typescript@5.9.3))
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
       '@vitejs/plugin-vue':
         specifier: 6.0.9
-        version: 6.0.9(vite@7.3.6(@types/node@22.20.5))(vue@3.5.43(typescript@5.9.3))
+        version: 6.0.9(vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0))(vue@3.5.43(typescript@5.9.3))
       vite:
         specifier: 7.3.6
-        version: 7.3.6(@types/node@22.20.5)
+        version: 7.3.6(@types/node@22.20.5)(yaml@2.9.0)
       vue-tsc:
         specifier: 3.3.11
         version: 3.3.11(typescript@5.9.3)
@@ -1589,6 +1592,11 @@ packages:
       utf-8-validate:
         optional: true
 
+  yaml@2.9.0:
+    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+    engines: {node: '>= 14.6'}
+    hasBin: true
+
   yocto-queue@0.1.0:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
@@ -2041,10 +2049,10 @@ snapshots:
       '@typescript-eslint/types': 8.71.0
       eslint-visitor-keys: 5.0.1
 
-  '@vitejs/plugin-vue@6.0.9(vite@7.3.6(@types/node@22.20.5))(vue@3.5.43(typescript@5.9.3))':
+  '@vitejs/plugin-vue@6.0.9(vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0))(vue@3.5.43(typescript@5.9.3))':
     dependencies:
       '@rolldown/pluginutils': 1.0.1
-      vite: 7.3.6(@types/node@22.20.5)
+      vite: 7.3.6(@types/node@22.20.5)(yaml@2.9.0)
       vue: 3.5.43(typescript@5.9.3)
 
   '@vitest/expect@2.1.9':
@@ -2732,13 +2740,13 @@ snapshots:
       - supports-color
       - terser
 
-  vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@22.20.5)):
+  vite-tsconfig-paths@5.1.4(typescript@5.9.3)(vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0)):
     dependencies:
       debug: 4.4.3
       globrex: 0.1.2
       tsconfck: 3.1.6(typescript@5.9.3)
     optionalDependencies:
-      vite: 7.3.6(@types/node@22.20.5)
+      vite: 7.3.6(@types/node@22.20.5)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
       - typescript
@@ -2752,7 +2760,7 @@ snapshots:
       '@types/node': 22.20.5
       fsevents: 2.3.3
 
-  vite@7.3.6(@types/node@22.20.5):
+  vite@7.3.6(@types/node@22.20.5)(yaml@2.9.0):
     dependencies:
       esbuild: 0.28.2
       fdir: 6.5.0(picomatch@4.0.7)
@@ -2763,6 +2771,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 22.20.5
       fsevents: 2.3.3
+      yaml: 2.9.0
 
   vitest@2.1.9(@types/node@22.20.5)(happy-dom@20.14.5):
     dependencies:
@@ -2839,5 +2848,7 @@ snapshots:
   word-wrap@1.2.5: {}
 
   ws@8.22.0: {}
+
+  yaml@2.9.0: {}
 
   yocto-queue@0.1.0: {}

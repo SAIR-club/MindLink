@@ -146,7 +146,7 @@ export function parseRef(
 }
 
 /** Checks a value against a parameter or result field's type. Returns what is wrong, or `undefined`. */
-export function valueProblem(spec: ValueSpec, value: ScalarValue): string | undefined {
+export function valueProblem(spec: ValueSpec, value: YamlScalar['value']): string | undefined {
   switch (spec.type) {
     case 'boolean':
       return typeof value === 'boolean' ? undefined : '应该是 true 或 false'
@@ -162,16 +162,24 @@ export function valueProblem(spec: ValueSpec, value: ScalarValue): string | unde
   }
 }
 
+/** A string, integer or boolean: what a parameter or result field can hold. A float or an empty value is neither. */
+const isPlain = (value: YamlScalar['value']): value is ScalarValue =>
+  value !== null && typeof value !== 'object'
+
 const describe = (node: YamlNode): string =>
   node.kind === 'mapping'
     ? '映射'
     : node.kind === 'sequence'
       ? '列表'
-      : typeof node.value === 'string'
-        ? '字符串'
-        : typeof node.value === 'number'
-          ? '整数'
-          : '布尔值'
+      : node.value === null
+        ? '空值'
+        : typeof node.value === 'object'
+          ? '浮点数'
+          : typeof node.value === 'string'
+            ? '字符串'
+            : typeof node.value === 'number'
+              ? '整数'
+              : '布尔值'
 
 class BlockReader {
   readonly issues: BlockIssue[] = []
@@ -691,6 +699,7 @@ class BlockReader {
       const problem = valueProblem(spec, field.value.value)
       if (problem !== undefined)
         this.add('example-result', path, field.value, `结果字段 ${field.key} ${problem}`)
+      if (!isPlain(field.value.value)) continue
       values.push({
         name: field.key,
         value: field.value.value,
@@ -870,15 +879,17 @@ class FieldReader {
   text(key: string, max: number): string | undefined {
     const value = this.string(key)
     if (value === undefined) return undefined
-    const length = [...value.value].length
-    if (length === 0 || length > max || value.value.includes('\n')) {
+    // A block scalar (`summary: >`) ends with a newline that belongs to its layout, not to the text.
+    const text = value.value.replace(/\n+$/, '')
+    const length = [...text].length
+    if (length === 0 || length > max || text.includes('\n')) {
       this.add(
         'field-format',
         value,
         `${key} 应该是 1 到 ${max} 个字符的一行文字，现在是 ${length} 个`,
       )
     }
-    return value.value
+    return text
   }
 
   oneOf<T extends string>(
@@ -994,6 +1005,7 @@ class FieldReader {
         this.add('param-default', defaultEntry.value, `参数 ${entry.key} 的 default ${problem}`)
         continue
       }
+      if (!isPlain(defaultEntry.value.value)) continue
       out.push({
         ...spec.spec,
         name: entry.key,
@@ -1126,7 +1138,8 @@ class FieldReader {
     }
     if (
       type.value.kind !== 'scalar' ||
-      !['enum', 'boolean', 'integer'].includes(String(type.value.value))
+      typeof type.value.value !== 'string' ||
+      !['enum', 'boolean', 'integer'].includes(type.value.value)
     ) {
       this.add('field-format', type.value, `${what} 的 type 只能是 enum、boolean 或 integer`)
       return undefined
@@ -1233,6 +1246,14 @@ class FieldReader {
       const forward = typeof value === 'string' ? FORWARD.exec(value)?.[1] : undefined
       if (forward !== undefined && !FIELD_NAME.test(forward)) {
         this.add('field-format', field.value, `"{{${forward}}}" 不是合法的参数名`)
+        continue
+      }
+      if (!isPlain(value)) {
+        this.add(
+          'field-type',
+          field.value,
+          `参数 ${field.key} 应该是单个值，而不是${describe(field.value)}`,
+        )
         continue
       }
       out.push({
