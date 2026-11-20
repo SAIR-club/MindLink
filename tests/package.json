@@ -12,6 +12,7 @@
     "@episteme/domain-learn": "workspace:*",
     "@episteme/sdk": "link:../../Episteme/packages/sdk",
     "@episteme/service": "link:../../Episteme/apps/service",
+    "@episteme/storage-sqlite": "link:../../Episteme/packages/storage-sqlite",
     "@mindlink/app": "workspace:*",
     "@mindlink/platform": "workspace:*"
   },

@@ -129,6 +129,9 @@ importers:
       '@episteme/service':
         specifier: link:../../Episteme/apps/service
         version: link:../../Episteme/apps/service
+      '@episteme/storage-sqlite':
+        specifier: link:../../Episteme/packages/storage-sqlite
+        version: link:../../Episteme/packages/storage-sqlite
       '@mindlink/app':
         specifier: workspace:*
         version: link:../apps/mindlink
