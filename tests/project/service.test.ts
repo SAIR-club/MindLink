@@ -50,7 +50,7 @@ beforeEach(async () => {
     mode: 'shared',
     users,
     publicOrigin: 'https://mindlink.test',
-    graph: join(directory, 'graph.jsonl'),
+    graph: join(directory, 'graph.db'),
     port: 0,
     registry: () => LIBRARY,
   })

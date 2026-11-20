@@ -67,6 +67,7 @@ function progress(items: readonly Item[]): Progress {
     totalNodes: items.length,
     items,
     summary: '',
+    summaryZh: '',
   }
 }
 

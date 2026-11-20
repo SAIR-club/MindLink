@@ -111,7 +111,8 @@ export function recentTurns(
     return {
       turn: turn.id,
       seq: turn.seq,
-      speaker: turn.speaker,
+      // Episteme also carries the older names of the learner's channel; the reads show the two sides only.
+      speaker: turn.speaker === 'agent' ? 'agent' : 'learner',
       at: turn.at,
       text: summary ?? (truncated ? `${[...raw].slice(0, RAW_LIMIT).join('')}…` : raw),
       summarized: summary !== undefined,
