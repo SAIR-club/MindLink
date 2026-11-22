@@ -574,11 +574,7 @@ export async function recalledFor(
     .filter((ranked) => ranked.origin === 'match')
     .map((ranked) => ranked.nodeId)
   // The graph's retriever does not cut Chinese into words, so the words a material search uses are asked too.
-  const byWords = nodes
-    .map((node) => ({ node, score: coverage(question, node.label) }))
-    .filter(({ score }) => score >= MIN_RECALL_COVERAGE)
-    .sort((left, right) => right.score - left.score)
-    .map(({ node }) => node.nodeId)
+  const byWords = byCoverage(question, nodes, (node) => node.label).map(({ item }) => item.nodeId)
   const found = new Map<string, HeldNode>()
   for (const id of [...byWords, ...matched]) {
     let node = byId.get(id)
@@ -617,23 +613,29 @@ export function elsewhereFor(
     .list(SPACE_PREFIX)
     .map((record) => record.value as Space)
     .filter((other) => other.id !== space && !other.archived)
-  return others
-    .flatMap((other) =>
-      stillHeld(heldNodes(view, other.id)).map((node) => ({
-        other,
-        node,
-        score: coverage(question, node.label),
-      })),
-    )
-    .filter(({ score }) => score >= MIN_RECALL_COVERAGE)
-    .sort((left, right) => right.score - left.score)
+  const candidates = others.flatMap((other) =>
+    stillHeld(heldNodes(view, other.id)).map((node) => ({ other, node })),
+  )
+  return byCoverage(question, candidates, ({ node }) => node.label)
     .slice(0, MAX_ELSEWHERE)
-    .map(({ other, node }) => ({
+    .map(({ item: { other, node } }) => ({
       space: other.id,
       spaceName: other.name,
       nodeId: node.nodeId,
       label: node.label,
     }))
+}
+
+/** The items whose label holds enough of the question's words, the ones that hold most first. */
+function byCoverage<T>(
+  question: string,
+  items: readonly T[],
+  labelOf: (item: T) => string,
+): readonly { readonly item: T; readonly score: number }[] {
+  return items
+    .map((item) => ({ item, score: coverage(question, labelOf(item)) }))
+    .filter(({ score }) => score >= MIN_RECALL_COVERAGE)
+    .sort((left, right) => right.score - left.score)
 }
 
 function trailOf(
