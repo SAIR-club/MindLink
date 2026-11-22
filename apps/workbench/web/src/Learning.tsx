@@ -36,7 +36,7 @@ export function PlanShelf(props: {
   const [minutes, setMinutes] = useState('60')
   const [workflow, setWorkflow] = useState('speedrun')
   const [creating, setCreating] = useState(false)
-  // Once there are plans, the form waits behind a link so the shelf stays a list.
+  // The form waits behind a link, so the sidebar stays a list of conversations.
   const [adding, setAdding] = useState(false)
   const chosen = workflows.find((candidate) => candidate.id === workflow)
 
@@ -58,8 +58,8 @@ export function PlanShelf(props: {
   }
 
   return (
-    <section>
-      <h2>学习计划</h2>
+    <section className="plan-shelf">
+      {props.plans.length > 0 && <h2>学习计划</h2>}
       <ul className="list">
         {props.plans.map((plan) => (
           <li key={plan.id}>
@@ -78,8 +78,10 @@ export function PlanShelf(props: {
         ))}
       </ul>
       {!props.hasMaterial || props.archived ? (
-        <p className="hint">上传材料后，可以生成学习计划。</p>
-      ) : props.plans.length > 0 && !adding ? (
+        props.plans.length > 0 ? null : (
+          <p className="hint">上传材料后，可以生成学习计划。</p>
+        )
+      ) : !adding ? (
         <button type="button" className="link" onClick={() => setAdding(true)}>
           新建学习计划
         </button>
@@ -117,9 +119,14 @@ export function PlanShelf(props: {
             ))}
           </fieldset>
           {chosen !== undefined && <p className="hint">{chosen.description}</p>}
-          <button type="submit" disabled={creating || topic.trim() === ''}>
-            {creating ? '正在拟计划…' : '生成计划'}
-          </button>
+          <p className="plan-form-actions">
+            <button type="submit" disabled={creating || topic.trim() === ''}>
+              {creating ? '正在拟计划…' : '生成计划'}
+            </button>
+            <button type="button" className="link" onClick={() => setAdding(false)}>
+              取消
+            </button>
+          </p>
         </form>
       )}
     </section>
