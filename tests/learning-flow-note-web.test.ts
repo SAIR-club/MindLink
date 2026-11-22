@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { type EpistemeService, startService } from '@episteme/service'
 import { type ModelClient, type ModelMessage, workbenchProfile } from '@mindlink/workbench'
-import { chromium, type Browser, type Page } from 'playwright-core'
+import { type Page } from 'playwright-core'
+import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
 
@@ -31,18 +32,7 @@ const model: ModelClient = {
   },
 }
 
-async function installedBrowser(): Promise<Browser | undefined> {
-  for (const channel of ['msedge', 'chrome']) {
-    try {
-      return await chromium.launch({ channel })
-    } catch {
-      continue
-    }
-  }
-  return undefined
-}
-
-const browser = await installedBrowser()
+const browser = await installedBrowser('the UI journey')
 if (browser === undefined)
   throw new Error('An installed Edge or Chrome is required for the UI journey')
 const installed = browser

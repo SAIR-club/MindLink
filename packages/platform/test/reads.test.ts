@@ -1,8 +1,11 @@
-import { baseScene, CognitiveSession, sceneViewOf } from '@episteme/application'
+import { CognitiveSession, sceneViewOf } from '@episteme/application'
 import { asId, type ActorId, type NodeId, type PublicationId } from '@episteme/core'
+import { learnDomainPack, learnPresentations, learnStateDimensions } from '@episteme/domain-learn'
+import { learnDistillationPolicy } from '@episteme/domain-learn/distillation'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   publicationReaderOf,
+  sceneOf,
   threadReaderOf,
   type PublicationReader,
   type PublicationView,
@@ -18,6 +21,14 @@ import { memoryPublications, memoryThreads } from '../src/testing/index.js'
 const LIN = 'actor_human_lin'
 const WEI = 'actor_human_wei'
 const COURSE = 'ml-2026'
+
+/** The Learn scene: what the service runs under, and the vocabulary the claims here are written in. */
+const TEST_SCENE = sceneOf({
+  packs: [learnDomainPack],
+  distillationPolicy: learnDistillationPolicy,
+  dimensions: learnStateDimensions,
+  presentations: learnPresentations,
+})
 
 type Person = 'lin' | 'wei'
 
@@ -41,7 +52,7 @@ afterEach(async () => {
 })
 
 async function episteme(): Promise<World> {
-  const owner = await CognitiveSession.open({ scene: baseScene, sharing: true })
+  const owner = await CognitiveSession.open({ scene: TEST_SCENE, sharing: true })
   closers.push(() => owner.close())
   const lin = owner.forActor(LIN, 'Lin')
   const wei = owner.forActor(WEI, 'Wei')
