@@ -7,7 +7,8 @@ import { REFUSAL_TEXT, refusalText } from '../../apps/mindlink/web/src/refusals.
 /**
  * Every refusal code MindLink itself can answer with has Chinese text (MindLink#23).
  *
- * The codes are collected from MindLink's own source (`packages/<name>/src`, `apps/<name>/src`) rather than listed by hand, so
+ * The codes are collected from the source this page serves (`packages/<name>/src`, `apps/<name>/src`, without the
+ * workbench, which has a page of its own) rather than listed by hand, so
  * a refusal added here without its text fails this test. Episteme's codes are not collected: reading another
  * repository's internals would tie these tests to them. The texts for the ones a learner commonly meets are written
  * out, and any other gets `refusalText`'s general Chinese message.
@@ -31,7 +32,10 @@ async function sources(root: string): Promise<string[]> {
   const files: string[] = []
   for (const group of ['packages', 'apps']) {
     const dirs = await readdir(join(root, group), { withFileTypes: true }).catch(() => [])
-    for (const dir of dirs.filter((entry) => entry.isDirectory())) {
+    // The workbench words its refusals in Chinese where it makes them, and its own page shows them as they are.
+    for (const dir of dirs.filter(
+      (entry) => entry.isDirectory() && !(group === 'apps' && entry.name === 'workbench'),
+    )) {
       files.push(...(await walk(join(root, group, dir.name, 'src'))))
     }
   }
