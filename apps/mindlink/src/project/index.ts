@@ -19,6 +19,7 @@ export {
   parsePatch,
   PERSON_WRITABLE,
   PROJECT_RECORD,
+  requireWorkflow,
   scopeTag,
   setArchived,
   summaryOf,
@@ -31,4 +32,5 @@ export {
   type Project,
   type ProjectPatch,
   type ProjectSummary,
+  type WorkflowCatalog,
 } from './logic.js'

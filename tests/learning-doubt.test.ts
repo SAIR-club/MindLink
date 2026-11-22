@@ -3,23 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CognitiveSession } from '@episteme/application'
 import { type EpistemeService, startService } from '@episteme/service'
-import { type ModelClient, workbenchProfile } from '@mindlink/workbench'
+import { workbenchProfile, workbenchScene } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type McpWire, mcpWire } from './mcp-wire.js'
+import { noModel } from './model.js'
 
 /**
  * An attempt that falls short puts a doubt to the person about what they hold on its objective (a negotiated learner
  * model): one pending change, `conflict: suspected`, per held node. The evidence proposes, the person decides; until
  * then nothing they hold changes, and an agent has no way to decide it for them.
  */
-
-const noModel: ModelClient = {
-  name: 'none',
-  simulated: false,
-  complete: () => {
-    throw new Error('the service called its model')
-  },
-}
 
 const SCENE = '/scene/workbench'
 const HELD = '校验和不对时必须停止恢复'
@@ -209,7 +202,7 @@ describe('an attempt that falls short', () => {
 
     await service.close()
     open = false
-    const session = await CognitiveSession.open({ filePath: graph })
+    const session = await CognitiveSession.open({ filePath: graph, scene: workbenchScene })
     try {
       const last = session.historyOf(held?.nodeId ?? '')?.at(-1)
       expect(last?.dimensions).toEqual([
