@@ -158,7 +158,32 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.getByRole('button', { name: /查看引用 1/ }).waitFor()
     await page.getByRole('button', { name: '我的理解（1）' }).click()
     await page.locator('.understood li', { hasText: '位置编码' }).waitFor()
-  }, 60_000)
+
+    // Learning again, in a new conversation after the restart, brings back what was confirmed: the same node the
+    // graph holds, set apart from the material, and back from it to the words it came from.
+    const held = (await (await fetch(`${service?.apiUrl ?? ''}/state`)).json()) as {
+      nodes: { nodeId: string; label: string }[]
+    }
+    await page.getByRole('button', { name: '开始新对话' }).click()
+    await ask('位置编码有什么用')
+    const recalled = page.locator('.recalled')
+    await recalled.getByText('不是材料').waitFor()
+    const label = (await recalled.getByRole('button').first().textContent()) ?? ''
+    const node = held.nodes.find((candidate) => candidate.label === label)
+    expect(node, `recalled “${label}” is a node in the graph`).toBeDefined()
+    const newThread = /\/threads\/([^/?]+)/.exec(page.url())?.[1]
+    expect(newThread).toBeDefined()
+    await recalled.getByRole('button', { name: label }).click()
+    await page.waitForURL(new RegExp(`/understanding/${node?.nodeId ?? 'none'}`))
+    await page.getByRole('button', { name: '回到当时的对话' }).click()
+    await page.waitForURL(
+      (url) => /\/threads\//.test(url.href) && !url.href.includes(newThread ?? ''),
+    )
+    await page
+      .getByRole('button', { name: /查看引用 1/ })
+      .first()
+      .waitFor()
+  }, 90_000)
 
   it('marks what the material does not support, and what it cannot answer', async () => {
     const model: ModelClient = {
