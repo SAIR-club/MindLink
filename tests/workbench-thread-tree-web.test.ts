@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
-import { chromium, type Browser, type Page } from 'playwright-core'
+import { type Page } from 'playwright-core'
+import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -15,22 +16,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
  * Like the other journeys, it drives an installed Edge or Chrome: skipped locally without one, a failure in CI.
  */
 
-async function installedBrowser(): Promise<Browser | undefined> {
-  for (const channel of ['msedge', 'chrome']) {
-    try {
-      return await chromium.launch({ channel })
-    } catch {
-      continue
-    }
-  }
-  return undefined
-}
-
-const browser = await installedBrowser()
-if (browser === undefined && process.env['CI'] !== undefined) {
-  throw new Error('CI needs Edge or Chrome for the branching journey')
-}
-
+const browser = await installedBrowser('the branching journey')
 const HOOK_TIMEOUT = 60_000
 const NOTES =
   '# 位置编码\n\n位置编码把序列的顺序告诉模型。\n\n# 注意力\n\n注意力机制让词元彼此关联。\n'

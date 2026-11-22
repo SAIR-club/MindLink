@@ -285,6 +285,7 @@ describe('in a shared deployment', () => {
       mode: 'shared',
       users,
       publicOrigin: 'https://episteme.example.edu',
+      profile: workbenchProfile({ model: new SimulatedModel() }),
     })
   })
 
