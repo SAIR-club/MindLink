@@ -1,4 +1,4 @@
-import { writtenWithOf, type SceneView, type Thread } from '@episteme/application'
+import type { SceneView, Thread } from '@episteme/application'
 import type { SceneRoute } from '@episteme/service'
 import { refuse, SPACE_PREFIX, text, type Space } from './requests.js'
 
@@ -80,13 +80,10 @@ export function conversationRoutes(): readonly SceneRoute[] {
           let byPerson = false
           for (const turn of turns) {
             const agent = agentOf(turn.by)
-            if (
-              agent !== undefined &&
-              (writtenWithOf(turn) === 'agent' || turn.speaker === 'agent')
-            )
+            if (agent !== undefined && (turn.writtenWith === 'agent' || turn.speaker === 'agent'))
               agents.add(agent)
             else if (turn.by.startsWith('model:')) models.add(turn.by.slice('model:'.length))
-            else if (turn.speaker === 'learner' && writtenWithOf(turn) !== 'agent') byPerson = true
+            else if (turn.speaker === 'learner' && turn.writtenWith !== 'agent') byPerson = true
           }
           const spaceId =
             thread.scope?.startsWith('workbench:') === true ? thread.scope.slice(10) : undefined
@@ -112,7 +109,7 @@ export function conversationRoutes(): readonly SceneRoute[] {
         }
       },
     },
-    // The person's: an agent cannot rename or archive a conversation (route-access.ts names only proposing routes).
+    // The person's: an agent cannot rename or archive a conversation (profile.ts names only proposing routes).
     {
       method: 'POST',
       path: '/conversations/update',
