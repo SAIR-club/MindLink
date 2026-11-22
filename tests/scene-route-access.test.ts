@@ -9,8 +9,7 @@ import {
   type SceneRoute,
 } from '@episteme/service'
 import { BLANK_TOPIC, type SceneProfile } from '@episteme/service'
-import { baseScene } from '@episteme/application'
-import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
+import { SimulatedModel, workbenchProfile, workbenchScene } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -323,7 +322,7 @@ describe('a scene that says nothing about its routes', () => {
   const profile = (overrides: Partial<SceneProfile> = {}): SceneProfile => ({
     name: 'plain',
     seed: BLANK_TOPIC,
-    scene: baseScene,
+    scene: workbenchScene,
     routes: [ECHO, { method: 'GET', path: '/state', handle: () => ({ ok: true }) }],
     ...overrides,
   })

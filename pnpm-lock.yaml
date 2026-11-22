@@ -105,6 +105,9 @@ importers:
       '@episteme/distillation':
         specifier: link:../../../Episteme/packages/distillation
         version: link:../../../Episteme/packages/distillation
+      '@episteme/domain-learn':
+        specifier: workspace:*
+        version: link:../../packages/domain-learn
       '@episteme/service':
         specifier: link:../../../Episteme/apps/service
         version: link:../../../Episteme/apps/service
@@ -178,6 +181,10 @@ importers:
       '@episteme/service':
         specifier: link:../../../Episteme/apps/service
         version: link:../../../Episteme/apps/service
+    devDependencies:
+      '@episteme/domain-learn':
+        specifier: workspace:*
+        version: link:../domain-learn
 
   tests:
     dependencies:

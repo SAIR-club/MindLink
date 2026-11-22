@@ -99,11 +99,3 @@ export function mcpWire(url: () => string, client: Client): McpWire {
 
   return { rpc, call }
 }
-
-/** The learner's answer to the decision form, as a host sends it back on the retry. */
-export function answer(
-  action: 'accept' | 'decline' | 'cancel',
-  content?: Record<string, unknown>,
-): Record<string, unknown> {
-  return { decision: content === undefined ? { action } : { action, content } }
-}

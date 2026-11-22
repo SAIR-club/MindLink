@@ -33,8 +33,6 @@ import {
   type Space,
 } from './requests.js'
 
-export { scopeOf, type Space } from './requests.js'
-
 /**
  * The workbench's REST routes, under `/api/v1/scene/<name>`.
  *
@@ -190,7 +188,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
         ? { name: model.name, simulated: model.simulated }
         : { ...options.modelSettings.view() },
     ),
-    // Choosing the model is the person's: neither route is open to an agent's credential (route-access.ts).
+    // Choosing the model is the person's: neither route is open to an agent's credential (profile.ts).
     route('POST', '/model/settings', async ({ body }) => {
       const settings = options.modelSettings
       if (settings === undefined) refuse('not_found', '这个服务不能在页面上设置模型。')
@@ -244,7 +242,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
       }
     }),
     // The person says which learning objective one of their understandings is about, so what practice shows on that
-    // objective can ask about it. Not named in route-access.ts: an agent ties its own suggestions with learn_observe,
+    // objective can ask about it. Not named in profile.ts: an agent ties its own suggestions with learn_observe,
     // never what the person already holds. It records evidence, and changes nothing the person holds.
     route('POST', '/objectives/link', async ({ view, body }) => {
       const space = openSpaceOf(view, text(body, 'space'))
@@ -445,7 +443,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
       }
     }),
     // The person's: a new line of a conversation from one of its turns. The original and its other lines stay as
-    // they are. Not named in route-access.ts, so an agent's credential cannot open one here.
+    // they are. Not named in profile.ts, so an agent's credential cannot open one here.
     route('POST', '/sessions/fork', async ({ view, writes, body }) => {
       const space = openSpaceOf(view, text(body, 'space'))
       const from = view.threadView(text(body, 'thread', 200))

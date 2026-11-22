@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addPerson, addToken } from '@episteme/service'
+import { openSqliteStorage } from '@episteme/storage-sqlite'
 import { startMindLink, type StartOptions } from '@mindlink/app'
 import type { Launched } from '@mindlink/platform'
 import Database from 'better-sqlite3'
@@ -171,16 +172,10 @@ describe('a graph written by v0.1.0', () => {
         .split(/\r?\n/)
         .filter((line) => line.trim() !== '')
     const graphPath = join(directory, 'graph.db')
+    // Lay out the file the way the storage does, then seed the v0.1 records into it.
+    await (await openSqliteStorage(graphPath)).close()
     const db = new Database(graphPath)
     try {
-      db.pragma('locking_mode = EXCLUSIVE')
-      db.pragma('journal_mode = WAL')
-      db.pragma('synchronous = FULL')
-      db.exec('CREATE TABLE records (seq INTEGER PRIMARY KEY, body TEXT NOT NULL)')
-      db.exec(
-        'CREATE TABLE companions (name TEXT NOT NULL, seq INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (name, seq))',
-      )
-      db.pragma('user_version = 2')
       const records = await lines('graph.jsonl')
       const suggestions = await lines('graph.jsonl.suggestions.jsonl')
       const sources = await lines('graph.jsonl.sources.jsonl')

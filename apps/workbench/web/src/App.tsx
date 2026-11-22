@@ -65,41 +65,28 @@ type Pane = 'shelf' | 'talk' | 'side' | 'rail'
 
 const LAST_SPACE = 'workbench.space'
 
-function remembered(): string | null {
+/** What the browser kept under `key`, or nothing when storage is unavailable. */
+function kept(key: string): string | null {
   try {
-    return localStorage.getItem(LAST_SPACE)
+    return localStorage.getItem(key)
   } catch {
     return null
   }
 }
 
-function remember(space: string): void {
+function keep(key: string, value: string): void {
   try {
-    localStorage.setItem(LAST_SPACE, space)
+    localStorage.setItem(key, value)
   } catch {
-    // Only a convenience: the page opens on the first space instead.
-    return
+    // Only a convenience: the default comes back next time.
   }
 }
 
 const RAIL = 'workbench.rail'
 
-/** Whether the understanding layer was left open. It opens by default: it is the point of the page. */
-function railWasOpen(): boolean {
-  try {
-    return localStorage.getItem(RAIL) !== 'closed'
-  } catch {
-    return true
-  }
-}
-
-function keepRail(open: boolean): void {
-  try {
-    localStorage.setItem(RAIL, open ? 'open' : 'closed')
-  } catch {
-    // Only a convenience: it opens again next time.
-    return
-  }
+/** Whether a pane was left open. It opens by default: the understanding layer is the point of the page. */
+function wasOpen(key: string): boolean {
+  return kept(key) !== 'closed'
 }
 
 const SHELF_DEFAULT = 260
@@ -110,29 +97,8 @@ const RIGHT_WIDTH = 'workbench.right-width'
 
 /** A pane width the person dragged to, or the default; kept per browser, like the rail. */
 function keptWidth(key: string, fallback: number): number {
-  try {
-    const value = Number(localStorage.getItem(key))
-    return Number.isFinite(value) && value > 0 ? value : fallback
-  } catch {
-    return fallback
-  }
-}
-
-function keepValue(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Only a convenience: the default comes back next time.
-    return
-  }
-}
-
-function shelfWasOpen(): boolean {
-  try {
-    return localStorage.getItem(SHELF) !== 'closed'
-  } catch {
-    return true
-  }
+  const value = Number(kept(key))
+  return Number.isFinite(value) && value > 0 ? value : fallback
 }
 
 /** Pages that are the understanding layer already, or that belong to no space, have no rail beside them. */
@@ -280,7 +246,7 @@ function Desk({
   }, [olderHref, navigate])
 
   /** The space on show. Public results have no space of their own, so the last one stays beside them. */
-  const [heldSpace, setHeldSpace] = useState<string | undefined>(remembered() ?? undefined)
+  const [heldSpace, setHeldSpace] = useState<string | undefined>(kept(LAST_SPACE) ?? undefined)
   const namedSpace = 'space' in place ? place.space : undefined
   const spaceId = typeof namedSpace === 'string' ? namedSpace : heldSpace
   const threadId = place.kind === 'thread' ? place.thread : undefined
@@ -319,13 +285,13 @@ function Desk({
   const [plans, setPlans] = useState<readonly Plan[]>([])
   const [planNotice, setPlanNotice] = useState<string>()
   const [learned, setLearned] = useState(0)
-  const [railOpen, setRailOpen] = useState(railWasOpen)
-  const [shelfOpen, setShelfOpen] = useState(shelfWasOpen)
+  const [railOpen, setRailOpen] = useState(() => wasOpen(RAIL))
+  const [shelfOpen, setShelfOpen] = useState(() => wasOpen(SHELF))
   const [shelfWidth, setShelfWidth] = useState(() => keptWidth(SHELF_WIDTH, SHELF_DEFAULT))
   const [rightWidth, setRightWidth] = useState(() => keptWidth(RIGHT_WIDTH, RIGHT_DEFAULT))
   const toggleShelf = useCallback((): void => {
     setShelfOpen((open) => {
-      keepValue(SHELF, open ? 'closed' : 'open')
+      keep(SHELF, open ? 'closed' : 'open')
       return !open
     })
   }, [])
@@ -421,7 +387,7 @@ function Desk({
     }
     if (!listed || !needsSpace) return
     const open = spaces.filter((candidate) => !candidate.archived)
-    const last = remembered()
+    const last = kept(LAST_SPACE)
     const fallback = (open.find((candidate) => candidate.id === last) ?? open[0])?.id
     setHeldSpace(fallback)
     if (place.kind === 'home' && fallback !== undefined) {
@@ -445,7 +411,7 @@ function Desk({
       setPlans([])
       return undefined
     }
-    remember(spaceId)
+    keep(LAST_SPACE, spaceId)
     let current = true
     guard(async () => {
       const [found, threads, held, planned] = await Promise.all([
@@ -723,7 +689,7 @@ function Desk({
   const toggleRail = (): void => {
     const next = !(right === 'rail')
     setRailOpen(next)
-    keepRail(next)
+    keep(RAIL, next ? 'open' : 'closed')
     if (next && opensSide(panel)) {
       const { material: _closed, ...rest } = panel
       showPanel(rest)
@@ -812,7 +778,7 @@ function Desk({
             fallback={SHELF_DEFAULT}
             onWidth={(width) => {
               setShelfWidth(width)
-              keepValue(SHELF_WIDTH, String(width))
+              keep(SHELF_WIDTH, String(width))
             }}
           />
         )}
@@ -826,7 +792,7 @@ function Desk({
             fallback={RIGHT_DEFAULT}
             onWidth={(width) => {
               setRightWidth(width)
-              keepValue(RIGHT_WIDTH, String(width))
+              keep(RIGHT_WIDTH, String(width))
             }}
           />
         )}
@@ -964,7 +930,7 @@ function Desk({
                 title="展开侧栏（Ctrl+B）"
                 onClick={toggleShelf}
               >
-                <PanelGlyph side="left" />
+                <PanelGlyph />
               </button>
             )}
             <p className="crumbs">
@@ -1263,7 +1229,7 @@ function Desk({
             onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
             onClose={() => {
               setRailOpen(false)
-              keepRail(false)
+              keep(RAIL, 'closed')
               setPane('talk')
             }}
           />
@@ -1468,7 +1434,7 @@ function Shelf(props: {
           title="收起侧栏（Ctrl+B）"
           onClick={props.onHide}
         >
-          <PanelGlyph side="left" />
+          <PanelGlyph />
         </button>
       </div>
       {currentSpace !== undefined && !currentSpace.archived && (
@@ -1971,15 +1937,11 @@ function Resizer(props: {
 }
 
 /** A window with one side column marked: the sidebar toggle of a desktop client. */
-function PanelGlyph({ side }: { side: 'left' | 'right' }) {
+function PanelGlyph() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none">
       <rect x="2" y="2.5" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
-      <path
-        d={side === 'left' ? 'M6 2.5v11' : 'M10 2.5v11'}
-        stroke="currentColor"
-        strokeWidth="1.3"
-      />
+      <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   )
 }
@@ -2045,11 +2007,7 @@ const RAIL_VIEW = 'workbench.rail-view'
 const RAIL_PENDING = 3
 
 function railViewWas(): 'tree' | 'graph' {
-  try {
-    return localStorage.getItem(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
-  } catch {
-    return 'tree'
-  }
+  return kept(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
 }
 
 /**
@@ -2084,7 +2042,7 @@ function Rail(props: {
   const held = understanding.nodes.filter((node) => stateOf(node) !== 'past')
   const choose = (next: 'tree' | 'graph'): void => {
     setView(next)
-    keepValue(RAIL_VIEW, next)
+    keep(RAIL_VIEW, next)
   }
   return (
     <aside className="rail" aria-label="理解层">
