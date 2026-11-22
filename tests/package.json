@@ -8,19 +8,22 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@episteme/application": "link:../../Episteme/packages/application",
     "@episteme/core": "link:../../Episteme/packages/core",
     "@episteme/domain-learn": "workspace:*",
     "@episteme/sdk": "link:../../Episteme/packages/sdk",
     "@episteme/service": "link:../../Episteme/apps/service",
     "@episteme/storage-sqlite": "link:../../Episteme/packages/storage-sqlite",
     "@mindlink/app": "workspace:*",
-    "@mindlink/platform": "workspace:*"
+    "@mindlink/platform": "workspace:*",
+    "@mindlink/workbench": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@vue/test-utils": "2.5.1",
     "better-sqlite3": "^13.0.3",
     "happy-dom": "20.14.5",
+    "playwright-core": "1.64.1",
     "vue": "3.5.43",
     "vue-router": "4.6.4"
   }

@@ -11,7 +11,7 @@
     },
     {
       "name": "L2 features",
-      "modules": ["apps/mindlink/src/blocks"]
+      "modules": ["apps/mindlink/src/blocks", "apps/workbench/src"]
     },
     {
       "name": "L3 assembly",
@@ -19,7 +19,7 @@
     },
     {
       "name": "L4 entry",
-      "modules": ["apps/mindlink/src/cli.ts"]
+      "modules": ["apps/mindlink/src/cli.ts", "apps/workbench/web"]
     }
   ],
   "episteme": {
@@ -31,7 +31,14 @@
       "@episteme/mcp",
       "@episteme/service"
     ],
-    "packages/domain-learn": ["@episteme/core", "@episteme/distillation"]
+    "packages/domain-learn": ["@episteme/core", "@episteme/distillation"],
+    "$workbench": "Transitional: the workbench came from the personal repository on Episteme directly. It moves onto @mindlink/platform feature by feature, and then this entry goes.",
+    "apps/workbench/src": [
+      "@episteme/application",
+      "@episteme/core",
+      "@episteme/distillation",
+      "@episteme/service"
+    ]
   },
   "assembly": "apps/mindlink/src/app.ts",
   "web": "apps/mindlink/web/src",
