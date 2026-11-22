@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { addPerson, addToken, startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
-import { chromium, type Browser, type Page } from 'playwright-core'
+import { type Page } from 'playwright-core'
+import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -14,22 +15,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
  * Like the first journey, it drives an installed Edge or Chrome: skipped locally without one, a failure in CI.
  */
 
-async function installedBrowser(): Promise<Browser | undefined> {
-  for (const channel of ['msedge', 'chrome']) {
-    try {
-      return await chromium.launch({ channel })
-    } catch {
-      continue
-    }
-  }
-  return undefined
-}
-
-const browser = await installedBrowser()
-if (browser === undefined && process.env['CI'] !== undefined) {
-  throw new Error('CI needs Edge or Chrome for the sharing journey')
-}
-
+const browser = await installedBrowser('the sharing journey')
 // A browser context can take longer than the default ten seconds while other test files are building.
 const HOOK_TIMEOUT = 60_000
 
