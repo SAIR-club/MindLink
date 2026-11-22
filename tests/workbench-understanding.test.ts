@@ -518,6 +518,44 @@ describe('candidates', () => {
   })
 })
 
+describe('topics', () => {
+  /** A first section long enough that the passage cited for the second one starts under the first heading. */
+  const LONG = `# 位置编码\n\n${'自注意力本身不知道词的先后顺序，所以需要位置编码把序列的顺序告诉模型。'.repeat(14)}\n\n# 多头注意力\n\n多头注意力把查询、键和值投影到多个子空间，让模型同时关注不同位置的不同关系。\n`
+
+  it('places an understanding under the section the answer it came with rests on', async () => {
+    await start()
+    const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '论文' })).body
+    await call(`${scene}/materials`, {
+      space: space.id,
+      fileName: '长笔记.md',
+      contentBase64: Buffer.from(LONG).toString('base64'),
+    })
+    const { node } = await hold(space, '多头注意力让模型同时关注不同位置的不同关系')
+    expect(node.topics[0]).toMatchObject({
+      title: '长笔记.md',
+      section: '多头注意力',
+    })
+    // A candidate waiting on the person already knows where it belongs.
+    const asked = await ask(space, '位置编码把序列的顺序告诉模型')
+    await call(`${scene}/candidates/turn`, {
+      space: space.id,
+      thread: asked.thread,
+      turn: asked.turn,
+    })
+    const waiting = (await held(space)).pending.find(
+      (candidate) => candidate.proposal.label === '位置编码把序列的顺序告诉模型',
+    ) as { topics?: readonly { section?: string }[] } | undefined
+    expect(waiting?.topics?.[0]?.section).toBe('位置编码')
+  })
+
+  it('gives no topic to what no answer cited', async () => {
+    await start()
+    const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '空的' })).body
+    const { node } = await hold(space, '我自己想到的一点')
+    expect(node.topics).toEqual([])
+  })
+})
+
 describe('revising', () => {
   it('keeps the old wording and leads from it to the new', async () => {
     await start()
