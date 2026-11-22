@@ -12,6 +12,7 @@ import {
   modelFromEnvironment,
   remoteModel,
   SimulatedModel,
+  workbenchScene,
   type ModelClient,
   type ModelMessage,
 } from '@mindlink/workbench'
@@ -34,7 +35,7 @@ function scripted(text: string): ModelClient & { calls: number } {
 }
 
 async function storeWith(...materials: readonly (readonly [string, string])[]) {
-  const session = await CognitiveSession.open()
+  const session = await CognitiveSession.open({ scene: workbenchScene })
   const store = await MaterialStore.open(session.sceneLog('materials'))
   for (const [title, text] of materials) {
     await store.add({ owner: 'a', space: 's', title, parsed: { kind: 'text', text }, at: 1 })

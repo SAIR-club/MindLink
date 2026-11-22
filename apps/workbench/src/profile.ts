@@ -1,5 +1,7 @@
-import { baseScene, recordableDimensions, type SessionScene } from '@episteme/application'
+import { recordableDimensions, type SessionScene } from '@episteme/application'
 import { asId, defineDomainPack, type DimensionId } from '@episteme/core'
+import { learnDomainPack, learnPresentations, learnStateDimensions } from '@episteme/domain-learn'
+import { learnDistillationPolicy } from '@episteme/domain-learn/distillation'
 import { BLANK_TOPIC, type SceneProfile } from '@episteme/service'
 import { agentRoutes } from './agent-routes.js'
 import { agentSessionRoutes } from './agent-sessions.js'
@@ -9,9 +11,28 @@ import { hostLearningTools } from './host-learning.js'
 import type { ModelClient } from './model.js'
 import type { ModelSettings } from './model-settings.js'
 import { checkFiling } from './requests.js'
-import { WORKBENCH_PRIVATE_ROUTES, WORKBENCH_PROPOSING_ROUTES } from './route-access.js'
 import { workbenchRoutes } from './routes.js'
 import { STANCE } from './understanding.js'
+
+/**
+ * What an agent's credential may do here besides read (ADR 0020): open a space, add material, draft a plan, and turn
+ * words already on record into candidates that wait for the person. Nothing here deletes, archives or replaces, says
+ * anything in the person's voice, or settles anything; those routes are not named, so they are the person's.
+ */
+const PROPOSING_ROUTES = [
+  '/spaces',
+  '/materials',
+  '/plans',
+  '/candidates',
+  '/candidates/turn',
+  '/candidates/thread',
+] as const
+
+/**
+ * What only the person may read: what is on their computer outside the graph, such as which agents it has, their
+ * settings files, and the conversations those agents keep. An agent reads none of it, and none of it reaches a model.
+ */
+const PRIVATE_ROUTES = ['/agents', '/agent-sessions', '/agent-sessions/read'] as const
 
 export const WORKBENCH_SCENE = 'workbench'
 
@@ -28,18 +49,24 @@ const STANCE_DIMENSION = {
 } as const
 
 /**
- * The base vocabulary and a stance. Its name stays `learn`, because a scene's records are kept by its name and the
+ * The Learn vocabulary and a stance. Its name stays `learn`, because a scene's records are kept by its name and the
  * workbench's graphs keep theirs under it.
  */
 export const workbenchScene: SessionScene = {
-  ...baseScene,
   name: 'learn',
   packs: [
-    ...baseScene.packs,
+    learnDomainPack,
     defineDomainPack('episteme-workbench', { stateDimensions: [STANCE_DIMENSION] }),
   ],
+  distillationPolicy: learnDistillationPolicy,
   recordableDimensions: [
-    ...baseScene.recordableDimensions,
+    ...recordableDimensions(
+      learnStateDimensions,
+      learnPresentations.map((presentation) => ({
+        ...presentation,
+        id: asId<DimensionId>(presentation.id),
+      })),
+    ),
     ...recordableDimensions(
       [STANCE_DIMENSION],
       [
@@ -62,7 +89,6 @@ export const workbenchScene: SessionScene = {
  */
 export function workbenchProfile(options: {
   readonly model: ModelClient
-  readonly now?: () => number
   readonly library?: Library
   readonly modelSettings?: ModelSettings
   /** The agents of this computer, for the page that connects them. Without it there is no such page. */
@@ -72,8 +98,8 @@ export function workbenchProfile(options: {
 }): SceneProfile {
   return {
     name: WORKBENCH_SCENE,
-    proposingRoutes: WORKBENCH_PROPOSING_ROUTES,
-    privateRoutes: WORKBENCH_PRIVATE_ROUTES,
+    proposingRoutes: PROPOSING_ROUTES,
+    privateRoutes: PRIVATE_ROUTES,
     checkFiling,
     seed: BLANK_TOPIC,
     scene: workbenchScene,
@@ -86,7 +112,7 @@ export function workbenchProfile(options: {
     ],
     mcpTools: hostLearningTools({
       library: options.library ?? BUILT_IN_LIBRARY,
-      now: options.now ?? Date.now,
+      now: Date.now,
     }),
   }
 }
