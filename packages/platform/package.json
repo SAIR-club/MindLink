@@ -27,5 +27,8 @@
     "@episteme/distillation": "*",
     "@episteme/mcp": "*",
     "@episteme/service": "*"
+  },
+  "devDependencies": {
+    "@episteme/domain-learn": "workspace:*"
   }
 }
