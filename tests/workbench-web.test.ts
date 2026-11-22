@@ -10,7 +10,8 @@ import {
   workbenchProfile,
   type ModelClient,
 } from '@mindlink/workbench'
-import { chromium, type Browser, type Locator, type Page } from 'playwright-core'
+import { type Locator, type Page } from 'playwright-core'
+import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
 
@@ -21,22 +22,7 @@ import { mcpWire } from './mcp-wire.js'
  * fails, because a missing browser must not read as a passing journey.
  */
 
-async function installedBrowser(): Promise<Browser | undefined> {
-  for (const channel of ['msedge', 'chrome']) {
-    try {
-      return await chromium.launch({ channel })
-    } catch {
-      continue
-    }
-  }
-  return undefined
-}
-
-const browser = await installedBrowser()
-if (browser === undefined && process.env['CI'] !== undefined) {
-  throw new Error('CI needs Edge or Chrome for the workbench journey')
-}
-
+const browser = await installedBrowser('the workbench journey')
 // A browser context can take longer than the default ten seconds while other test files are building.
 const HOOK_TIMEOUT = 60_000
 

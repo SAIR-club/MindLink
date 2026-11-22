@@ -9,10 +9,10 @@ import {
   objectiveIdOf,
   workbenchProfile,
   type LearningEvidence,
-  type ModelClient,
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire, type McpWire, type ToolResult } from './mcp-wire.js'
+import { noModel } from './model.js'
 import { storedText } from './stored.js'
 
 /**
@@ -22,14 +22,6 @@ import { storedText } from './stored.js'
 
 const QUOTE = '校验和不对时跳过这条，继续恢复后面的'
 const FOCUS = '中潮层崩溃重放'
-
-const noModel: ModelClient = {
-  name: 'none',
-  simulated: false,
-  complete: () => {
-    throw new Error('the service called its model')
-  },
-}
 
 let directory: string
 let graph: string

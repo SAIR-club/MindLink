@@ -6,6 +6,7 @@ import {
   MaterialStore,
   parseMaterial,
   tokenize,
+  workbenchScene,
 } from '@mindlink/workbench'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -104,7 +105,7 @@ async function refusalOf(work: Promise<unknown>): Promise<string> {
 }
 
 async function storeInMemory(): Promise<MaterialStore> {
-  const session = await CognitiveSession.open()
+  const session = await CognitiveSession.open({ scene: workbenchScene })
   return MaterialStore.open(session.sceneLog('materials'))
 }
 
@@ -311,14 +312,14 @@ describe('the material store', () => {
     const directory = await mkdtemp(join(tmpdir(), 'episteme-workbench-'))
     const path = join(directory, 'graph.db')
     try {
-      const first = await CognitiveSession.open({ filePath: path })
+      const first = await CognitiveSession.open({ filePath: path, scene: workbenchScene })
       const store = await MaterialStore.open(first.sceneLog('materials'))
       await added(store, 's', 'kept', '保留的位置编码')
       const gone = await added(store, 's', 'gone', '要删除的秘密内容')
       await store.remove('a', gone.material.id)
       await first.close()
 
-      const second = await CognitiveSession.open({ filePath: path })
+      const second = await CognitiveSession.open({ filePath: path, scene: workbenchScene })
       const log = second.sceneLog('materials')
       expect((await log.read()).join('\n')).not.toContain('秘密')
       const reopened = await MaterialStore.open(log)
@@ -331,7 +332,7 @@ describe('the material store', () => {
   })
 
   it('refuses a log it cannot read rather than skipping it', async () => {
-    const session = await CognitiveSession.open()
+    const session = await CognitiveSession.open({ scene: workbenchScene })
     const log = session.sceneLog('materials')
     await log.append('{"schemaVersion":99}')
     await expect(MaterialStore.open(log)).rejects.toThrow(/material log/)
