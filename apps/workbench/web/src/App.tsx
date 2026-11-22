@@ -1983,11 +1983,7 @@ const RAIL_VIEW = 'workbench.rail-view'
 const RAIL_PENDING = 3
 
 function railViewWas(): 'tree' | 'graph' {
-  try {
-    return localStorage.getItem(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
-  } catch {
-    return 'tree'
-  }
+  return kept(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
 }
 
 /**
@@ -2020,7 +2016,7 @@ function Rail(props: {
   const held = understanding.nodes.filter((node) => stateOf(node) !== 'past')
   const choose = (next: 'tree' | 'graph'): void => {
     setView(next)
-    keepValue(RAIL_VIEW, next)
+    keep(RAIL_VIEW, next)
   }
   return (
     <aside className="rail" aria-label="理解层">
