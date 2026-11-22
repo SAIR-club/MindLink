@@ -83,6 +83,9 @@ export interface PendingCandidate {
     readonly kind: string
     readonly label?: string
     readonly relation?: string
+    /** A link's ends: a node id, or `cand:<id>` of a candidate still waiting. */
+    readonly from?: string
+    readonly to?: string
     readonly nodeType?: string
     readonly properties?: Readonly<Record<string, unknown>>
   }
@@ -608,6 +611,9 @@ export const api = {
     scene('/candidates/turn', { space, thread, turn }) as Promise<Offered>,
   candidatesFromThread: (space: string, thread: string) =>
     scene('/candidates/thread', { space, thread }) as Promise<Offered>,
+  /** Has the model read what new candidates bear on among what is held; the links wait like any candidate. */
+  relations: (space: string, suggestions: readonly string[]) =>
+    scene('/understanding/relations', { space, suggestions }) as Promise<{ related: number }>,
   trail: (space: string, node: string) =>
     scene(`/understanding/trail?space=${encoded(space)}&node=${encoded(node)}`) as Promise<{
       trail: readonly TrailEntry[]

@@ -2109,6 +2109,61 @@ li[data-status="skipped"] > span:first-child {
   display: block;
 }
 
+.rail-relating {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rail-relating {
+    animation: relating 1.6s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes relating {
+  from {
+    opacity: 0.45;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* What a candidate would connect to among what is held: a pencilled line in the margin, not an item of its own. */
+.waiting-links {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 2px;
+  padding: 0 0 0 10px;
+  border-left: 1.5px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  list-style: none;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.waiting-links li {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-soft);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.relation-words {
+  margin-right: 6px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-relation="contradicts"] .relation-words {
+  color: var(--red);
+}
+
+.rail .pending .link-to {
+  color: var(--ink-soft);
+}
+
 .rail .decisions {
   margin-top: 6px;
 }

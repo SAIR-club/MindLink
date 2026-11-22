@@ -23,6 +23,7 @@ import {
   type MaterialText,
   type Me,
   type ModelInfo,
+  type Offered,
   type PendingCandidate,
   type Plan,
   type Session,
@@ -516,6 +517,29 @@ function Desk({
     if (spaceId !== undefined) setUnderstanding(await api.understanding(spaceId))
   }
 
+  // How many reads of relations are still out. The candidates are shown first; the links join them when ready.
+  const [relating, setRelating] = useState(0)
+  const relateLater = (made: {
+    readonly suggestions: readonly { readonly id: string }[]
+  }): void => {
+    if (spaceId === undefined || made.suggestions.length === 0) return
+    const ids = made.suggestions.map(({ id }) => id)
+    setRelating((count) => count + 1)
+    api
+      .relations(spaceId, ids)
+      .then(async ({ related }) => {
+        if (related > 0) await refreshUnderstanding()
+      })
+      // Only the links are lost: the candidates are already waiting.
+      .catch(() => undefined)
+      .finally(() => setRelating((count) => count - 1))
+  }
+
+  const madeFromThread = async (made: Offered): Promise<void> => {
+    await refreshUnderstanding()
+    relateLater(made)
+  }
+
   const ask = (question: string, retry: boolean): void => {
     if (spaceId === undefined) return
     setAsking(true)
@@ -569,6 +593,7 @@ function Desk({
     // What it made waits on the review page; the person stays in the conversation.
     const made = await api.candidates(spaceId, thread, reply)
     await refreshUnderstanding()
+    relateLater(made)
     return made.message
   }
 
@@ -576,6 +601,7 @@ function Desk({
     if (spaceId === undefined) return undefined
     const made = await api.candidatesFromTurn(spaceId, thread, turn)
     await refreshUnderstanding()
+    relateLater(made)
     return made.message
   }
 
@@ -1126,11 +1152,7 @@ function Desk({
                 if (spaceId !== undefined) moveTo({ kind: 'materials', space: spaceId })
               }}
               extract={
-                <ExtractFromThread
-                  space={spaceId}
-                  thread={threadId}
-                  onMade={refreshUnderstanding}
-                />
+                <ExtractFromThread space={spaceId} thread={threadId} onMade={madeFromThread} />
               }
             />
           ) : planInView?.origin === 'host' && spaceId !== undefined ? (
@@ -1175,11 +1197,7 @@ function Desk({
                 if (spaceId !== undefined) moveTo({ kind: 'space', space: spaceId })
               }}
               extract={
-                <ExtractFromThread
-                  space={spaceId}
-                  thread={threadInView}
-                  onMade={refreshUnderstanding}
-                />
+                <ExtractFromThread space={spaceId} thread={threadInView} onMade={madeFromThread} />
               }
             />
           )}
@@ -1195,6 +1213,7 @@ function Desk({
         {railAllowed && spaceId !== undefined && (
           <Rail
             understanding={understanding}
+            relating={relating > 0}
             thread={threadInView}
             turns={turnsOf === threadInView ? turns : NO_TURNS}
             sessions={sessions}
@@ -1311,7 +1330,7 @@ function SpaceNav(props: {
 function ExtractFromThread(props: {
   space: string | undefined
   thread: string | undefined
-  onMade: () => Promise<void>
+  onMade: (made: Offered) => Promise<void>
 }) {
   const [working, setWorking] = useState(false)
   const [note, setNote] = useState<string>()
@@ -1331,7 +1350,7 @@ function ExtractFromThread(props: {
             .then(async (made) => {
               if (made.failure !== undefined) setNote(`${made.failure.message}可以再试一次。`)
               else setNote(made.message)
-              await props.onMade()
+              await props.onMade(made)
             })
             .catch((error: unknown) => setNote(messageOf(error)))
             .finally(() => setWorking(false))
@@ -1993,6 +2012,8 @@ function railViewWas(): 'tree' | 'graph' {
  */
 function Rail(props: {
   understanding: Understanding
+  /** A model is reading what new candidates bear on; their links come when it is done. */
+  relating: boolean
   thread: string | undefined
   turns: readonly Turn[]
   sessions: readonly Session[]
@@ -2004,7 +2025,7 @@ function Rail(props: {
   onClose: () => void
 }) {
   const { understanding, thread, turns } = props
-  const { pending } = understanding
+  const pending = useMemo(() => withWaitingLinks(understanding.pending), [understanding.pending])
   const [view, setView] = useState<'tree' | 'graph'>(railViewWas)
   const [wanted, setWanted] = useState<Scope>('thread')
   // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
@@ -2058,7 +2079,8 @@ function Rail(props: {
           ) : (
             <>
               <PendingList
-                pending={pending.slice(0, RAIL_PENDING)}
+                pending={understanding.pending}
+                limit={RAIL_PENDING}
                 guard={props.guard}
                 onDecided={props.onDecided}
               />
@@ -2068,6 +2090,11 @@ function Rail(props: {
                 </button>
               )}
             </>
+          )}
+          {props.relating && (
+            <p className="rail-relating" role="status">
+              正在看它和你已确认的理解有什么关系…
+            </p>
           )}
         </section>
         <section className="rail-section rail-structure">
@@ -2239,12 +2266,53 @@ function SourceView({ request }: { request: SourceRequest | undefined }) {
   )
 }
 
+/** A candidate to decide, with the links that wait on it. */
+interface Waiting {
+  readonly candidate: PendingCandidate
+  readonly links: readonly PendingCandidate[]
+}
+
+/**
+ * What waits, with each link that can be confirmed only after a waiting candidate shown under that candidate rather
+ * than as an item of its own: deciding the candidate is what comes first, and the link says what it would connect to.
+ */
+function withWaitingLinks(pending: readonly PendingCandidate[]): readonly Waiting[] {
+  const candidates = new Set(
+    pending.flatMap((each) => (each.proposal.kind === 'node' ? [`cand:${each.id}`] : [])),
+  )
+  const beside = new Map<string, PendingCandidate[]>()
+  const own = pending.filter((each) => {
+    if (each.link?.ready !== false) return true
+    const end = [each.proposal.from, each.proposal.to].find(
+      (it) => it !== undefined && candidates.has(it),
+    )
+    if (end === undefined) return true
+    beside.set(end, [...(beside.get(end) ?? []), each])
+    return false
+  })
+  return own.map((candidate) => ({
+    candidate,
+    links: beside.get(`cand:${candidate.id}`) ?? [],
+  }))
+}
+
+/** How a link reads from the end it is shown under. */
+function linkFrom(link: PendingCandidate, candidate: string): { words: string; other: string } {
+  const outgoing = link.proposal.from === `cand:${candidate}`
+  const other = (outgoing ? link.link?.toLabel : link.link?.fromLabel) ?? ''
+  if (link.proposal.relation === 'contradicts') return { words: '可能和这条矛盾', other }
+  return { words: outgoing ? '可能支持' : '可能被这条支持', other }
+}
+
 function PendingList(props: {
   pending: readonly PendingCandidate[]
+  /** Shows only the first few. */
+  limit?: number
   guard: (work: () => Promise<unknown>) => void
   onDecided: () => Promise<void>
 }) {
-  if (props.pending.length === 0) {
+  const waiting = withWaitingLinks(props.pending)
+  if (waiting.length === 0) {
     return (
       <p className="hint">
         没有待确认的内容。可以点你说过的话旁边的“这是我的理解”，或回答下面的“提炼成待确认的理解”。
@@ -2253,10 +2321,11 @@ function PendingList(props: {
   }
   return (
     <ul className="pending">
-      {props.pending.map((candidate) => (
+      {waiting.slice(0, props.limit ?? waiting.length).map(({ candidate, links }) => (
         <PendingItem
           key={candidate.id}
           candidate={candidate}
+          links={links}
           guard={props.guard}
           onDecided={props.onDecided}
         />
@@ -2267,10 +2336,11 @@ function PendingList(props: {
 
 function PendingItem(props: {
   candidate: PendingCandidate
+  links: readonly PendingCandidate[]
   guard: (work: () => Promise<unknown>) => void
   onDecided: () => Promise<void>
 }) {
-  const { candidate, guard, onDecided } = props
+  const { candidate, links: waitingLinks, guard, onDecided } = props
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(candidate.proposal.label ?? '')
   const { link, state } = candidate
@@ -2314,8 +2384,9 @@ function PendingItem(props: {
     return (
       <li>
         <p className="candidate">{link.fromLabel}</p>
-        <p className="candidate">
-          <span className="hint">{relation}</span> {link.toLabel}
+        <p className="candidate link-to" data-relation={candidate.proposal.relation}>
+          <span className="relation-words">{relation}</span>
+          {link.toLabel}
         </p>
         <p className="hint">{candidate.rationale}</p>
         {!link.ready && <p className="hint">先确认它连着的两条，才能确认这个关系。</p>}
@@ -2354,6 +2425,19 @@ function PendingItem(props: {
         {wordsOf(candidate.basis, candidate.wordsBy)}。{candidate.rationale}
       </p>
       {candidate.similar !== undefined && <p className="hint">和这一条相近：{candidate.similar}</p>}
+      {waitingLinks.length > 0 && (
+        <ul className="waiting-links" aria-label="和你已有理解的关系">
+          {waitingLinks.map((each) => {
+            const { words, other } = linkFrom(each, candidate.id)
+            return (
+              <li key={each.id} data-relation={each.proposal.relation} title={each.rationale}>
+                <span className="relation-words">{words}</span>
+                <span className="relation-other">{other}</span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
       <p className="decisions">
         {editing ? (
           <button
