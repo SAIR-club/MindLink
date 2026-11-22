@@ -1,10 +1,25 @@
 import { randomUUID } from 'node:crypto'
 import type { HostItem, Proposal, SceneView, SceneWrites, Turn } from '@episteme/application'
 import type { SceneRoute, SceneRouteContext } from '@episteme/service'
-import { relevant, type Answer, type RecalledUnderstanding } from './answer.js'
+import {
+  relevant,
+  type Answer,
+  type ElsewhereUnderstanding,
+  type RecalledUnderstanding,
+} from './answer.js'
 import type { MaterialStore, SearchHit } from './materials.js'
 import { ModelFailure, type ModelClient } from './model.js'
-import { ANSWER_PREFIX, openSpaceOf, refuse, required, scopeOf, spaceOf, text } from './requests.js'
+import {
+  ANSWER_PREFIX,
+  openSpaceOf,
+  refuse,
+  required,
+  scopeOf,
+  SPACE_PREFIX,
+  spaceOf,
+  text,
+  type Space,
+} from './requests.js'
 import { coverage } from './tokens.js'
 
 /**
@@ -559,11 +574,7 @@ export async function recalledFor(
     .filter((ranked) => ranked.origin === 'match')
     .map((ranked) => ranked.nodeId)
   // The graph's retriever does not cut Chinese into words, so the words a material search uses are asked too.
-  const byWords = nodes
-    .map((node) => ({ node, score: coverage(question, node.label) }))
-    .filter(({ score }) => score >= MIN_RECALL_COVERAGE)
-    .sort((left, right) => right.score - left.score)
-    .map(({ node }) => node.nodeId)
+  const byWords = byCoverage(question, nodes, (node) => node.label).map(({ item }) => item.nodeId)
   const found = new Map<string, HeldNode>()
   for (const id of [...byWords, ...matched]) {
     let node = byId.get(id)
@@ -584,6 +595,47 @@ export async function recalledFor(
       ? {}
       : { from: { author: adoptedFrom.author, publication: adoptedFrom.publication } }),
   }))
+}
+
+/** How many items from other spaces an answer points to, at most. */
+const MAX_ELSEWHERE = 2
+
+/**
+ * What the person holds in their other open spaces that bears on a question: the same word test as within a space,
+ * best first. Only pointed to beside the answer, never given to the model, so a space's answers rest on it alone.
+ */
+export function elsewhereFor(
+  view: SceneView,
+  space: string,
+  question: string,
+): readonly ElsewhereUnderstanding[] {
+  const others = view.records
+    .list(SPACE_PREFIX)
+    .map((record) => record.value as Space)
+    .filter((other) => other.id !== space && !other.archived)
+  const candidates = others.flatMap((other) =>
+    stillHeld(heldNodes(view, other.id)).map((node) => ({ other, node })),
+  )
+  return byCoverage(question, candidates, ({ node }) => node.label)
+    .slice(0, MAX_ELSEWHERE)
+    .map(({ item: { other, node } }) => ({
+      space: other.id,
+      spaceName: other.name,
+      nodeId: node.nodeId,
+      label: node.label,
+    }))
+}
+
+/** The items whose label holds enough of the question's words, the ones that hold most first. */
+function byCoverage<T>(
+  question: string,
+  items: readonly T[],
+  labelOf: (item: T) => string,
+): readonly { readonly item: T; readonly score: number }[] {
+  return items
+    .map((item) => ({ item, score: coverage(question, labelOf(item)) }))
+    .filter(({ score }) => score >= MIN_RECALL_COVERAGE)
+    .sort((left, right) => right.score - left.score)
 }
 
 function trailOf(
