@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout MindLink
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: learner
 
@@ -29,20 +29,20 @@ jobs:
         run: echo "ref=$(cat learner/episteme.ref)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Episteme at the pinned commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: SAIR-club/Episteme
           ref: ${{ steps.episteme.outputs.ref }}
           path: Episteme
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 11.5.0
           standalone: true
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
