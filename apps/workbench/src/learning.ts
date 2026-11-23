@@ -56,7 +56,7 @@ interface Outcome {
   readonly failure?: { code: string; message: string; retryable: boolean }
 }
 
-export interface LearningOptions {
+interface LearningOptions {
   readonly model: ModelClient
   readonly library: Library
   readonly now: () => number

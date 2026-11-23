@@ -16,7 +16,14 @@ import { expect } from 'vitest'
  * blocks for lean mode and agent orchestration, and a project source standing in for MindLink#10.
  */
 
-export const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+
+/** A block library holding only the speedrun workflow, as the real one does until the others are written. */
+export const speedrunLibrary = {
+  get: () => undefined,
+  resolve: () => undefined,
+  list: () => [{ level: 'workflow', key: 'builtin:speedrun' }] as never,
+}
 
 export const VOCABULARY = {
   dimensions: learnStateDimensions.map((dimension) => dimension.id),
@@ -77,7 +84,7 @@ ${orchestration === 'agent' ? '\n## 编排说明\n\n缺口最大的先做。\n' 
 }
 
 /** The user blocks beside the fixtures. */
-export const USER_BLOCKS: readonly BlockInput[] = [
+const USER_BLOCKS: readonly BlockInput[] = [
   activity('light-a', { dimensions: ['exposure'] }),
   activity('light-b', { dimensions: ['articulation'] }),
   activity('heavy', { dimensions: ['evidence'], cost: 'high' }),

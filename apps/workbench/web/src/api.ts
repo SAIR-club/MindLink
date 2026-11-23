@@ -1,7 +1,12 @@
 import type {
+  AgentSession,
+  AgentSessionSummary,
+  AgentUse,
   Answer,
   Challenge,
+  ConversationSummary,
   HeldNode,
+  LaunchPlan,
   MaterialSummary,
   ObjectiveReading,
   Plan,
@@ -16,11 +21,13 @@ import type {
 /** The page's only way to the graph: the same REST API any other client has. */
 
 export type {
+  AgentUse,
   Answer,
   Challenge,
   Citation,
   Evidence,
   HeldNode,
+  LaunchPlan,
   MaterialSummary,
   ObjectiveReading,
   Plan,
@@ -386,31 +393,6 @@ export interface AgentInfo {
   readonly use?: AgentUse
 }
 
-/** What launching a plugin's command will run. */
-export interface LaunchPlan {
-  readonly agent: string
-  readonly name: string
-  readonly action: 'connect' | 'disconnect'
-  readonly source: string
-  readonly steps: readonly {
-    readonly command: string
-    readonly program: string
-    readonly args: readonly string[]
-  }[]
-  readonly confirm: string
-}
-
-export interface AgentUse {
-  readonly key: string
-  readonly agent?: string
-  readonly name: string
-  readonly version?: string
-  readonly firstSeen: number
-  readonly lastSeen: number
-  readonly calls: number
-  readonly lastTool?: string
-}
-
 export interface CustomAgentRequest {
   readonly name: string
   readonly file?: string
@@ -419,38 +401,12 @@ export interface CustomAgentRequest {
 }
 
 /** A conversation of the workbench, across spaces, as the person named it. */
-export interface ConversationInfo {
-  readonly id: string
-  readonly title: string
-  readonly space?: { readonly id: string; readonly name: string }
-  readonly createdAt: number
-  readonly lastAt: number
-  readonly turns: number
-  readonly agents: readonly string[]
-  readonly byPerson: boolean
-  readonly models: readonly string[]
-  readonly archived: boolean
-}
+export type ConversationInfo = ConversationSummary
 
 /** A conversation an agent of this computer keeps for itself. */
-export interface AgentSessionInfo {
-  readonly agent: string
-  readonly id: string
-  readonly title: string
-  readonly project?: string
-  readonly updatedAt: number
-  readonly bytes?: number
-}
+export type AgentSessionInfo = AgentSessionSummary
 
-export interface AgentSessionDetail {
-  readonly summary: AgentSessionInfo
-  readonly messages: readonly {
-    readonly role: 'user' | 'assistant' | 'tool'
-    readonly text: string
-    readonly at?: number
-  }[]
-  readonly truncated: boolean
-}
+export type AgentSessionDetail = AgentSession
 
 const scene = (path: string, body?: unknown): Promise<unknown> =>
   request(`/scene/workbench${path}`, body)

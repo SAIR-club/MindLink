@@ -1,14 +1,13 @@
-import { exec } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
 import { type Page } from 'playwright-core'
 import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire, type McpWire } from './mcp-wire.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 
 /**
  * What a host agent recorded, read by the person on the page: a session's results rather than its transcript, and
@@ -47,11 +46,7 @@ describe.skipIf(browser === undefined)('outcomes in a browser', () => {
 
   beforeAll(async () => {
     // Its own copy: another file's build empties a shared dist under a page that is still loading.
-    built = await mkdtemp(join(tmpdir(), 'episteme-web-build-'))
-    await promisify(exec)(
-      `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-      { cwd: process.cwd() },
-    )
+    built = await builtWorkbenchPage()
   }, 120_000)
 
   // Closing the browser can take a while when the other browser files are running too.

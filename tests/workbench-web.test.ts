@@ -1,8 +1,6 @@
-import { exec } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import {
   ModelFailure,
@@ -14,6 +12,7 @@ import { type Locator, type Page } from 'playwright-core'
 import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 
 /**
  * The whole first experience, in a real browser, through the page a person uses.
@@ -88,10 +87,7 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
 
   beforeAll(async () => {
     // Its own copy: another file's build empties a shared dist under a page that is still loading.
-    built = await mkdtemp(join(tmpdir(), 'episteme-web-build-'))
-    await promisify(exec)(
-      `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-    )
+    built = await builtWorkbenchPage()
   }, 180_000)
 
   afterAll(async () => {

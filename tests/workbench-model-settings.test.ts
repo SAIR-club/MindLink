@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { addPerson, addToken, startService, type EpistemeService } from '@episteme/service'
 import { ModelSettings, remoteModel, serviceModel, workbenchProfile } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest } from './rest.js'
 
 /**
  * Choosing the model on the page: it is tried before it is kept, the key stays in a file beside the graph and never
@@ -78,21 +79,8 @@ describe('model settings', () => {
     return service
   }
 
-  async function call(
-    running: EpistemeService,
-    path: string,
-    body?: unknown,
-    token?: string,
-  ): Promise<{ status: number; body: Record<string, unknown> }> {
-    const response = await fetch(`${running.url}/api/v1/scene/workbench${path}`, {
-      ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-      headers: {
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-      },
-    })
-    return { status: response.status, body: (await response.json()) as Record<string, unknown> }
-  }
+  const call = (running: EpistemeService, path: string, body?: unknown, token?: string) =>
+    rest(running.url, `/api/v1/scene/workbench${path}`, body, token)
 
   it('tries a model before keeping it, and never shows the key again', async () => {
     const file = join(directory, 'model.json')
@@ -314,22 +302,12 @@ describe('model settings on a shared service', () => {
     await new Promise<void>((resolve) => elsewhere.close(() => resolve()))
   })
 
-  async function call(
+  const call = (
     path: string,
     body?: unknown,
     token?: string,
     headers: Record<string, string> = {},
-  ): Promise<{ status: number; body: Record<string, unknown> }> {
-    const response = await fetch(`${service.url}/api/v1/scene/workbench${path}`, {
-      ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-      headers: {
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-        ...headers,
-      },
-    })
-    return { status: response.status, body: (await response.json()) as Record<string, unknown> }
-  }
+  ) => rest(service.url, `/api/v1/scene/workbench${path}`, body, token, headers)
 
   /** The page settings are not offered on this service at all, whoever asks. */
   function notOffered(reply: { status: number; body: Record<string, unknown> }): void {

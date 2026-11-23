@@ -7,6 +7,8 @@ import type { Launched } from '@mindlink/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createClient, type Fetch } from '../../apps/mindlink/web/src/client.js'
 import { projectApi } from '../../apps/mindlink/web/src/features/project/project.js'
+import { speedrunLibrary } from '../blocks/engine-helpers.js'
+import { serviceCaller } from '../mcp-wire.js'
 
 /**
  * Learning projects through the running service (MindLink#10): two people on one shared deployment, each with a
@@ -15,20 +17,6 @@ import { projectApi } from '../../apps/mindlink/web/src/features/project/project
 
 type Json = Record<string, unknown>
 
-interface ToolResult {
-  readonly content?: readonly { readonly type: string; readonly text: string }[]
-  readonly structuredContent?: Json
-  readonly isError?: boolean
-}
-
-/** A block library holding only the speedrun workflow, as the real one does until the others are written. */
-const LIBRARY = {
-  get: () => undefined,
-  resolve: () => undefined,
-  list: () => [{ level: 'workflow', key: 'builtin:speedrun' }] as never,
-}
-
-const PROTOCOL = '2026-07-28'
 const API = '/api/v1/scene/mindlink'
 
 let directory: string
@@ -52,7 +40,7 @@ beforeEach(async () => {
     publicOrigin: 'https://mindlink.test',
     graph: join(directory, 'graph.db'),
     port: 0,
-    registry: () => LIBRARY,
+    registry: () => speedrunLibrary,
   })
 })
 
@@ -78,48 +66,8 @@ async function rest(
   return { status: response.status, body: (await response.json().catch(() => ({}))) as Json }
 }
 
-/** A minimal MCP host speaking raw JSON-RPC, so what is exercised is the wire itself. */
-function agent(token: string, name: string) {
-  let nextId = 1
-  return async (tool: string, args: Json): Promise<ToolResult> => {
-    const response = await fetch(service.mcpUrl, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        'mcp-protocol-version': PROTOCOL,
-        'mcp-method': 'tools/call',
-        'mcp-name': tool,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: nextId++,
-        method: 'tools/call',
-        params: {
-          name: tool,
-          arguments: args,
-          _meta: {
-            'io.modelcontextprotocol/protocolVersion': PROTOCOL,
-            'io.modelcontextprotocol/clientInfo': { name, version: '1' },
-            'io.modelcontextprotocol/clientCapabilities': {},
-          },
-        },
-      }),
-    })
-    const text = await response.text()
-    const json = response.headers.get('content-type')?.includes('text/event-stream')
-      ? text
-          .split('\n')
-          .filter((line) => line.startsWith('data: '))
-          .map((line) => line.slice('data: '.length))
-          .at(-1)
-      : text
-    const body = JSON.parse(json ?? '{}') as Json
-    if (body['result'] === undefined) throw new Error(`no result for ${tool}: ${text}`)
-    return body['result'] as ToolResult
-  }
-}
+const agent = (token: string, name: string) =>
+  serviceCaller(() => service.mcpUrl, { name, version: '1' }, token)
 
 async function create(token: string, body: Json): Promise<Json> {
   const created = await rest(token, 'POST', '/projects/create', body)

@@ -1,8 +1,6 @@
-import { exec } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import {
   Agents,
@@ -14,6 +12,8 @@ import {
 import { type Page } from 'playwright-core'
 import { installedBrowser } from './browser.js'
 import { mcpWire } from './mcp-wire.js'
+import { pageRest } from './rest.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /** The published first-level pages, driven from a seeded graph and the service's built page. */
@@ -64,11 +64,6 @@ const AGENT_TRANSCRIPT = jsonl(
   },
 )
 
-interface Reply<T> {
-  readonly status: number
-  readonly body: T
-}
-
 interface Seed {
   readonly space: Space
   readonly pendingLabel: string
@@ -83,21 +78,8 @@ interface State {
   }[]
 }
 
-async function call<T>(service: EpistemeService, path: string, body?: unknown): Promise<Reply<T>> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(service.humanToken === undefined
-        ? {}
-        : { authorization: `Bearer ${service.humanToken}` }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  const payload = (await response.json().catch(() => ({}))) as T
-  if (!response.ok) throw new Error(`${path} -> ${response.status}: ${JSON.stringify(payload)}`)
-  return { status: response.status, body: payload }
-}
+const call = <T>(service: EpistemeService, path: string, body?: unknown) =>
+  pageRest<T>(service, path, body)
 
 const stateOf = (service: EpistemeService, space: string): Promise<State> =>
   call<State>(service, `${scene}/understanding?space=${space}`).then((reply) => reply.body)
@@ -262,10 +244,7 @@ describe('the published workbench in a browser', () => {
   const badResponses: string[] = []
 
   beforeAll(async () => {
-    built = await mkdtemp(join(tmpdir(), 'episteme-vision-web-'))
-    await promisify(exec)(
-      `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-    )
+    built = await builtWorkbenchPage()
   }, 180_000)
 
   afterAll(async () => {

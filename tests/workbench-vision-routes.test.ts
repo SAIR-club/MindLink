@@ -1,11 +1,11 @@
-import { exec } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile, type Space } from '@mindlink/workbench'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { pageRest } from './rest.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 
 /** Accepting a candidate and saving a learning answer persist through the workbench's real REST routes. */
 
@@ -18,11 +18,6 @@ const NOTES = `# 位置编码
 
 注意力机制让词元根据查询和键的相似度加权。
 `
-
-interface Reply<T> {
-  readonly status: number
-  readonly body: T
-}
 
 interface State {
   readonly nodes: readonly { readonly nodeId: string; readonly label: string }[]
@@ -44,21 +39,7 @@ let built: string
 let service: EpistemeService
 let running = false
 
-async function call<T>(path: string, body?: unknown): Promise<Reply<T>> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(service.humanToken === undefined
-        ? {}
-        : { authorization: `Bearer ${service.humanToken}` }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  const payload = (await response.json().catch(() => ({}))) as T
-  if (!response.ok) throw new Error(`${path} -> ${response.status}: ${JSON.stringify(payload)}`)
-  return { status: response.status, body: payload }
-}
+const call = <T>(path: string, body?: unknown) => pageRest<T>(service, path, body)
 
 const stateOf = (space: string): Promise<State> =>
   call<State>(`${scene}/understanding?space=${space}`).then((reply) => reply.body)
@@ -76,10 +57,7 @@ const start = async (): Promise<void> => {
 }
 
 beforeAll(async () => {
-  built = await mkdtemp(join(tmpdir(), 'episteme-vision-routes-'))
-  await promisify(exec)(
-    `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-  )
+  built = await builtWorkbenchPage()
 }, 180_000)
 
 afterAll(async () => {

@@ -25,6 +25,7 @@ import {
   type Space,
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest as restOf } from './rest.js'
 
 const NOTES = `# Transformer 笔记
 
@@ -40,11 +41,6 @@ const NOTES = `# Transformer 笔记
 
 多头注意力并行运行多组注意力，让模型同时关注不同的关系。
 `
-
-interface Reply<T> {
-  readonly status: number
-  readonly body: T & { readonly code?: string; readonly error?: string }
-}
 
 interface PlanReply {
   readonly plan: Plan
@@ -103,17 +99,13 @@ const start = async (
   running = true
 }
 
-async function call<T = Record<string, unknown>>(path: string, body?: unknown): Promise<Reply<T>> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${service.humanToken ?? ''}`,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as Reply<T>['body'] }
-}
+const call = <T = Record<string, unknown>>(path: string, body?: unknown) =>
+  restOf<T & { readonly code?: string; readonly error?: string }>(
+    service.apiUrl,
+    path,
+    body,
+    service.humanToken,
+  )
 
 async function spaceWithNotes(): Promise<Space> {
   const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '机器学习' })).body

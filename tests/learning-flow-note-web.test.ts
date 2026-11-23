@@ -1,14 +1,14 @@
-import { exec } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { type EpistemeService, startService } from '@episteme/service'
 import { type ModelClient, type ModelMessage, workbenchProfile } from '@mindlink/workbench'
 import { type Page } from 'playwright-core'
 import { installedBrowser } from './browser.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
+import { pageBody } from './rest.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 
 /** The learning-flow page shows, under a step, why a doubt brought its focus back, and keeps it across a reload. */
 
@@ -37,21 +37,8 @@ if (browser === undefined)
   throw new Error('An installed Edge or Chrome is required for the UI journey')
 const installed = browser
 
-async function rest<T>(service: EpistemeService, path: string, body?: unknown): Promise<T> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(service.humanToken === undefined
-        ? {}
-        : { authorization: `Bearer ${service.humanToken}` }),
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  const payload = (await response.json().catch(() => ({}))) as T
-  if (!response.ok) throw new Error(`${path} -> ${response.status}: ${JSON.stringify(payload)}`)
-  return payload
-}
+const rest = <T>(service: EpistemeService, path: string, body?: unknown) =>
+  pageBody<T>(service, path, body)
 
 describe('the learning-flow page and a doubt note', () => {
   let built: string
@@ -61,10 +48,7 @@ describe('the learning-flow page and a doubt note', () => {
   const errors: string[] = []
 
   beforeAll(async () => {
-    built = await mkdtemp(join(tmpdir(), 'episteme-flow-note-web-'))
-    await promisify(exec)(
-      `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-    )
+    built = await builtWorkbenchPage()
   }, 180_000)
 
   afterAll(async () => {
