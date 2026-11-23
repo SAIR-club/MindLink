@@ -15,6 +15,7 @@ import {
 } from '@episteme/storage-sqlite'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest } from './rest.js'
 
 /**
  * Backing up means nothing until coming back works, so these go all the way: real conversations and material through
@@ -46,16 +47,9 @@ describe('exporting and importing a graph', () => {
       profile: workbenchProfile({ model: new SimulatedModel() }),
     })
     const scene = async <R>(path: string, body?: unknown): Promise<R> => {
-      const response = await fetch(`${service.apiUrl}${path}`, {
-        method: body === undefined ? 'GET' : 'POST',
-        headers: {
-          authorization: `Bearer ${service.humanToken ?? ''}`,
-          ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-        },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-      })
-      expect(response.status).toBe(200)
-      return (await response.json()) as R
+      const reply = await rest<R>(service.apiUrl, path, body, service.humanToken)
+      expect(reply.status).toBe(200)
+      return reply.body
     }
     try {
       return await work(scene)

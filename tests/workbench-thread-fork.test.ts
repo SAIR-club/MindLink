@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { addPerson, addToken, startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest } from './rest.js'
 
 /**
  * A conversation's branches in the workbench: a new line from any turn it shows, the original and its other lines
@@ -27,16 +28,8 @@ interface ShownTurn {
   readonly inherited: boolean
 }
 
-async function call(path: string, body?: unknown, token = service?.humanToken) {
-  const response = await fetch(`${service!.url}/api/v1/scene/workbench${path}`, {
-    ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-    headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-    },
-  })
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> }
-}
+const call = (path: string, body?: unknown, token = service?.humanToken) =>
+  rest(service!.url, `/api/v1/scene/workbench${path}`, body, token)
 
 const sessionsIn = async (space: string, token?: string) =>
   (await call(`/sessions?space=${space}`, undefined, token)).body['sessions'] as Session[]

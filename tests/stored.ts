@@ -5,7 +5,7 @@ import Database from 'better-sqlite3'
  * companion log's (ADR 0018), as the JSON bodies they were written as, oldest first. The graph must not be open,
  * since its owner holds the file exclusively. A file that does not exist holds nothing.
  */
-export function storedRecords(graphPath: string, log?: string): string[] {
+function storedRecords(graphPath: string, log?: string): string[] {
   let db: Database.Database
   try {
     db = new Database(graphPath, { readonly: true, fileMustExist: true })

@@ -5,6 +5,7 @@ import { addPerson, addToken, startService, type EpistemeService } from '@episte
 import { SimulatedModel, workbenchProfile, type Space } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
+import { rest as restOf } from './rest.js'
 
 /**
  * A learner's words may reach Episteme from the person or through their agent, and evidence rests on them either way,
@@ -21,16 +22,9 @@ let directory: string
 let service: EpistemeService
 
 async function post<T>(path: string, body: unknown, token?: string): Promise<T> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-    },
-    body: JSON.stringify(body),
-  })
-  expect(response.status).toBe(200)
-  return (await response.json()) as T
+  const reply = await restOf<T>(service.apiUrl, path, body, token)
+  expect(reply.status).toBe(200)
+  return reply.body
 }
 
 const openThread = async (token?: string): Promise<string> =>

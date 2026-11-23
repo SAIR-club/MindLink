@@ -60,7 +60,7 @@ function featureOf(inside: readonly string[]): string | undefined {
 }
 
 /** Every module specifier the file imports or re-exports, static or dynamic. */
-export function importsOf(text: string): readonly string[] {
+function importsOf(text: string): readonly string[] {
   const code = stripComments(text)
   const found: string[] = []
   const patterns = [

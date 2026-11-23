@@ -99,20 +99,20 @@ export interface StoredRun {
   readonly temporary?: { readonly path: string; readonly intensity: Intensity }
 }
 
-export const RUN_RECORD: RecordKind<StoredRun> = Object.freeze({ kind: 'run', version: 1 })
+const RUN_RECORD: RecordKind<StoredRun> = Object.freeze({ kind: 'run', version: 1 })
 
 /** The project's latest run, by project id. */
-export const ACTIVE_RECORD: RecordKind<{ readonly run: string }> = Object.freeze({
+const ACTIVE_RECORD: RecordKind<{ readonly run: string }> = Object.freeze({
   kind: 'active',
   version: 1,
 })
 
 /** A project's adjustments, in the order they were made, by project id. */
-export const ADJUSTMENTS_RECORD: RecordKind<{ readonly adjustments: readonly Adjustment[] }> =
+const ADJUSTMENTS_RECORD: RecordKind<{ readonly adjustments: readonly Adjustment[] }> =
   Object.freeze({ kind: 'adjustments', version: 1 })
 
 /** One reported result, by `<run>~<step path>`. */
-export const RESULT_RECORD: RecordKind<ResultEntry> = Object.freeze({ kind: 'result', version: 1 })
+const RESULT_RECORD: RecordKind<ResultEntry> = Object.freeze({ kind: 'result', version: 1 })
 
 function lookupOf(run: StoredRun): BlockLookup {
   return (key) => run.blocks[key]
@@ -133,7 +133,7 @@ function snapshot(registry: BlockRegistry, keys: readonly string[]): Record<stri
 }
 
 /** A reference as written (`x`, `user:x`) as a full id. */
-export function fullId(written: string): string {
+function fullId(written: string): string {
   const ref = parseRef(written)
   if (!ref.ok) refuse('invalid_block_ref', ref.message)
   return `${ref.source}:${ref.id}`

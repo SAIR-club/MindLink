@@ -21,6 +21,7 @@ import {
   speakerText,
   type Suggestion,
 } from '../../apps/mindlink/web/src/features/understanding/review.js'
+import { mcpWire } from '../mcp-wire.js'
 
 /**
  * The review page's own calls against a running MindLink (MindLink#25): what it lists, and that each decision,
@@ -29,7 +30,6 @@ import {
 
 type Json = Record<string, unknown>
 
-const PROTOCOL = '2026-07-28'
 const MATERIAL = [
   '学生：为什么 Transformer 需要位置编码？',
   '老师：因为自注意力本身不区分词的顺序，所以要把位置信息加进去。',
@@ -59,43 +59,12 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true })
 })
 
+const call = mcpWire(() => service.mcpUrl, { name: 'claude-code', version: '1' }).call
+
 /** An agent's proposal over MCP, as a host would send it. */
 async function propose(args: Json): Promise<Json> {
-  const response = await fetch(service.mcpUrl, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      'mcp-protocol-version': PROTOCOL,
-      'mcp-method': 'tools/call',
-      'mcp-name': 'propose',
-    },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: {
-        name: 'propose',
-        arguments: args,
-        _meta: {
-          'io.modelcontextprotocol/protocolVersion': PROTOCOL,
-          'io.modelcontextprotocol/clientInfo': { name: 'claude-code', version: '1' },
-          'io.modelcontextprotocol/clientCapabilities': {},
-        },
-      },
-    }),
-  })
-  const text = await response.text()
-  const json = response.headers.get('content-type')?.includes('text/event-stream')
-    ? text
-        .split('\n')
-        .filter((line) => line.startsWith('data: '))
-        .map((line) => line.slice('data: '.length))
-        .at(-1)
-    : text
-  const body = JSON.parse(json ?? '{}') as Json
-  const result = body['result'] as { isError?: boolean; structuredContent?: Json } | undefined
-  if (result === undefined || result.isError === true) throw new Error(`propose failed: ${text}`)
+  const result = await call('propose', args)
+  if (result.isError === true) throw new Error(`propose failed: ${JSON.stringify(result)}`)
   return result.structuredContent ?? {}
 }
 

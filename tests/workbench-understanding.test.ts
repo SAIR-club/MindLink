@@ -15,6 +15,7 @@ import {
   type TrailEntry,
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest as restOf } from './rest.js'
 
 const NOTES = `# Transformer 笔记
 
@@ -26,11 +27,6 @@ const NOTES = `# Transformer 笔记
 
 自注意力让每个词根据其他词调整自己的表示。它计算查询和键的相似度，再对值加权。
 `
-
-interface Reply<T> {
-  readonly status: number
-  readonly body: T & { readonly code?: string; readonly error?: string }
-}
 
 interface Pending {
   readonly id: string
@@ -101,17 +97,13 @@ const start = async (model: ModelClient = new SimulatedModel()): Promise<void> =
   running = true
 }
 
-async function call<T = Record<string, unknown>>(path: string, body?: unknown): Promise<Reply<T>> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${service.humanToken ?? ''}`,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as Reply<T>['body'] }
-}
+const call = <T = Record<string, unknown>>(path: string, body?: unknown) =>
+  restOf<T & { readonly code?: string; readonly error?: string }>(
+    service.apiUrl,
+    path,
+    body,
+    service.humanToken,
+  )
 
 async function spaceWithNotes(name = '机器学习'): Promise<Space> {
   const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name })).body

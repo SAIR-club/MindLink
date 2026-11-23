@@ -1,11 +1,4 @@
-import {
-  asId,
-  type Actor,
-  type ActorId,
-  type DimensionId,
-  type NodeId,
-  type StateValue,
-} from '@episteme/core'
+import { asId, type Actor, type ActorId } from '@episteme/core'
 import { composeDeterministic, type Episteme } from '@episteme/sdk'
 import { learnDomainPack } from '@episteme/domain-learn'
 
@@ -24,7 +17,7 @@ export type EpistemeContext = Episteme & {
 }
 
 /** The actors every composition needs, so their ids and shapes cannot drift between fixtures. */
-export function createActors(now: () => number): {
+function createActors(now: () => number): {
   human: Actor
   agent: Actor
   humanId: ActorId
@@ -60,30 +53,4 @@ export function createFixture(startedAt = 0): EpistemeContext {
     packs: [learnDomainPack],
   })
   return { ...episteme, human, agent, humanId, agentId }
-}
-
-/** Builds a dimension map, requiring at least one entry so no empty event slips through. */
-export function dimensions(
-  first: readonly [string, StateValue],
-  ...rest: readonly (readonly [string, StateValue])[]
-): ReadonlyMap<DimensionId, StateValue> {
-  const map = new Map<DimensionId, StateValue>()
-  for (const [key, value] of [first, ...rest]) {
-    map.set(asId<DimensionId>(key), value)
-  }
-  return map
-}
-
-export function level(value: string): StateValue {
-  return { level: value }
-}
-
-/** Reads one state dimension for a node, or `undefined` when unrecorded. */
-export function readLevel(
-  context: EpistemeContext,
-  target: string,
-  dimension: string,
-): string | undefined {
-  const state = context.log.stateOf(asId<NodeId>(target), context.humanId)
-  return state.get(asId<DimensionId>(dimension))?.level
 }

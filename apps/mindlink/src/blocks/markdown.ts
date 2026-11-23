@@ -69,7 +69,7 @@ export function scan(lines: readonly string[], firstLine: number): MarkdownLine[
   return out
 }
 
-export function headingOf(line: MarkdownLine): Heading | undefined {
+function headingOf(line: MarkdownLine): Heading | undefined {
   if (line.code) return undefined
   const match = HEADING.exec(line.text)
   if (match === null) return undefined

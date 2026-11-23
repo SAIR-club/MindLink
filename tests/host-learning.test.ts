@@ -13,6 +13,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire, type McpWire, type ToolResult } from './mcp-wire.js'
 import { noModel } from './model.js'
+import { rest as restOf } from './rest.js'
 import { storedText } from './stored.js'
 
 /**
@@ -108,20 +109,8 @@ function refused(answer: ToolResult, code: string): void {
   expect(answer.structuredContent?.['code']).toBe(code)
 }
 
-async function rest<T = Record<string, unknown>>(
-  path: string,
-  body?: unknown,
-): Promise<{ status: number; body: T }> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${service.humanToken ?? ''}`,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as T }
-}
+const rest = <T = Record<string, unknown>>(path: string, body?: unknown) =>
+  restOf<T>(service.apiUrl, path, body, service.humanToken)
 
 interface Started {
   space: string

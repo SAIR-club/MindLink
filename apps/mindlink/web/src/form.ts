@@ -1,10 +1,4 @@
-import {
-  dimensionOf,
-  dimensionOptions,
-  levelOptions,
-  type Option,
-  type Vocabulary,
-} from './vocabulary.js'
+import { dimensionOf, levelOptions, type Option, type Vocabulary } from './vocabulary.js'
 
 /**
  * The fields of a form, and what is decided before anything is sent. `components/FormView.vue` shows them.
@@ -66,21 +60,6 @@ export function levelField(
     kind: 'select',
     required: true,
     options: levelOptions(vocabulary, dimensionId),
-    ...(value === undefined ? {} : { value }),
-  }
-}
-
-/** A field choosing one dimension a person may record, by its registered name. */
-export function dimensionField(
-  vocabulary: Vocabulary,
-  { name = 'dimension', label = '理解维度', value }: FieldOptions = {},
-): Field {
-  return {
-    name,
-    label,
-    kind: 'select',
-    required: true,
-    options: dimensionOptions(vocabulary),
     ...(value === undefined ? {} : { value }),
   }
 }
