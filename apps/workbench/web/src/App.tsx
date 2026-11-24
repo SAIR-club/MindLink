@@ -40,7 +40,7 @@ import { UnfiledPage } from './Unfiled.js'
 import { ModelPage } from './Model.js'
 import { Welcome } from './Welcome.js'
 import { PlanShelf, PlanView } from './Learning.js'
-import { MaterialsPage } from './Materials.js'
+import { MATERIAL_ACCEPT, MaterialsPage } from './Materials.js'
 import { Outcomes } from './Outcomes.js'
 import {
   VISION_KINDS,
@@ -83,11 +83,6 @@ function keep(key: string, value: string): void {
 }
 
 const RAIL = 'workbench.rail'
-
-/** Whether a pane was left open. It opens by default: the understanding layer is the point of the page. */
-function wasOpen(key: string): boolean {
-  return kept(key) !== 'closed'
-}
 
 const SHELF_DEFAULT = 260
 const RIGHT_DEFAULT = 380
@@ -249,6 +244,8 @@ function Desk({
   const [heldSpace, setHeldSpace] = useState<string | undefined>(kept(LAST_SPACE) ?? undefined)
   const namedSpace = 'space' in place ? place.space : undefined
   const spaceId = typeof namedSpace === 'string' ? namedSpace : heldSpace
+  const viewedSpace = useRef(spaceId)
+  viewedSpace.current = spaceId
   const threadId = place.kind === 'thread' ? place.thread : undefined
   const planId = place.kind === 'plan' ? place.plan : undefined
   const commons = place.kind === 'commons'
@@ -265,6 +262,8 @@ function Desk({
   /** The space whose materials, conversations and plans are in hand. */
   const [loadedFor, setLoadedFor] = useState<string>()
   const [materials, setMaterials] = useState<readonly MaterialSummary[]>([])
+  /** An upload can finish before all of an opening space's other reads are in. */
+  const materialUploads = useRef(0)
   const [sessions, setSessions] = useState<readonly Session[]>([])
   const [turns, setTurns] = useState<readonly Turn[]>([])
   /** The conversation `turns` were read for: until it is the one on show, its turns are still on their way. */
@@ -285,8 +284,8 @@ function Desk({
   const [plans, setPlans] = useState<readonly Plan[]>([])
   const [planNotice, setPlanNotice] = useState<string>()
   const [learned, setLearned] = useState(0)
-  const [railOpen, setRailOpen] = useState(() => wasOpen(RAIL))
-  const [shelfOpen, setShelfOpen] = useState(() => wasOpen(SHELF))
+  const [railOpen, setRailOpen] = useState(() => kept(RAIL) === 'open')
+  const [shelfOpen, setShelfOpen] = useState(() => kept(SHELF) !== 'closed')
   const [shelfWidth, setShelfWidth] = useState(() => keptWidth(SHELF_WIDTH, SHELF_DEFAULT))
   const [rightWidth, setRightWidth] = useState(() => keptWidth(RIGHT_WIDTH, RIGHT_DEFAULT))
   const toggleShelf = useCallback((): void => {
@@ -413,6 +412,7 @@ function Desk({
     }
     keep(LAST_SPACE, spaceId)
     let current = true
+    const uploads = materialUploads.current
     guard(async () => {
       const [found, threads, held, planned] = await Promise.all([
         api.materials(spaceId),
@@ -421,7 +421,7 @@ function Desk({
         api.plans(spaceId),
       ])
       if (!current) return
-      setMaterials(found.materials)
+      if (uploads === materialUploads.current) setMaterials(found.materials)
       setSessions(threads.sessions)
       setUnderstanding(held)
       setPlans(planned.plans)
@@ -511,6 +511,15 @@ function Desk({
 
   const refreshMaterials = async (): Promise<void> => {
     if (spaceId !== undefined) setMaterials((await api.materials(spaceId)).materials)
+  }
+
+  const uploadMaterial = async (space: string, file: File): Promise<string> => {
+    const added = await api.upload(space, file)
+    if (viewedSpace.current === space) {
+      materialUploads.current += 1
+      setMaterials(added.materials)
+    }
+    return added.materials.find(({ id }) => id === added.id)?.title ?? file.name
   }
 
   const refreshUnderstanding = async (): Promise<void> => {
@@ -686,16 +695,16 @@ function Desk({
 
   const railAllowed = spaceKnown && !welcoming && !WITHOUT_RAIL.has(place.kind)
   const right = opensSide(panel) ? 'source' : railAllowed && railOpen ? 'rail' : 'none'
-  const toggleRail = (): void => {
-    const next = !(right === 'rail')
-    setRailOpen(next)
-    keep(RAIL, next ? 'open' : 'closed')
-    if (next && opensSide(panel)) {
+  const showRail = (open: boolean): void => {
+    setRailOpen(open)
+    keep(RAIL, open ? 'open' : 'closed')
+    if (open && opensSide(panel)) {
       const { material: _closed, ...rest } = panel
       showPanel(rest)
     }
-    setPane(next ? 'rail' : 'talk')
+    setPane(open ? 'rail' : 'talk')
   }
+  const toggleRail = (): void => showRail(right !== 'rail')
   // The keys of a desktop client: Ctrl+B for the sidebar, Ctrl+I for the understanding layer beside the page.
   const keys = useRef({ toggleShelf, toggleRail, railAllowed })
   keys.current = { toggleShelf, toggleRail, railAllowed }
@@ -785,7 +794,7 @@ function Desk({
         {right !== 'none' && (
           <Resizer
             edge="right"
-            label={right === 'rail' ? '调整理解层宽度' : '调整原文宽度'}
+            label={right === 'rail' ? '调整“我记住的”宽度' : '调整原文宽度'}
             width={rightWidth}
             min={300}
             max={720}
@@ -861,17 +870,6 @@ function Desk({
               <button
                 type="button"
                 className="row"
-                aria-current={place.kind === 'connect' ? 'page' : undefined}
-                onClick={() => {
-                  moveTo({ kind: 'connect' })
-                  setPane('talk')
-                }}
-              >
-                接入 Agent
-              </button>
-              <button
-                type="button"
-                className="row"
                 aria-current={place.kind === 'conversations' ? 'page' : undefined}
                 onClick={() => {
                   moveTo({ kind: 'conversations' })
@@ -880,29 +878,41 @@ function Desk({
               >
                 所有对话
               </button>
-              <button
-                type="button"
-                className="row"
-                aria-current={place.kind === 'unfiled' ? 'page' : undefined}
-                onClick={() => {
-                  moveTo({ kind: 'unfiled' })
-                  setPane('talk')
-                }}
-              >
-                未分类待确认
-                {unfiled > 0 && <span className="row-note">{unfiled} 条</span>}
-              </button>
-              <button
-                type="button"
-                className="row"
-                aria-current={place.kind === 'agent-sessions' ? 'page' : undefined}
-                onClick={() => {
-                  moveTo({ kind: 'agent-sessions' })
-                  setPane('talk')
-                }}
-              >
-                Agent 会话记录
-              </button>
+              <details className="shelf-more">
+                <summary className="row">
+                  更多
+                  {unfiled > 0 && (
+                    <span className="count" data-waiting="true" aria-label={`${unfiled} 条待确认`}>
+                      {unfiled}
+                    </span>
+                  )}
+                </summary>
+                <button
+                  type="button"
+                  className="row"
+                  aria-current={place.kind === 'connect' ? 'page' : undefined}
+                  onClick={() => moveTo({ kind: 'connect' })}
+                >
+                  接入 Agent
+                </button>
+                <button
+                  type="button"
+                  className="row"
+                  aria-current={place.kind === 'agent-sessions' ? 'page' : undefined}
+                  onClick={() => moveTo({ kind: 'agent-sessions' })}
+                >
+                  Agent 会话记录
+                </button>
+                <button
+                  type="button"
+                  className="row"
+                  aria-current={place.kind === 'unfiled' ? 'page' : undefined}
+                  onClick={() => moveTo({ kind: 'unfiled' })}
+                >
+                  未分类待确认
+                  {unfiled > 0 && <span className="row-note">{unfiled} 条</span>}
+                </button>
+              </details>
             </>
           }
           onSpaces={(next, selected) => {
@@ -947,15 +957,15 @@ function Desk({
                 aria-pressed={right === 'rail'}
                 aria-label={
                   understanding.pending.length > 0
-                    ? `理解层，${understanding.pending.length} 条等你确认`
-                    : '理解层'
+                    ? `我记住的，${understanding.pending.length} 条等你确认`
+                    : '我记住的'
                 }
                 data-waiting={understanding.pending.length > 0}
-                title="理解层（Ctrl+I）"
+                title="我记住的（Ctrl+I）"
                 onClick={toggleRail}
               >
                 <LayerGlyph />
-                理解层
+                我记住的
                 {understanding.pending.length > 0 && (
                   <span className="count" aria-hidden="true">
                     {understanding.pending.length}
@@ -1077,11 +1087,13 @@ function Desk({
               </p>
             ) : place.kind === 'materials' ? (
               <MaterialsPage
+                key={space.id}
                 space={space}
                 materials={materials}
                 open={panel.material}
                 guard={guard}
                 onChanged={refreshMaterials}
+                onAsk={() => moveTo({ kind: 'new', space: space.id })}
                 onOpen={(material) => {
                   showPanel({ ...panel, material: material.id })
                   setPane('side')
@@ -1151,6 +1163,8 @@ function Desk({
               asking={asking}
               failed={failed}
               onAsk={ask}
+              guard={guard}
+              onUpload={uploadMaterial}
               onCite={cite}
               onCandidates={(reply) => makeCandidates(threadId, reply)}
               onMaterials={() => {
@@ -1227,11 +1241,7 @@ function Desk({
             onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
             onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
             onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
-            onClose={() => {
-              setRailOpen(false)
-              keep(RAIL, 'closed')
-              setPane('talk')
-            }}
+            onClose={() => showRail(false)}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
@@ -1245,8 +1255,8 @@ function Desk({
             原文
           </button>
           {railAllowed && (
-            <button type="button" aria-current={pane === 'rail'} onClick={() => setPane('rail')}>
-              理解层
+            <button type="button" aria-current={pane === 'rail'} onClick={() => showRail(true)}>
+              我记住的
             </button>
           )}
         </nav>
@@ -1691,6 +1701,8 @@ function Conversation(props: {
   asking: boolean
   failed: { question: string; failure: Failure } | undefined
   onAsk: (question: string, retry: boolean) => void
+  guard: (work: () => Promise<unknown>) => void
+  onUpload: (space: string, file: File) => Promise<string>
   onCite: (citation: Citation, evidence?: Evidence) => void
   onCandidates: (reply: string) => Promise<string | undefined>
   onMaterials: () => void
@@ -1700,6 +1712,9 @@ function Conversation(props: {
   const loading = props.turns === undefined
   const turns = props.turns ?? []
   const [draft, setDraft] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadNote, setUploadNote] = useState<{ space: string; text: string }>()
+  const fileInput = useRef<HTMLInputElement>(null)
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1720,6 +1735,30 @@ function Conversation(props: {
     if (question === '' || asking) return
     setDraft('')
     props.onAsk(question, false)
+  }
+  const upload = (files: FileList | null): void => {
+    if (files === null || files.length === 0 || space.archived || uploading) return
+    const extensions = MATERIAL_ACCEPT.split(',')
+    const chosen = [...files].filter((file) =>
+      extensions.some((ext) => file.name.toLowerCase().endsWith(ext)),
+    )
+    const note = (text: string): void => setUploadNote({ space: space.id, text })
+    if (chosen.length === 0) {
+      note('请选择 TXT、Markdown 或 PDF 文件。')
+      return
+    }
+    setUploading(true)
+    note('正在加入材料…')
+    props.guard(async () => {
+      let title: string | undefined
+      try {
+        for (const file of chosen) title = await props.onUpload(space.id, file)
+      } finally {
+        setUploading(false)
+        if (title === undefined) setUploadNote(undefined)
+        else note(`已加入《${title}》`)
+      }
+    })
   }
 
   const { branchOf } = props
@@ -1808,7 +1847,20 @@ function Conversation(props: {
         )}
         <div ref={end} />
       </div>
-      <form className="composer" onSubmit={submit}>
+      <form
+        className="composer"
+        onSubmit={submit}
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = space.archived || uploading ? 'none' : 'copy'
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.types.includes('Files')) return
+          event.preventDefault()
+          upload(event.dataTransfer.files)
+        }}
+      >
         <textarea
           aria-label="你的问题"
           placeholder={space.archived ? '这个空间已归档' : '问一个关于材料的问题'}
@@ -1823,9 +1875,45 @@ function Conversation(props: {
             }
           }}
         />
+        {!space.archived && (
+          <>
+            <button
+              type="button"
+              className="tool"
+              aria-label="加入材料"
+              title="加入材料"
+              disabled={uploading}
+              onClick={() => fileInput.current?.click()}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M10 5.5 5.7 9.8a1.4 1.4 0 0 0 2 2l5-5a2.7 2.7 0 0 0-3.8-3.8L3.5 8.4a3.9 3.9 0 0 0 5.5 5.5l4.6-4.6"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+            <input
+              ref={fileInput}
+              className="hidden-input"
+              type="file"
+              multiple
+              accept={MATERIAL_ACCEPT}
+              disabled={uploading}
+              onChange={(event) => {
+                upload(event.target.files)
+                event.target.value = ''
+              }}
+            />
+          </>
+        )}
         <button type="submit" disabled={asking || draft.trim() === '' || space.archived}>
           提问
         </button>
+        <div className="hint composer-status" role="status">
+          {uploadNote?.space === space.id ? uploadNote.text : undefined}
+        </div>
       </form>
     </>
   )
@@ -2045,9 +2133,9 @@ function Rail(props: {
     keep(RAIL_VIEW, next)
   }
   return (
-    <aside className="rail" aria-label="理解层">
+    <aside className="rail" aria-label="我记住的">
       <div className="rail-head">
-        <h2>理解层</h2>
+        <h2>我记住的</h2>
         <div className="segmented" role="group" aria-label="怎么看">
           <button
             type="button"

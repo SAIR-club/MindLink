@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { Answer, Citation, Evidence, HeldNode, Turn } from './api.js'
 
 /** What the agent said, shared by a conversation and a plan. */
@@ -292,6 +292,43 @@ function Sources({
   )
 }
 
+type Segment = Answer['segments'][number]
+
+function AnswerSentence({
+  segment,
+  structured,
+  general,
+  children,
+}: {
+  segment: Segment
+  structured: boolean
+  general: boolean
+  children?: ReactNode
+}) {
+  const kind = general
+    ? undefined
+    : segment.basis === 'question'
+      ? 'asked'
+      : segment.basis === 'inference'
+        ? 'inferred'
+        : segment.weak === true
+          ? 'weak'
+          : 'sourced'
+  return (
+    <span className={kind} title={kind === 'inferred' ? '模型的推断，材料里没有' : undefined}>
+      {kind === 'inferred' && <span className="visually-hidden">（模型推断）</span>}
+      {kind === 'weak' && <span className="visually-hidden">（引用待核对）</span>}
+      {structured
+        ? segment.text.split('**').map((part, index) =>
+            // biome-ignore lint/suspicious/noArrayIndexKey: the parts are never reordered
+            index % 2 === 1 ? <strong key={index}>{part}</strong> : part,
+          )
+        : segment.text}
+      {children}
+    </span>
+  )
+}
+
 function AnswerBody({
   answer,
   onCite,
@@ -304,78 +341,116 @@ function AnswerBody({
       <p className="no-evidence">材料里没有足够的依据讲这一点。可以换个问法，或者上传相关材料。</p>
     )
   }
-  if (answer.status === 'general') {
+  const general = answer.status === 'general'
+  const structured = answer.segments.some((segment) => segment.block !== undefined)
+  const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))
+  const chip = (n: number, segment: Segment) => {
+    const citation = byNumber.get(n)
+    return citation === undefined ? null : (
+      <button
+        type="button"
+        key={n}
+        className="cite"
+        aria-label={`查看引用 ${n}：${citation.title}`}
+        onClick={() =>
+          onCite(
+            citation,
+            segment.evidence?.find((found) => found.n === n),
+          )
+        }
+      >
+        {n}
+      </button>
+    )
+  }
+  const groups: { list: boolean; blocks: Segment[][] }[] = []
+  if (structured) {
+    for (const segment of answer.segments) {
+      const group = groups.at(-1)
+      const block = group?.blocks.at(-1)
+      if (segment.block === undefined && block !== undefined) block.push(segment)
+      else if (segment.block === 'item' && group?.list === true) group.blocks.push([segment])
+      else groups.push({ list: segment.block === 'item', blocks: [[segment]] })
+    }
+  }
+  const blockBody = (segments: readonly Segment[]): ReactNode => {
+    const cited = new Map<number, Segment>()
+    for (const segment of segments) {
+      for (const n of segment.citations) {
+        if (!cited.has(n)) cited.set(n, segment)
+      }
+    }
     return (
       <>
-        <p className="hint">材料里没有讲到这个，下面是模型自己的知识，不是来自你的材料。</p>
-        <p className="answer">{answer.segments.map(({ text }) => text).join('\n')}</p>
+        {segments.map((segment, index) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: stored answers never reorder segments
+          <AnswerSentence key={index} segment={segment} structured general={general}>
+            {index < segments.length - 1 && /[.!?]$/.test(segment.text.replaceAll('**', '')) && ' '}
+          </AnswerSentence>
+        ))}
+        {[...cited].map(([n, segment]) => chip(n, segment))}
       </>
     )
   }
-  const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))
   return (
     <>
       {answer.status === 'inference_only' && (
         <p className="hint">这条回答没有一句能在材料里找到依据。下面全是模型的推断。</p>
       )}
-      <p className="answer">
-        {answer.segments.map((segment, index) => {
-          const kind =
-            segment.basis === 'question'
-              ? 'asked'
-              : segment.basis === 'inference'
-                ? 'inferred'
-                : segment.weak === true
-                  ? 'weak'
-                  : 'sourced'
-          return (
-            // Segments never move: an answer is stored once and only read after that.
-            // biome-ignore lint: index is the identity here
-            <span key={index} className={kind}>
-              {kind === 'inferred' && <span className="visually-hidden">（模型推断）</span>}
-              {kind === 'weak' && <span className="visually-hidden">（引用待核对）</span>}
-              {segment.text}
-              {segment.citations.map((n) => {
-                const citation = byNumber.get(n)
-                return citation === undefined ? null : (
-                  <button
-                    type="button"
-                    key={n}
-                    className="cite"
-                    aria-label={`查看引用 ${n}：${citation.title}`}
-                    onClick={() =>
-                      onCite(
-                        citation,
-                        segment.evidence?.find((found) => found.n === n),
-                      )
-                    }
-                  >
-                    {n}
-                  </button>
-                )
-              })}
-            </span>
-          )
-        })}
-      </p>
+      {general && (
+        <p className="hint">材料里没有讲到这个，下面是模型自己的知识，不是来自你的材料。</p>
+      )}
+      {structured ? (
+        groups.map(({ list, blocks }, index) =>
+          list ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: stored answers never reorder blocks
+            <ul key={index} className="answer">
+              {blocks.map((segments, item) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: stored answers never reorder items
+                <li key={item}>{blockBody(segments)}</li>
+              ))}
+            </ul>
+          ) : (
+            // biome-ignore lint/suspicious/noArrayIndexKey: stored answers never reorder blocks
+            <p key={index} className="answer">
+              {blockBody(blocks.flat())}
+            </p>
+          ),
+        )
+      ) : (
+        <p className="answer">
+          {general
+            ? answer.segments.map(({ text }) => text).join('\n')
+            : answer.segments.map((segment, index) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: stored answers never reorder segments
+                <AnswerSentence key={index} segment={segment} structured={false} general={false}>
+                  {segment.citations.map((n) => chip(n, segment))}
+                </AnswerSentence>
+              ))}
+        </p>
+      )}
       {answer.invalidCitations.length > 0 && (
         <p className="hint">
           模型引用了不存在的片段（{answer.invalidCitations.join('、')}），相应的句子已按推断处理。
         </p>
       )}
-      <Sources answer={answer} onCite={onCite} />
-      <p className="legend">
-        {answer.segments.some((segment) => segment.basis === 'inference') && (
-          <span>
-            <span className="inferred">波浪线</span>：模型的推断，材料里没有
-          </span>
-        )}
-        {answer.segments.some((segment) => segment.weak === true) && (
-          <span>
-            <span className="weak">虚线</span>：引用可能不对，请核对原文
-          </span>
-        )}
-      </p>
+      {!general && (
+        <>
+          <Sources answer={answer} onCite={onCite} />
+          <p className="legend">
+            {answer.segments.some((segment) => segment.basis === 'inference') && (
+              <span>
+                <span className="inferred">点线</span>：模型的推断，材料里没有
+              </span>
+            )}
+            {answer.segments.some((segment) => segment.weak === true) && (
+              <span>
+                <span className="weak">虚线</span>：引用可能不对，请核对原文
+              </span>
+            )}
+          </p>
+        </>
+      )}
     </>
   )
 }

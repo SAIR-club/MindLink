@@ -228,7 +228,9 @@ const ESTIMATES: Readonly<Record<string, Estimate>> = {
 /** Takes the model's estimate off the front of its feedback. A reply without one has no estimate, not a guess. */
 export function estimateFrom(answer: Answer): { answer: Answer; estimate?: Estimate } {
   const first = answer.segments[0]
-  const match = first === undefined ? null : /^【(对|部分对|不对)】\s*/.exec(first.text)
+  // The model may bold the estimate now that answers can carry `**`.
+  const match =
+    first === undefined ? null : /^(?:\*\*)?【(对|部分对|不对)】(?:\*\*)?\s*/.exec(first.text)
   if (first === undefined || match === null) return { answer }
   const estimate = ESTIMATES[match[1] ?? '']
   const rest = first.text.slice(match[0].length)
