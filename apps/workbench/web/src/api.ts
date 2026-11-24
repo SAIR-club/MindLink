@@ -329,11 +329,12 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, body?: unknown): Promise<T> {
+async function request<T>(path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   let response: Response
   try {
     response = await fetch(`/api/v1${path}`, {
       method: body === undefined ? 'GET' : 'POST',
+      ...(signal === undefined ? {} : { signal }),
       ...(body === undefined
         ? {}
         : { headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
@@ -570,13 +571,55 @@ export const api = {
   /** A new line of a conversation from one of the turns it shows. The original stays as it is. */
   fork: (space: string, thread: string, turn: string) =>
     scene('/sessions/fork', { space, thread, turn }) as Promise<{ session: Session }>,
-  ask: (space: string, question: string, thread: string | undefined, retry: boolean) =>
-    scene('/ask', {
+  ask(
+    space: string,
+    question: string,
+    thread: string | undefined,
+    retry: boolean,
+    onText?: (soFar: string) => void,
+  ): Promise<Asked> {
+    const progress =
+      onText === undefined
+        ? undefined
+        : Array.from(crypto.getRandomValues(new Uint32Array(4)), (word) =>
+            word.toString(16).padStart(8, '0'),
+          ).join('')
+    const asked = scene('/ask', {
       space,
       question,
       ...(thread === undefined ? {} : { thread }),
       ...(retry ? { retry } : {}),
-    }) as Promise<Asked>,
+      ...(progress === undefined ? {} : { progress }),
+    }) as Promise<Asked>
+    if (progress === undefined || onText === undefined) return asked
+
+    const polling = new AbortController()
+    const { signal } = polling
+    let inFlight = false
+    let previous = ''
+    const timer = window.setInterval(() => {
+      if (inFlight) return
+      inFlight = true
+      void request<{ text: string; done: boolean }>(
+        `/scene/workbench/ask/progress?id=${progress}`,
+        undefined,
+        signal,
+      )
+        .then(({ text, done }) => {
+          if (signal.aborted || done || text === previous) return
+          previous = text
+          onText(text)
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false
+        })
+    }, 300)
+    return asked.finally(() => {
+      window.clearInterval(timer)
+      polling.abort()
+    })
+  },
   candidates: (space: string, thread: string, reply: string) =>
     scene('/candidates', { space, thread, reply }) as Promise<Offered>,
   candidatesFromTurn: (space: string, thread: string, turn: string) =>

@@ -10,7 +10,7 @@ import {
   type ModelClient,
   type Space,
 } from '@mindlink/workbench'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { rest as restOf } from './rest.js'
 
 let directory: string
@@ -175,6 +175,51 @@ describe('a learner in the workbench', () => {
 })
 
 describe('conversations', () => {
+  it.each([
+    { id: 'progress_1', valid: true, fail: false },
+    { id: 'progress-2', valid: true, fail: true },
+    { id: 'invalid.id', valid: false, fail: false },
+  ])('returns progress only while an ask is pending ($id)', async ({ id, valid, fail }) => {
+    let started = false
+    let release!: () => void
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const model: ModelClient = {
+      name: 'm',
+      simulated: false,
+      async complete(_messages, options) {
+        options?.onText?.('**位置编码**把顺序告诉模型。[1')
+        started = true
+        await held
+        if (fail) throw new ModelFailure('timeout', '超时')
+        return { text: '**位置编码**把顺序告诉模型。[1]' }
+      },
+    }
+    await start(model)
+    const space = await newSpace()
+    await upload(space.id, 'a.txt', '位置编码把顺序告诉模型。')
+    const progress = () => call<{ text: string; done: boolean }>(`${scene}/ask/progress?id=${id}`)
+    expect((await progress()).body).toMatchObject({ text: '', done: true })
+    const pending = ask(space.id, '位置编码有什么用', { progress: id })
+    try {
+      await vi.waitFor(() => expect(started).toBe(true))
+      const update = await progress()
+      expect(update.status).toBe(200)
+      expect(update.body).toMatchObject({
+        text: valid ? '位置编码把顺序告诉模型。' : '',
+        done: !valid,
+      })
+    } finally {
+      release()
+      await pending
+    }
+    const asked = await pending
+    if (fail) expect(asked.body.failure).toMatchObject({ code: 'timeout' })
+    else expect(asked.body.answer?.segments[0]).toMatchObject({ basis: 'material', citations: [1] })
+    expect((await progress()).body).toMatchObject({ text: '', done: true })
+  })
+
   it('carries a follow-up with the question before it', async () => {
     const seen: string[][] = []
     const model: ModelClient = {
