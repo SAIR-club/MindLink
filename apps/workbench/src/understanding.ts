@@ -383,9 +383,10 @@ function answerItems(
   const titles = new Map(answer.citations.map(({ n, title }) => [n, title]))
   let cursor = 0
   const ranges = answer.segments.flatMap((segment) => {
-    const start = text.indexOf(segment.text, cursor)
+    const plain = segment.text.replaceAll('**', '')
+    const start = text.indexOf(plain, cursor)
     if (start === -1) return []
-    cursor = start + segment.text.length
+    cursor = start + plain.length
     return segment.basis === 'material' && segment.weak !== true
       ? [{ start, end: cursor, citations: segment.citations }]
       : []
@@ -442,7 +443,10 @@ async function takeaways(model: ModelClient, answer: Answer, text: string): Prom
   }
   if (picks.length > 0) return answerItems(answer, text, picks)
   const fallback = segments
-    .map(({ text: quote }) => ({ label: takeawayLabel(quote), quote }))
+    .map(({ text }) => {
+      const quote = text.replaceAll('**', '')
+      return { label: takeawayLabel(quote), quote }
+    })
     .filter(({ label, quote }) => label !== '' && label.length <= MAX_WORDS && quoteIn(quote, text))
     .sort((left, right) => right.quote.length - left.quote.length)
     .slice(0, MAX_ANSWER_ITEMS)

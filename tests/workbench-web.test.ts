@@ -209,6 +209,62 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.getByText('光合作用的暗反应发生在叶绿体基质中。', { exact: true }).waitFor()
   }, 60_000)
 
+  it('shows paragraphs and list items with one citation chip per block', async () => {
+    const model: ModelClient = {
+      name: 'stub',
+      simulated: false,
+      complete: () =>
+        Promise.resolve({
+          text: '**位置编码**记录顺序。[1] 模型看得出先后。[1]\n\n顺序信息进入模型。[1]\n- 位置编码记录顺序。[1] 模型看得出先后。[1]\n- 顺序信息进入模型。[1]',
+        }),
+    }
+    await open(model)
+    await newSpace('机器学习')
+    await addMaterial('顺序.txt', '位置编码记录顺序。模型看得出先后。顺序信息进入模型。')
+    await ask('位置编码怎么记录顺序')
+
+    const answer = page.locator('.answer-block')
+    await answer.locator('strong', { hasText: '位置编码' }).waitFor()
+    expect(await answer.locator('p.answer').count()).toBe(2)
+    expect(await answer.locator('ul.answer').count()).toBe(1)
+    expect(await answer.locator('ul.answer > li').count()).toBe(2)
+    const chips = answer.getByRole('button', { name: '查看引用 1：顺序.txt' })
+    expect(await chips.count()).toBe(4)
+    for (const block of await answer.locator('p.answer, ul.answer > li').all()) {
+      expect(await block.getByRole('button', { name: /查看引用 1/ }).count()).toBe(1)
+    }
+    await chips.first().click()
+    await expect.poll(() => page.locator('mark').textContent()).toBe('位置编码记录顺序。')
+  }, 60_000)
+
+  it('adds material from the picker and a drop while keeping the conversation draft', async () => {
+    await open()
+    await newSpace('机器学习')
+    const draft = page.getByLabel('你的问题')
+    await draft.fill('位置编码有什么用')
+    const url = page.url()
+    const picking = page.waitForEvent('filechooser')
+    await page.getByRole('button', { name: '加入材料' }).click()
+    await (await picking).setFiles({
+      name: '编码笔记.md',
+      mimeType: 'text/plain',
+      buffer: Buffer.from(NOTES),
+    })
+    const status = page.locator('.composer').getByRole('status')
+    await status.getByText('已加入《编码笔记.md》').waitFor()
+
+    const dataTransfer = await page.evaluateHandle(() => {
+      const data = new DataTransfer()
+      data.items.add(new File(['序列里的每个词元都有位置。'], '顺序.txt', { type: 'text/plain' }))
+      return data
+    })
+    await draft.dispatchEvent('drop', { dataTransfer })
+    await status.getByText('已加入《顺序.txt》').waitFor()
+    await page.getByRole('button', { name: '材料（2）' }).waitFor()
+    expect(page.url()).toBe(url)
+    expect(await draft.inputValue()).toBe('位置编码有什么用')
+  }, 60_000)
+
   it('confirms all visible candidates from the review page', async () => {
     await open()
     await newSpace('机器学习')
@@ -551,6 +607,10 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     // between them in words, and the same as a graph that opens an item from its point.
     await page.getByRole('button', { name: '学习', exact: true }).click()
     const rail = page.locator('.rail')
+    expect(await rail.isVisible()).toBe(false)
+    await page.getByRole('button', { name: /^我记住的/ }).click()
+    await rail.getByRole('heading', { name: '我记住的' }).waitFor()
+    await page.reload()
     await rail.getByRole('button', { name: '整个空间' }).click()
     const tree = rail.locator('.understanding-tree')
     await tree.locator('.tree-relations li[data-type="contradicts"]').first().waitFor()

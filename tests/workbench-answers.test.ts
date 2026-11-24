@@ -184,7 +184,7 @@ describe('answers', () => {
         invalidCitations: [],
       })
       expect(answer.segments).toEqual([
-        { text: '过拟合会让模型难以泛化。', basis: 'inference', citations: [] },
+        { text: '过拟合会让模型难以泛化。', block: 'paragraph', basis: 'inference', citations: [] },
         { text: '你见过这种情况吗？', basis: 'inference', citations: [] },
       ])
       expect(answerText(answer)).toBe(
@@ -236,17 +236,63 @@ describe('answers', () => {
 })
 
 describe('checking what a model claims', () => {
-  it('reads past Markdown bold, list markers and labels without calling them inference', async () => {
+  it('keeps emphasis and list structure while attaching labels to the sentences they introduce', async () => {
     const answer = checkReply(
       '**结论：** 位置编码把顺序告诉模型。[1]\n漏掉的地方：\n- 注意力本身不看顺序。[1]\n还想到什么？',
       await offered(),
       simulated,
     )
-    expect(answer.segments.map(({ text, basis }) => [text, basis])).toEqual([
-      ['结论：位置编码把顺序告诉模型。', 'material'],
-      ['漏掉的地方：注意力本身不看顺序。', 'material'],
-      ['还想到什么？', 'question'],
+    expect(answer.segments.map(({ text, basis, block }) => [text, basis, block])).toEqual([
+      ['**结论：**位置编码把顺序告诉模型。', 'material', 'paragraph'],
+      ['漏掉的地方：注意力本身不看顺序。', 'material', 'item'],
+      ['还想到什么？', 'question', undefined],
     ])
+  })
+
+  it('marks the first sentence of each paragraph and item, including after CRLF', async () => {
+    const answer = checkReply(
+      '位置编码把顺序告诉模型。[1] 它有用。[推断]\n接下来呢？\r\n \r\n这里是第二段。[推断]\n- 第一项。[1] 它有用。[推断]\n- 第二项。[1]\n\n最后呢？',
+      await offered(),
+      simulated,
+    )
+    expect(answer.segments.map(({ block, citations }) => [block, citations])).toEqual([
+      ['paragraph', [1]],
+      [undefined, []],
+      [undefined, []],
+      ['paragraph', []],
+      ['item', [1]],
+      [undefined, []],
+      ['item', [1]],
+      ['paragraph', []],
+    ])
+  })
+
+  it('preserves balanced bold, drops a dangling marker and checks the same plain evidence', () => {
+    const citation = {
+      n: 1,
+      materialId: 'm',
+      title: 'a.txt',
+      materialVersion: 1,
+      start: 10,
+      end: 27,
+      line: 1,
+      quote: 'Position encoding. It signals order.',
+    }
+    const plain = checkReply('Position encoding. It signals order.[1]', [citation], simulated)
+    const styled = checkReply(
+      '**Position encoding. It** signals **order.[1]',
+      [citation],
+      simulated,
+    )
+    expect(styled.segments.map(({ text }) => text)).toEqual([
+      '**Position encoding.**',
+      '**It** signals order.',
+    ])
+    expect(styled.segments[1]?.evidence).toBeDefined()
+    expect(styled.segments.map(({ text: _text, ...segment }) => segment)).toEqual(
+      plain.segments.map(({ text: _text, ...segment }) => segment),
+    )
+    expect(answerText(styled)).toBe('Position encoding.[推断]\nIt signals order.[1]')
   })
 
   it('keeps what was answered when the model says only part of it is covered', async () => {

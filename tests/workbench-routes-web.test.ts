@@ -284,11 +284,17 @@ describe.skipIf(browser === undefined)('addresses in a browser', () => {
     })
     const title = main().getByRole('button', { name: '编码笔记.md', exact: true })
     await title.waitFor()
+    await main().getByRole('button', { name: '去提问' }).waitFor()
+    expect(page.url()).toMatch(/#\/spaces\/[^/]+\/materials$/)
     await main()
       .getByText(/^Markdown，\d+ 字，\d+ 段，/)
       .waitFor()
     await page.getByRole('button', { name: '材料（1）' }).waitFor()
 
+    await main().getByRole('button', { name: '去提问' }).click()
+    await page.waitForURL(/#\/spaces\/[^/]+\/new$/)
+    await main().getByLabel('你的问题').waitFor()
+    await page.getByRole('button', { name: '材料（1）' }).click()
     await page.reload()
     await title.click()
     await page.locator('.side').getByText('位置编码把序列的顺序').first().waitFor()
@@ -302,7 +308,10 @@ describe.skipIf(browser === undefined)('addresses in a browser', () => {
 
   it('says how to connect an agent, with an address that answers MCP', async () => {
     await newSpace('机器学习')
-    await page.locator('.shelf-foot').getByRole('button', { name: '接入 Agent' }).click()
+    const footer = page.locator('.shelf-foot')
+    expect(await footer.getByRole('button', { name: '接入 Agent' }).count()).toBe(0)
+    await footer.locator('summary', { hasText: '更多' }).click()
+    await footer.getByRole('button', { name: '接入 Agent' }).click()
     await page.waitForURL(/#\/connect$/)
     await main().getByRole('heading', { name: '接入 Agent' }).waitFor()
 

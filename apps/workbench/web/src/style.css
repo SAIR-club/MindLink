@@ -448,6 +448,23 @@ body[data-resizing="true"] {
   border-top: 1px solid var(--rule);
 }
 
+.shelf-more summary::before {
+  width: 5px;
+  height: 5px;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  content: "";
+  transform: rotate(-45deg);
+}
+
+.shelf-more[open] summary::before {
+  transform: rotate(45deg);
+}
+
+.shelf-more > button {
+  padding-left: 21px;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -697,6 +714,10 @@ button:disabled {
   opacity: 0;
 }
 
+.materials .upload + button {
+  margin-left: 8px;
+}
+
 .hidden-input {
   display: none;
 }
@@ -817,9 +838,17 @@ button:disabled {
   line-height: 1.85;
 }
 
-/* The one loud mark on the page: what the material does not support. */
+.answer + .answer {
+  margin-top: 0.65em;
+}
+
+ul.answer {
+  padding-left: 1.4em;
+  list-style: disc;
+}
+
 .inferred {
-  text-decoration: underline wavy var(--red) 1px;
+  text-decoration: underline dotted var(--ink-faint) 1px;
   text-underline-offset: 5px;
 }
 
@@ -883,8 +912,9 @@ button:disabled {
 
 /* The one raised thing on the page: where the next words are written. */
 .composer {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: end;
   gap: 8px;
   width: min(760px, calc(100% - 48px));
   margin: 0 auto 18px;
@@ -897,6 +927,15 @@ button:disabled {
 
 .composer button[type="submit"] {
   border-radius: 9px;
+}
+
+.composer-status {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+}
+
+.composer-status:empty {
+  position: absolute;
 }
 
 .composer:focus-within {

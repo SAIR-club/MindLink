@@ -9,7 +9,7 @@ const KIND: Readonly<Record<string, string>> = {
   pdf: 'PDF',
 }
 
-const ACCEPT = '.txt,.md,.markdown,.pdf'
+export const MATERIAL_ACCEPT = '.txt,.md,.markdown,.pdf'
 
 function sizeWords(material: MaterialSummary): string {
   const characters =
@@ -33,10 +33,12 @@ export function MaterialsPage(props: {
   guard: (work: () => Promise<unknown>) => void
   onChanged: () => Promise<void>
   onOpen: (material: MaterialSummary) => void
+  onAsk: () => void
 }) {
   const { space, materials, guard } = props
   const [uploading, setUploading] = useState(false)
   const [note, setNote] = useState<string>()
+  const [addedFirst, setAddedFirst] = useState(false)
   const [armedDelete, setArmedDelete] = useState<string>()
   const replaceTarget = useRef<string | undefined>(undefined)
   const replaceInput = useRef<HTMLInputElement>(null)
@@ -51,6 +53,7 @@ export function MaterialsPage(props: {
         for (const file of chosen) {
           const { duplicate } = await api.upload(space.id, file)
           if (duplicate) setNote(`“${file.name}”的内容已经在这个空间里了。`)
+          else if (materials.length === 0) setAddedFirst(true)
         }
       } finally {
         setUploading(false)
@@ -124,7 +127,7 @@ export function MaterialsPage(props: {
           <input
             type="file"
             multiple
-            accept={ACCEPT}
+            accept={MATERIAL_ACCEPT}
             disabled={uploading}
             onChange={(event) => {
               upload(event.target.files)
@@ -132,6 +135,11 @@ export function MaterialsPage(props: {
             }}
           />
         </label>
+      )}
+      {addedFirst && materials.length > 0 && !space.archived && (
+        <button type="button" className="secondary" onClick={props.onAsk}>
+          去提问
+        </button>
       )}
       {note !== undefined && <p className="hint">{note}</p>}
       {materials.length > 0 && (
@@ -142,7 +150,7 @@ export function MaterialsPage(props: {
         className="hidden-input"
         type="file"
         aria-label="选择新版本文件"
-        accept={ACCEPT}
+        accept={MATERIAL_ACCEPT}
         onChange={(event) => {
           const file = event.target.files?.[0]
           const id = replaceTarget.current

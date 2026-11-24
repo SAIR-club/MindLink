@@ -553,7 +553,7 @@ export const api = {
       space,
       fileName: file.name,
       contentBase64: await base64Of(file),
-    }) as Promise<{ id: string; duplicate: boolean }>
+    }) as Promise<{ id: string; duplicate: boolean; materials: readonly MaterialSummary[] }>
   },
   async replace(id: string, file: File) {
     return scene('/materials/replace', {
