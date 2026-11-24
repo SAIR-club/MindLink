@@ -329,16 +329,6 @@ body[data-resizing="true"] {
   font-weight: 600;
 }
 
-.plan-form-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.shelf .plan-form-actions .link {
-  margin: 0;
-}
-
 .shelf-empty {
   margin: 2px 8px;
   font-size: 12.5px;
@@ -1237,11 +1227,47 @@ mark {
 }
 
 /* A plan: what lies ahead, and the one thing to do now. */
+.plan-dialog {
+  width: min(420px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  padding: 24px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 16px 48px #0004;
+}
+
+.plan-dialog::backdrop {
+  background: #0006;
+}
+
+.shelf .plan-dialog h2 {
+  margin: 0 0 16px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .plan-form {
   display: grid;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 0 0 0 8px;
+  gap: 12px;
+}
+
+.plan-form .hint {
+  margin: 0;
+}
+
+.plan-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+  margin: 4px 0 0;
+}
+
+.shelf .plan-form-actions .link {
+  margin: 0;
 }
 
 .minutes {
@@ -1800,6 +1826,11 @@ li[data-status="skipped"] > span:first-child {
   transition: opacity 0.2s;
 }
 
+.knowledge-graph :is(.map-hub, .map-node):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .knowledge-graph .map-topic rect {
   fill: var(--marker);
   stroke: none;
@@ -1828,7 +1859,7 @@ li[data-status="skipped"] > span:first-child {
   transition: opacity 0.2s;
 }
 
-.knowledge-graph .map-node circle {
+.knowledge-graph .map-node circle:not(.halo, .map-hit) {
   transform-box: fill-box;
   transform-origin: center;
   animation: graph-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
@@ -1841,7 +1872,11 @@ li[data-status="skipped"] > span:first-child {
   }
 }
 
-.knowledge-graph .map-node circle:not(.halo, .badge) {
+.knowledge-graph .map-node .map-hit {
+  fill: transparent;
+}
+
+.knowledge-graph .map-node circle:not(.halo, .badge, .map-hit) {
   fill: var(--accent);
   stroke: var(--paper);
   stroke-width: 2;
@@ -1854,11 +1889,7 @@ li[data-status="skipped"] > span:first-child {
   transition: opacity 0.2s;
 }
 
-.knowledge-graph .map-node:is([data-hovered="true"], [data-selected="true"]) .halo {
-  opacity: 1;
-}
-
-.knowledge-graph .map-node[data-state="pending"] circle:not(.halo, .badge) {
+.knowledge-graph .map-node[data-state="pending"] circle:not(.halo, .badge, .map-hit) {
   fill: var(--paper);
   stroke: var(--wait);
   stroke-width: 1.6;
@@ -1869,16 +1900,20 @@ li[data-status="skipped"] > span:first-child {
   fill: color-mix(in srgb, var(--wait) 16%, transparent);
 }
 
-.knowledge-graph .map-node[data-state="conflict"] circle:not(.halo, .badge) {
+.knowledge-graph .map-node[data-state="conflict"] circle:not(.halo, .badge, .map-hit) {
   fill: var(--red);
 }
 
 .knowledge-graph .map-node[data-state="conflict"] .halo {
-  fill: color-mix(in srgb, var(--red) 18%, transparent);
+  fill: color-mix(in srgb, var(--red) 24%, transparent);
+  opacity: 0.55;
+}
+
+.knowledge-graph .map-node:is([data-hovered="true"], [data-selected="true"]) .halo {
   opacity: 1;
 }
 
-.knowledge-graph .map-node[data-state="past"] circle:not(.halo, .badge) {
+.knowledge-graph .map-node[data-state="past"] circle:not(.halo, .badge, .map-hit) {
   fill: var(--paper);
   stroke: var(--ink-faint);
   stroke-width: 1.4;
@@ -1892,7 +1927,7 @@ li[data-status="skipped"] > span:first-child {
 
 .knowledge-graph .map-node text {
   fill: var(--ink);
-  font-size: 11.5px;
+  font-size: 12px;
   paint-order: stroke;
   stroke: var(--paper);
   stroke-width: 4px;
@@ -1909,9 +1944,30 @@ li[data-status="skipped"] > span:first-child {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .knowledge-graph .map-node circle {
+  .knowledge-graph :is(.map-edge, .map-hub, .map-node, .halo) {
+    transition: none;
+  }
+
+  .knowledge-graph .map-node circle:not(.halo, .map-hit) {
     animation: none;
   }
+}
+
+.graph-tooltip {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 16px);
+  padding: 5px 10px;
+  transform: translateX(-50%);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  pointer-events: none;
 }
 
 .graph-tools {

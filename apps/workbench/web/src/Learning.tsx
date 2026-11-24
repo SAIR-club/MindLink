@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import {
   api,
   type AnsweredAttempt,
@@ -75,8 +75,9 @@ export function PlanShelf(props: {
   const [minutes, setMinutes] = useState('60')
   const [workflow, setWorkflow] = useState('speedrun')
   const [creating, setCreating] = useState(false)
-  // The form waits behind a link, so the sidebar stays a list of conversations.
-  const [adding, setAdding] = useState(false)
+  const [problem, setProblem] = useState<string>()
+  const dialog = useRef<HTMLDialogElement>(null)
+  const heading = useId()
   const chosen = workflows.find((candidate) => candidate.id === workflow)
 
   const create = (event: FormEvent): void => {
@@ -84,12 +85,16 @@ export function PlanShelf(props: {
     const wanted = topic.trim()
     if (wanted === '' || creating) return
     setCreating(true)
+    setProblem(undefined)
     props.guard(async () => {
       try {
         const { plan, notice } = await props.onCreate(wanted, Number(minutes), workflow)
         setTopic('')
-        setAdding(false)
+        dialog.current?.close()
         props.onCreated(plan, notice)
+      } catch (error) {
+        setProblem(messageOf(error))
+        throw error
       } finally {
         setCreating(false)
       }
@@ -120,53 +125,71 @@ export function PlanShelf(props: {
         props.plans.length > 0 ? null : (
           <p className="hint">上传材料后，可以生成学习计划。</p>
         )
-      ) : !adding ? (
-        <button type="button" className="link" onClick={() => setAdding(true)}>
-          新建学习计划
-        </button>
       ) : (
-        <form className="plan-form" onSubmit={create}>
-          <input
-            aria-label="想学什么"
-            placeholder="想学什么"
-            value={topic}
-            onChange={(event) => setTopic(event.target.value)}
-          />
-          <label className="minutes">
-            可用时间
-            <input
-              type="number"
-              min={5}
-              max={600}
-              value={minutes}
-              onChange={(event) => setMinutes(event.target.value)}
-            />
-            分钟
-          </label>
-          <fieldset className="modes">
-            <legend className="visually-hidden">学习方式</legend>
-            {workflows.map((candidate) => (
-              <label key={candidate.id}>
+        <>
+          <button
+            type="button"
+            className="link"
+            aria-haspopup="dialog"
+            onClick={(event) => {
+              event.currentTarget.focus()
+              setProblem(undefined)
+              dialog.current?.showModal()
+            }}
+          >
+            新建学习计划
+          </button>
+          <dialog className="plan-dialog" ref={dialog} aria-labelledby={heading}>
+            <h2 id={heading}>新建学习计划</h2>
+            <form className="plan-form" onSubmit={create}>
+              <input
+                aria-label="想学什么"
+                placeholder="想学什么"
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+              />
+              <label className="minutes">
+                可用时间
                 <input
-                  type="radio"
-                  name="workflow"
-                  checked={candidate.id === workflow}
-                  onChange={() => setWorkflow(candidate.id)}
+                  type="number"
+                  min={5}
+                  max={600}
+                  value={minutes}
+                  onChange={(event) => setMinutes(event.target.value)}
                 />
-                {candidate.title}
+                分钟
               </label>
-            ))}
-          </fieldset>
-          {chosen !== undefined && <p className="hint">{chosen.description}</p>}
-          <p className="plan-form-actions">
-            <button type="submit" disabled={creating || topic.trim() === ''}>
-              {creating ? '正在拟计划…' : '生成计划'}
-            </button>
-            <button type="button" className="link" onClick={() => setAdding(false)}>
-              取消
-            </button>
-          </p>
-        </form>
+              <fieldset className="modes">
+                <legend className="visually-hidden">学习方式</legend>
+                {workflows.map((candidate) => (
+                  <label key={candidate.id}>
+                    <input
+                      type="radio"
+                      name="workflow"
+                      checked={candidate.id === workflow}
+                      onChange={() => setWorkflow(candidate.id)}
+                    />
+                    {candidate.title}
+                  </label>
+                ))}
+              </fieldset>
+              {chosen !== undefined && <p className="hint">{chosen.description}</p>}
+              {problem !== undefined && (
+                <p className="banner banner-error" role="alert">
+                  {problem}
+                </p>
+              )}
+              <p className="plan-form-actions">
+                <button type="submit" disabled={creating || topic.trim() === ''}>
+                  {creating ? '正在生成计划…' : '生成计划'}
+                </button>
+                <button type="button" className="link" onClick={() => dialog.current?.close()}>
+                  取消
+                </button>
+              </p>
+            </form>
+          </dialog>
+        </>
       )}
     </section>
   )

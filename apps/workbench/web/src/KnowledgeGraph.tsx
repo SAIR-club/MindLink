@@ -55,6 +55,8 @@ export interface GraphEdge {
 
 interface Point extends SimulationNodeDatum {
   readonly item: GraphItem
+  readonly lines: readonly string[]
+  readonly labelWidth: number
   /** How many relations meet here: an item many others bear on is drawn larger. */
   readonly degree: number
 }
@@ -67,6 +69,7 @@ type Link = SimulationLinkDatum<Point> & {
 
 const MIN_SCALE = 0.3
 const MAX_SCALE = 3
+const LABEL_STEP = 15
 const ARROWED = new Set(['evolves_to', 'forks_from', 'forks'])
 const STRUCTURAL = new Set(['belongs', 'part'])
 
@@ -79,14 +82,42 @@ function labelWidth(label: string, size: number): number {
   return width
 }
 
-function shortened(label: string, room: number): string {
-  return label.length > room ? `${label.slice(0, room)}…` : label
+function labelLines(label: string): readonly string[] {
+  const chars = Array.from(label)
+  const first = chars.slice(0, 16).join('')
+  if (chars.length <= 16) return [first]
+  return [first, chars.length > 32 ? `${chars.slice(16, 31).join('')}…` : chars.slice(16).join('')]
+}
+
+function GraphLabel(props: {
+  readonly lines: readonly string[]
+  readonly x: number
+  readonly y: number
+}) {
+  const {
+    lines: [first, second],
+    x,
+    y,
+  } = props
+  return (
+    <text x={x} y={y} textAnchor="middle">
+      {first}
+      {second !== undefined && (
+        <tspan x={x} dy={LABEL_STEP}>
+          {second}
+        </tspan>
+      )}
+    </text>
+  )
 }
 
 function radiusOf(point: Point): number {
   if (kindOf(point.item) !== 'item') return 0
-  return Math.min(11, 5 + point.degree * 1.6) + (point.item.focus === true ? 1 : 0)
+  return Math.min(14, 8 + point.degree * 1.6) + (point.item.focus === true ? 1 : 0)
 }
+
+const prefersReducedMotion = (): boolean =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
 
 /** A gentle bow, so lines that meet at an item can be told apart and the drawing reads as hand-made. */
 function arc(source: Point, target: Point, bend: number): string {
@@ -113,6 +144,8 @@ export function KnowledgeGraph(props: {
   const { width, height } = size
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
   const [hovered, setHovered] = useState<string>()
+  const [focused, setFocused] = useState<string>()
+  const highlighted = hovered ?? focused
   const [, setFrame] = useState(0)
   const simulation = useRef<Simulation<Point, Link> | undefined>(undefined)
   /** Where each item was, so a change to the understanding does not throw the whole drawing around. */
@@ -145,7 +178,15 @@ export function KnowledgeGraph(props: {
     }
     const points: Point[] = items.map((item) => {
       const was = placed.current.get(item.id)
-      const at = { item, degree: degree.get(item.id) ?? 0 }
+      const lines = labelLines(item.label)
+      const at = {
+        item,
+        lines,
+        labelWidth: Math.max(
+          ...lines.map((line) => labelWidth(line, item.kind === 'material' ? 13 : 12)),
+        ),
+        degree: degree.get(item.id) ?? 0,
+      }
       return was === undefined ? at : { ...at, x: was.x, y: was.y }
     })
     // Ends as the points themselves, so the first drawing, before the layout starts, already has them.
@@ -159,21 +200,35 @@ export function KnowledgeGraph(props: {
     })
     return { points, links }
   }, [items, edges])
+  const sparse = points.length <= 5
 
   /** Frames everything, until the person has moved or zoomed the drawing themselves. */
   const fit = useRef<() => void>(() => undefined)
   fit.current = (): void => {
     if (touched.current || points.length === 0) return
-    const xs = points.map((point) => point.x ?? width / 2)
-    const ys = points.map((point) => point.y ?? height / 2)
-    // Room for the labels, which run sideways from each point and sit below it.
-    const left = Math.min(...xs) - 64
-    const right = Math.max(...xs) + 64
-    const top = Math.min(...ys) - 28
-    const bottom = Math.max(...ys) + 34
+    const bounds = points.map((point) => {
+      const x = point.x ?? width / 2
+      const y = point.y ?? height / 2
+      const r = radiusOf(point)
+      const extraLine = (point.lines.length - 1) * LABEL_STEP
+      const hub = kindOf(point.item) !== 'item'
+      const half = Math.max(20, r + 8, point.labelWidth / 2 + 8)
+      const above = hub ? 11 + extraLine / 2 : Math.max(20, r + 8)
+      const below = hub ? above : r + 19 + extraLine
+      return {
+        left: x - half,
+        right: x + half,
+        top: y - above,
+        bottom: y + below,
+      }
+    })
+    const left = Math.min(...bounds.map((bound) => bound.left))
+    const right = Math.max(...bounds.map((bound) => bound.right))
+    const top = Math.min(...bounds.map((bound) => bound.top))
+    const bottom = Math.max(...bounds.map((bound) => bound.bottom))
     const k = Math.min(
       1.25,
-      Math.max(MIN_SCALE, Math.min(width / (right - left), height / (bottom - top))),
+      Math.max(MIN_SCALE, Math.min((width - 32) / (right - left), (height - 48) / (bottom - top))),
     )
     setView({
       k,
@@ -183,9 +238,6 @@ export function KnowledgeGraph(props: {
   }
 
   useEffect(() => {
-    const still =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const sim = forceSimulation(points)
       .force(
         'charge',
@@ -214,9 +266,8 @@ export function KnowledgeGraph(props: {
         'collide',
         forceCollide<Point>((point) =>
           kindOf(point.item) === 'item'
-            ? // Room for the label it carries, which runs sideways from it.
-              Math.max(16, labelWidth(shortened(point.item.label, 9), 11.5) / 2 - 6)
-            : labelWidth(point.item.label, 12) / 2 + 12,
+            ? Math.max(24, point.labelWidth / 2)
+            : point.labelWidth / 2 + 12,
         ),
       )
     simulation.current = sim
@@ -228,29 +279,28 @@ export function KnowledgeGraph(props: {
         }
       }
     }
-    if (still) {
+    if (prefersReducedMotion() || sparse) {
       sim.stop().tick(300)
       keep()
       fit.current()
       setFrame((count) => count + 1)
-    } else {
-      sim.on('tick', () => {
-        keep()
-        if (frame === 0) {
-          frame = requestAnimationFrame(() => {
-            frame = 0
-            // The frame follows the layout as it settles, so nothing is ever drawn out of view.
-            fit.current()
-            setFrame((count) => count + 1)
-          })
-        }
-      })
     }
+    sim.on('tick', () => {
+      keep()
+      if (frame === 0) {
+        frame = requestAnimationFrame(() => {
+          frame = 0
+          // The frame follows the layout as it settles, so nothing is ever drawn out of view.
+          fit.current()
+          setFrame((count) => count + 1)
+        })
+      }
+    })
     return () => {
       sim.stop()
       if (frame !== 0) cancelAnimationFrame(frame)
     }
-  }, [points, links, width, height])
+  }, [points, links, sparse, width, height])
 
   /** From a pointer on the screen to the drawing's own coordinates. */
   const toGraph = (clientX: number, clientY: number): { x: number; y: number } => {
@@ -271,7 +321,7 @@ export function KnowledgeGraph(props: {
     // The point under the pointer stays under it.
     const to = { k, x: px - ((px - from.x) / from.k) * k, y: py - ((py - from.y) / from.k) * k }
     cancelAnimationFrame(easing.current)
-    if (!smooth) {
+    if (!smooth || prefersReducedMotion()) {
       setView(to)
       return
     }
@@ -339,7 +389,14 @@ export function KnowledgeGraph(props: {
       const at = toGraph(step.clientX, step.clientY)
       point.fx = at.x
       point.fy = at.y
-      simulation.current?.alphaTarget(0.3).restart()
+      if (prefersReducedMotion()) {
+        point.x = at.x
+        point.y = at.y
+        placed.current.set(point.item.id, at)
+        setFrame((count) => count + 1)
+      } else {
+        simulation.current?.alphaTarget(0.3).restart()
+      }
     }
     const stop = (): void => {
       target.removeEventListener('pointermove', move)
@@ -356,14 +413,14 @@ export function KnowledgeGraph(props: {
   }
 
   const near = useMemo(() => {
-    if (hovered === undefined) return undefined
-    const lit = new Set([hovered])
+    if (highlighted === undefined) return undefined
+    const lit = new Set([highlighted])
     for (const link of links) {
-      if (link.source.item.id === hovered) lit.add(link.target.item.id)
-      if (link.target.item.id === hovered) lit.add(link.source.item.id)
+      if (link.source.item.id === highlighted) lit.add(link.target.item.id)
+      if (link.target.item.id === highlighted) lit.add(link.source.item.id)
     }
     return lit
-  }, [hovered, links])
+  }, [highlighted, links])
 
   if (items.length === 0) return null
   const understood = items.filter((item) => kindOf(item) === 'item')
@@ -372,20 +429,9 @@ export function KnowledgeGraph(props: {
     { held: 0, pending: 0, conflict: 0, challenged: 0, past: 0 },
   )
   const relations = links.filter((link) => !STRUCTURAL.has(link.type)).length
-  // Words for items come in as the drawing grows, so a zoomed-out view is a shape, not a wall of text.
-  // In a narrow pane only a pointed-at item says its words; the shape and the section headings carry the rest.
-  const room =
-    width < 520
-      ? view.k >= 1.8 || understood.length <= 8
-        ? 8
-        : -1
-      : view.k >= 1.5
-        ? 24
-        : view.k >= 1
-          ? 12
-          : view.k >= 0.7
-            ? 7
-            : 0
+  // Leave the heading labels visible when a zoomed-out drawing is too dense to read all its words.
+  const showLabels = understood.length <= 8 || view.k >= (width < 520 ? 1.8 : 0.7)
+  const tooltip = items.find((item) => item.id === highlighted)?.label
   return (
     <figure className="map knowledge-graph" data-fill={props.height === undefined}>
       <div
@@ -396,7 +442,7 @@ export function KnowledgeGraph(props: {
         <svg
           width={width}
           height={height}
-          role="img"
+          role="group"
           aria-label={`理解图谱：${understood.length} 条理解，${relations} 条关系。结构视图里有同样的内容。`}
           onWheel={wheel}
         >
@@ -404,7 +450,7 @@ export function KnowledgeGraph(props: {
             <marker
               id="graph-arrow"
               viewBox="0 0 8 8"
-              refX="15"
+              refX="19"
               refY="4"
               markerWidth="6"
               markerHeight="6"
@@ -432,67 +478,78 @@ export function KnowledgeGraph(props: {
               )
             })}
             {points.map((point) => {
-              const { item } = point
+              const { item, lines } = point
               const kind = kindOf(item)
               const lit = near === undefined || near.has(item.id)
               const x = point.x ?? width / 2
               const y = point.y ?? height / 2
               if (kind !== 'item') {
-                const size = kind === 'material' ? 13 : 12
-                const words = shortened(item.label, kind === 'material' ? 16 : 14)
-                const w = labelWidth(words, size) + 14
+                const w = point.labelWidth + 14
+                const h = 22 + (lines.length - 1) * LABEL_STEP
                 return (
-                  // biome-ignore lint: the structure view is the keyboard path to the same items
                   <g
                     key={item.id}
                     className={`map-hub map-${kind}`}
+                    role="img"
+                    aria-label={item.label}
+                    tabIndex={0}
                     data-dim={!lit}
-                    // Headings keep a readable size however far out the drawing is zoomed, as on a map.
+                    // Headings on dense maps stay legible as the drawing zooms out.
                     transform={
-                      view.k < 1
+                      !sparse && view.k < 1
                         ? `translate(${x} ${y}) scale(${Math.min(1 / view.k, 2.4)}) translate(${-x} ${-y})`
                         : undefined
                     }
                     onPointerDown={(event) => drag(event, point)}
                     onPointerEnter={() => setHovered(item.id)}
                     onPointerLeave={() => setHovered(undefined)}
+                    onFocus={() => {
+                      setHovered(undefined)
+                      setFocused(item.id)
+                    }}
+                    onBlur={() => setFocused(undefined)}
                   >
-                    <title>{item.label}</title>
                     <rect
                       x={x - w / 2}
-                      y={y - 11}
+                      y={y - h / 2}
                       width={w}
-                      height={22}
+                      height={h}
                       rx={kind === 'material' ? 4 : 2}
                     />
-                    <text x={x} y={y + 4} textAnchor="middle">
-                      {words}
-                    </text>
+                    <GraphLabel lines={lines} x={x} y={y - h / 2 + 15} />
                   </g>
                 )
               }
               const r = radiusOf(point)
-              const showing =
-                hovered === item.id || item.id === props.selected
-                  ? item.label
-                  : room < 0 || (room === 0 && item.focus !== true)
-                    ? ''
-                    : shortened(item.label, room === 0 ? 6 : room)
+              const showing = showLabels || highlighted === item.id || item.id === props.selected
               return (
-                // biome-ignore lint: the structure view is the keyboard path to the same items
                 <g
                   key={item.id}
                   className="map-node"
+                  role="button"
+                  aria-label={item.label}
+                  tabIndex={0}
                   data-state={item.state}
                   data-dim={!lit}
-                  data-hovered={hovered === item.id}
+                  data-hovered={highlighted === item.id}
                   data-selected={item.id === props.selected}
                   onPointerDown={(event) => drag(event, point)}
                   onPointerEnter={() => setHovered(item.id)}
                   onPointerLeave={() => setHovered(undefined)}
+                  onFocus={() => {
+                    setHovered(undefined)
+                    setFocused(item.id)
+                  }}
+                  onBlur={() => setFocused(undefined)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      props.onSelect(item)
+                    }
+                  }}
                 >
-                  <title>{item.label}</title>
-                  <circle className="halo" cx={x} cy={y} r={r + 6} />
+                  <circle className="map-hit" cx={x} cy={y} r={Math.max(20, r + 8)} />
+                  <circle className="halo" cx={x} cy={y} r={r + 8} />
                   <circle
                     cx={x}
                     cy={y}
@@ -503,16 +560,17 @@ export function KnowledgeGraph(props: {
                   {item.state === 'challenged' && (
                     <circle className="badge" cx={x + r * 0.75} cy={y - r * 0.75} r={3} />
                   )}
-                  {showing !== '' && (
-                    <text x={x} y={y + r + 13} textAnchor="middle">
-                      {showing}
-                    </text>
-                  )}
+                  {showing && <GraphLabel lines={lines} x={x} y={y + r + 15} />}
                 </g>
               )
             })}
           </g>
         </svg>
+        {tooltip !== undefined && (
+          <div className="graph-tooltip" role="tooltip">
+            {tooltip}
+          </div>
+        )}
         <div className="graph-tools">
           <button
             type="button"
@@ -536,7 +594,13 @@ export function KnowledgeGraph(props: {
             aria-label="重新排列并全部显示"
             onClick={() => {
               touched.current = false
-              simulation.current?.alpha(0.5).restart()
+              const sim = simulation.current?.alpha(0.5)
+              if (prefersReducedMotion()) {
+                sim?.stop().tick(300)
+                setFrame((count) => count + 1)
+              } else {
+                sim?.restart()
+              }
               fit.current()
             }}
           >
