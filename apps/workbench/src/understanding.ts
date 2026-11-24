@@ -230,11 +230,12 @@ export function topicsAt(
     if (answer === undefined || answer.citations.length === 0) continue
     const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))
     const material = answer.segments.filter((segment) => segment.basis === 'material')
+    // A segment may carry `**` around a key term; the item's own words never do.
     const matching = source
-      ? material.filter(
-          ({ text }) =>
-            source.includes(text) || text.includes(source) || coverage(text, source) >= 0.5,
-        )
+      ? material.filter(({ text: shown }) => {
+          const text = shown.replaceAll('**', '')
+          return source.includes(text) || text.includes(source) || coverage(text, source) >= 0.5
+        })
       : []
     // Count the sentences that rest on each part, so the most cited part comes first.
     const counted = new Map<string, { topic: Topic; count: number }>()
