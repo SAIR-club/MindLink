@@ -367,6 +367,7 @@ export interface ModelInfo {
   readonly model?: string
   readonly hasKey?: boolean
   readonly reasoningEffort?: string
+  readonly onlyMaterial?: boolean
 }
 
 export type ModelChange =
@@ -490,6 +491,7 @@ export const api = {
     model: string
     apiKey?: string
     reasoningEffort?: string
+    onlyMaterial?: boolean
   }) => scene('/model/settings', settings) as Promise<ModelChange>,
   clearModel: () => scene('/model/clear', {}) as Promise<ModelChange>,
   agents: () =>

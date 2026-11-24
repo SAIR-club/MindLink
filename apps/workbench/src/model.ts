@@ -22,6 +22,8 @@ export interface ModelClient {
   readonly name: string
   /** True when no language model is involved, so a surface can say so. */
   readonly simulated: boolean
+  /** The workbench may limit answers to the supplied material. */
+  readonly onlyMaterial?: boolean
   complete(messages: readonly ModelMessage[]): Promise<ModelReply>
 }
 

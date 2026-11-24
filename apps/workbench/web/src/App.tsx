@@ -57,7 +57,7 @@ import {
 } from './routes.js'
 import { AgentTurn, LearnerTurn, Links, messageOf } from './Turns.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
-import { UnderstandingPanel, wordsOf } from './Understanding.js'
+import { reviewRationale, UnderstandingPanel, wordsOf } from './Understanding.js'
 import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 import { VisionDesk } from './Vision.js'
 
@@ -2317,6 +2317,9 @@ function PendingList(props: {
   onDecided: () => Promise<void>
 }) {
   const waiting = withWaitingLinks(props.pending)
+  const shown = waiting.slice(0, props.limit ?? waiting.length)
+  const ready = shown.filter(({ candidate }) => candidate.link?.ready !== false)
+  const [confirming, setConfirming] = useState(false)
   if (waiting.length === 0) {
     return (
       <p className="hint">
@@ -2325,30 +2328,58 @@ function PendingList(props: {
     )
   }
   return (
-    <ul className="pending">
-      {waiting.slice(0, props.limit ?? waiting.length).map(({ candidate, links }) => (
-        <PendingItem
-          key={candidate.id}
-          candidate={candidate}
-          links={links}
-          guard={props.guard}
-          onDecided={props.onDecided}
-        />
-      ))}
-    </ul>
+    <>
+      {ready.length >= 2 && (
+        <button
+          type="button"
+          className="secondary"
+          disabled={confirming}
+          onClick={() => {
+            setConfirming(true)
+            props.guard(async () => {
+              try {
+                for (const { candidate } of ready) await api.accept(candidate.id)
+              } finally {
+                try {
+                  await props.onDecided()
+                } finally {
+                  setConfirming(false)
+                }
+              }
+            })
+          }}
+        >
+          全部确认（{ready.length}）
+        </button>
+      )}
+      <ul className="pending">
+        {shown.map(({ candidate, links }) => (
+          <PendingItem
+            key={candidate.id}
+            candidate={candidate}
+            links={links}
+            disabled={confirming}
+            guard={props.guard}
+            onDecided={props.onDecided}
+          />
+        ))}
+      </ul>
+    </>
   )
 }
 
 function PendingItem(props: {
   candidate: PendingCandidate
   links: readonly PendingCandidate[]
+  disabled: boolean
   guard: (work: () => Promise<unknown>) => void
   onDecided: () => Promise<void>
 }) {
-  const { candidate, links: waitingLinks, guard, onDecided } = props
+  const { candidate, links: waitingLinks, disabled, guard, onDecided } = props
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState(candidate.proposal.label ?? '')
   const { link, state } = candidate
+  const rationale = reviewRationale(candidate.rationale)
   const decide = (work: () => Promise<unknown>): void => {
     guard(async () => {
       await work()
@@ -2363,14 +2394,19 @@ function PendingItem(props: {
           <span className="hint">把{state.dimension}记为：</span>
           {state.level}
         </p>
-        <p className="hint">{candidate.rationale}</p>
+        {rationale !== '' && <p className="hint">{rationale}</p>}
         <p className="decisions">
-          <button type="button" onClick={() => decide(() => api.accept(candidate.id))}>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => decide(() => api.accept(candidate.id))}
+          >
             同意，记下来
           </button>
           <button
             type="button"
             className="link"
+            disabled={disabled}
             onClick={() => decide(() => api.dismiss(candidate.id))}
           >
             不同意
@@ -2393,12 +2429,12 @@ function PendingItem(props: {
           <span className="relation-words">{relation}</span>
           {link.toLabel}
         </p>
-        <p className="hint">{candidate.rationale}</p>
+        {rationale !== '' && <p className="hint">{rationale}</p>}
         {!link.ready && <p className="hint">先确认它连着的两条，才能确认这个关系。</p>}
         <p className="decisions">
           <button
             type="button"
-            disabled={!link.ready}
+            disabled={disabled || !link.ready}
             onClick={() => decide(() => api.accept(candidate.id))}
           >
             确认这个关系
@@ -2406,6 +2442,7 @@ function PendingItem(props: {
           <button
             type="button"
             className="link"
+            disabled={disabled}
             onClick={() => decide(() => api.dismiss(candidate.id))}
           >
             不要
@@ -2427,7 +2464,7 @@ function PendingItem(props: {
         <p className="candidate">{candidate.proposal.label}</p>
       )}
       <p className="hint">
-        {wordsOf(candidate.basis, candidate.wordsBy)}。{candidate.rationale}
+        {wordsOf(candidate.basis, candidate.wordsBy)}。{rationale}
       </p>
       {candidate.similar !== undefined && <p className="hint">和这一条相近：{candidate.similar}</p>}
       {waitingLinks.length > 0 && (
@@ -2435,7 +2472,11 @@ function PendingItem(props: {
           {waitingLinks.map((each) => {
             const { words, other } = linkFrom(each, candidate.id)
             return (
-              <li key={each.id} data-relation={each.proposal.relation} title={each.rationale}>
+              <li
+                key={each.id}
+                data-relation={each.proposal.relation}
+                title={reviewRationale(each.rationale)}
+              >
                 <span className="relation-words">{words}</span>
                 <span className="relation-other">{other}</span>
               </li>
@@ -2447,17 +2488,26 @@ function PendingItem(props: {
         {editing ? (
           <button
             type="button"
-            disabled={label.trim() === ''}
+            disabled={disabled || label.trim() === ''}
             onClick={() => decide(() => api.acceptEdited(candidate, label.trim()))}
           >
             保存为我的理解
           </button>
         ) : (
           <>
-            <button type="button" onClick={() => decide(() => api.accept(candidate.id))}>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => decide(() => api.accept(candidate.id))}
+            >
               确认为我的理解
             </button>
-            <button type="button" className="link" onClick={() => setEditing(true)}>
+            <button
+              type="button"
+              className="link"
+              disabled={disabled}
+              onClick={() => setEditing(true)}
+            >
               改一改
             </button>
           </>
@@ -2465,6 +2515,7 @@ function PendingItem(props: {
         <button
           type="button"
           className="link"
+          disabled={disabled}
           onClick={() => decide(() => api.dismiss(candidate.id))}
         >
           不要

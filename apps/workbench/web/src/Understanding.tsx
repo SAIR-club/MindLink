@@ -39,6 +39,11 @@ export function wordsOf(basis: string | undefined, wordsBy: WordsBy | undefined)
   return wordsBy === 'agent' ? 'Agent 转述' : '来源未记录'
 }
 
+/** Older candidates kept the review page's instructions as part of their rationale. */
+export function reviewRationale(rationale: string): string {
+  return rationale.replace(/确认前它不算你的理解(?:，你也可以改一改再确认)?。$/, '').trim()
+}
+
 function proposedWords(speaker: string, basis: string | undefined, wordsBy: WordsBy | undefined) {
   if (speaker !== 'learner') return '从模型的话里提炼，经你确认。'
   if (wordsBy === 'agent') return 'Agent 转述的话，经你确认。'

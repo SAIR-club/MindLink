@@ -71,6 +71,7 @@ describe('answers', () => {
       hits: store.search('a', 's', '量子纠缠是什么'),
       history: [],
       model,
+      general: false,
     })
     expect(answer.status).toBe('insufficient_evidence')
     expect(answer.segments).toEqual([])
@@ -89,6 +90,7 @@ describe('answers', () => {
       hits,
       history: [],
       model,
+      general: false,
     })
     expect(answer.status).toBe('insufficient_evidence')
     expect(model.calls).toBe(0)
@@ -137,14 +139,59 @@ describe('answers', () => {
 
   it('reports what the model itself says it cannot answer', async () => {
     const store = await storeWith(['编码', '位置编码把顺序告诉模型。'])
+    const model = scripted('[证据不足]')
     const answer = await answerFrom({
       question: '位置编码是谁发明的',
       hits: store.search('a', 's', '位置编码是谁发明的'),
       history: [],
-      model: scripted('[证据不足]'),
+      model,
+      general: false,
     })
     expect(answer.status).toBe('insufficient_evidence')
+    expect(model.calls).toBe(1)
   })
+
+  it.each(['no matching passage', 'the model finds no evidence'])(
+    'answers from general knowledge with %s',
+    async (gap) => {
+      const store = await storeWith(['学习笔记', '过拟合影响泛化能力。'])
+      const question = '什么是过拟合？'
+      const hits = gap === 'no matching passage' ? [] : store.search('a', 's', question)
+      const seen: (readonly ModelMessage[])[] = []
+      const model: ModelClient = {
+        name: 'scripted',
+        simulated: false,
+        complete(messages) {
+          seen.push(messages)
+          return Promise.resolve({
+            text:
+              gap === 'the model finds no evidence' && seen.length === 1
+                ? '[证据不足]'
+                : '过拟合会让模型难以泛化。[1]\n你见过这种情况吗？',
+          })
+        },
+      }
+      const recalled = [{ nodeId: 'node', label: '泛化看的是新数据。', conflict: false }]
+      const answer = await answerFrom({ question, hits, history: [], model, recalled })
+      expect(seen).toHaveLength(gap === 'no matching passage' ? 1 : 2)
+      expect(seen.at(-1)?.[0]?.content).toContain('用自己的知识')
+      expect(seen.at(-1)?.at(-1)?.content).toContain('<confirmed>\n- 泛化看的是新数据。')
+      expect(seen.at(-1)?.at(-1)?.content).not.toContain('<excerpt')
+      expect(answer).toMatchObject({
+        status: 'general',
+        recalled,
+        citations: [],
+        invalidCitations: [],
+      })
+      expect(answer.segments).toEqual([
+        { text: '过拟合会让模型难以泛化。', basis: 'inference', citations: [] },
+        { text: '你见过这种情况吗？', basis: 'inference', citations: [] },
+      ])
+      expect(answerText(answer)).toBe(
+        '过拟合会让模型难以泛化。\n你见过这种情况吗？\n（材料里没有讲到，以上是模型自己的知识）',
+      )
+    },
+  )
 
   it('answers across documents, citing each', async () => {
     const store = await storeWith(

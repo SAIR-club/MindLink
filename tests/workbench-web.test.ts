@@ -181,13 +181,17 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
       .waitFor()
   }, 90_000)
 
-  it('marks what the material does not support, and what it cannot answer', async () => {
+  it('marks what the material does not support and shows a general answer when needed', async () => {
     const model: ModelClient = {
       name: 'stub',
       simulated: false,
-      complete: () =>
+      complete: (messages) =>
         Promise.resolve({
-          text: '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
+          text: messages.at(-1)?.content.includes('<question>光合作用')
+            ? messages[0]?.content.includes('用自己的知识')
+              ? '光合作用的暗反应发生在叶绿体基质中。'
+              : '[证据不足]'
+            : '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
         }),
     }
     await open(model)
@@ -201,7 +205,23 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.locator('.sourced', { hasText: '位置编码把序列' }).waitFor()
 
     await ask('光合作用的暗反应在哪里发生')
-    await page.getByText('材料里没有足够的依据').waitFor()
+    await page.getByText('材料里没有讲到这个，下面是模型自己的知识，不是来自你的材料。').waitFor()
+    await page.getByText('光合作用的暗反应发生在叶绿体基质中。', { exact: true }).waitFor()
+  }, 60_000)
+
+  it('confirms all visible candidates from the review page', async () => {
+    await open()
+    await newSpace('机器学习')
+    for (const words of ['位置编码提供顺序信息。', '注意力让词元互相关联。']) {
+      await ask(words)
+      const turn = page.locator('.learner-turn', { hasText: words })
+      await turn.getByRole('button', { name: '这是我的理解' }).click()
+    }
+    await page.getByRole('button', { name: '待确认（2）' }).click()
+    const review = page.locator('.page.review')
+    await review.getByRole('button', { name: '全部确认（2）' }).click()
+    await page.getByRole('button', { name: '我的理解（2）' }).waitFor()
+    await expect.poll(() => review.getByRole('button', { name: '确认为我的理解' }).count()).toBe(0)
   }, 60_000)
 
   it('says why a file is refused, keeps a failed question, and answers it on retry', async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, api, type Space, type UnfiledCandidate } from './api.js'
-import { wordsOf } from './Understanding.js'
+import { reviewRationale, wordsOf } from './Understanding.js'
 
 /**
  * What waits for the person but was proposed outside any space, such as by an agent that named none. Nothing files
@@ -24,15 +24,20 @@ const KIND_NAMES: Readonly<Record<string, string>> = {
   state: '状态',
 }
 
+const acceptUnfiled = (id: string, space: string) =>
+  space === '' ? api.accept(id) : api.acceptInto(id, space)
+
 function UnfiledItem(props: {
   candidate: UnfiledCandidate
   nameOf: (actor: string) => string
   spaces: readonly Space[]
+  space: string
+  onSpace: (space: string) => void
+  disabled: boolean
   guard: (work: () => Promise<unknown>) => void
   onDecided: () => Promise<void>
 }) {
-  const { candidate, guard, onDecided } = props
-  const [space, setSpace] = useState('')
+  const { candidate, space, disabled, guard, onDecided } = props
   const decide = (work: () => Promise<unknown>): void => {
     guard(async () => {
       await work()
@@ -42,11 +47,12 @@ function UnfiledItem(props: {
   const label =
     candidate.proposal.label ?? `${KIND_NAMES[candidate.proposal.kind] ?? candidate.proposal.kind}`
   const open = props.spaces.filter((each) => !each.archived)
+  const rationale = reviewRationale(candidate.rationale)
   return (
     <li>
       <p className="candidate">{label}</p>
       <p className="hint">
-        {wordsOf(candidate.basis, candidate.wordsBy)}。{candidate.rationale}
+        {wordsOf(candidate.basis, candidate.wordsBy)}。{rationale}
       </p>
       {candidate.held === true && (
         <p className="hint">你已经有一条一模一样的理解。不需要的话可以点“不要”。</p>
@@ -68,7 +74,8 @@ function UnfiledItem(props: {
             <select
               aria-label={`为“${label}”选择空间`}
               value={space}
-              onChange={(event) => setSpace(event.target.value)}
+              disabled={disabled}
+              onChange={(event) => props.onSpace(event.target.value)}
             >
               <option value="">不归入任何空间</option>
               {open.map((each) => (
@@ -81,17 +88,15 @@ function UnfiledItem(props: {
         )}
         <button
           type="button"
-          onClick={() =>
-            decide(() =>
-              space === '' ? api.accept(candidate.id) : api.acceptInto(candidate.id, space),
-            )
-          }
+          disabled={disabled}
+          onClick={() => decide(() => acceptUnfiled(candidate.id, space))}
         >
           {space === '' ? '确认为我的理解' : '确认并归入这个空间'}
         </button>
         <button
           type="button"
           className="link"
+          disabled={disabled}
           onClick={() => decide(() => api.dismiss(candidate.id))}
         >
           不要
@@ -112,6 +117,8 @@ export function UnfiledPage(props: {
   const { onChanged, onDecided } = props
   const [pending, setPending] = useState<readonly UnfiledCandidate[]>()
   const [problem, setProblem] = useState<string>()
+  const [destinations, setDestinations] = useState<Readonly<Record<string, string>>>({})
+  const [confirming, setConfirming] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -126,6 +133,11 @@ export function UnfiledPage(props: {
   useEffect(() => {
     void load()
   }, [load])
+
+  const refresh = async (): Promise<void> => {
+    await load()
+    await onDecided()
+  }
 
   return (
     <div className="page connect">
@@ -146,21 +158,48 @@ export function UnfiledPage(props: {
         ) : pending.length === 0 ? (
           <p className="hint">没有未分类的待确认内容。</p>
         ) : (
-          <ul className="pending">
-            {pending.map((candidate) => (
-              <UnfiledItem
-                key={candidate.id}
-                candidate={candidate}
-                nameOf={props.nameOf}
-                spaces={props.spaces}
-                guard={props.guard}
-                onDecided={async () => {
-                  await load()
-                  await onDecided()
+          <>
+            {pending.length >= 2 && (
+              <button
+                type="button"
+                className="secondary"
+                disabled={confirming}
+                onClick={() => {
+                  setConfirming(true)
+                  props.guard(async () => {
+                    try {
+                      for (const { id } of pending) await acceptUnfiled(id, destinations[id] ?? '')
+                    } finally {
+                      try {
+                        await refresh()
+                      } finally {
+                        setConfirming(false)
+                      }
+                    }
+                  })
                 }}
-              />
-            ))}
-          </ul>
+              >
+                全部确认（{pending.length}）
+              </button>
+            )}
+            <ul className="pending">
+              {pending.map((candidate) => (
+                <UnfiledItem
+                  key={candidate.id}
+                  candidate={candidate}
+                  nameOf={props.nameOf}
+                  spaces={props.spaces}
+                  space={destinations[candidate.id] ?? ''}
+                  onSpace={(space) =>
+                    setDestinations((current) => ({ ...current, [candidate.id]: space }))
+                  }
+                  disabled={confirming}
+                  guard={props.guard}
+                  onDecided={refresh}
+                />
+              ))}
+            </ul>
+          </>
         )}
       </section>
     </div>

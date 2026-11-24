@@ -37,6 +37,7 @@ export function ModelPage(props: {
   const [name, setName] = useState(model?.model ?? '')
   const [key, setKey] = useState('')
   const [thinking, setThinking] = useState(model?.reasoningEffort === 'none')
+  const [onlyMaterial, setOnlyMaterial] = useState(model?.onlyMaterial ?? false)
   const [working, setWorking] = useState<'saving' | 'clearing'>()
   const [result, setResult] = useState<{ ok: boolean; text: string }>()
 
@@ -44,11 +45,13 @@ export function ModelPage(props: {
   const savedUrl = model?.baseUrl
   const savedName = model?.model
   const savedEffort = model?.reasoningEffort
+  const savedOnlyMaterial = model?.onlyMaterial ?? false
   useEffect(() => {
     if (savedUrl !== undefined) setBaseUrl((typed) => (typed === '' ? savedUrl : typed))
     if (savedName !== undefined) setName((typed) => (typed === '' ? savedName : typed))
     if (savedEffort === 'none') setThinking(true)
   }, [savedUrl, savedName, savedEffort])
+  useEffect(() => setOnlyMaterial(savedOnlyMaterial), [savedOnlyMaterial])
 
   if (props.me.mode === 'shared') {
     return (
@@ -70,6 +73,7 @@ export function ModelPage(props: {
         // Left empty with a saved key: keep it. A different address never reuses the saved key.
         ...(key.trim() === '' ? {} : { apiKey: key.trim() }),
         reasoningEffort: thinking ? 'none' : '',
+        onlyMaterial,
       })
       .then((reply) => {
         if ('failure' in reply) {
@@ -105,6 +109,7 @@ export function ModelPage(props: {
         setBaseUrl('')
         setName('')
         setKey('')
+        setOnlyMaterial(false)
         setResult({ ok: true, text: '已改回模拟模型，保存的密钥也删除了。' })
         props.onChanged(reply.model)
       })
@@ -206,6 +211,18 @@ export function ModelPage(props: {
             />
             关掉思考（本机思考型模型回答为空时勾上）
           </label>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={onlyMaterial}
+              onChange={(event) => setOnlyMaterial(event.target.checked)}
+              aria-describedby="only-material-hint"
+            />
+            只用材料回答
+          </label>
+          <p className="hint" id="only-material-hint">
+            勾上后，材料里没有讲到的问题不回答。
+          </p>
           <div className="actions">
             <button type="submit" disabled={working !== undefined}>
               {working === 'saving' ? '正在测试…' : '测试并保存'}

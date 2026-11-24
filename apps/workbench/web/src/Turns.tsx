@@ -213,9 +213,9 @@ export function AgentTurn(props: {
       </>
     )
   }
-  const usable = turn.answer.segments.some(
-    (segment) => segment.basis === 'material' && segment.weak !== true,
-  )
+  const usable =
+    turn.answer.status === 'general' ||
+    turn.answer.segments.some((segment) => segment.basis === 'material' && segment.weak !== true)
   return (
     <article
       id={`turn-${turn.id}`}
@@ -302,6 +302,14 @@ function AnswerBody({
   if (answer.status === 'insufficient_evidence') {
     return (
       <p className="no-evidence">材料里没有足够的依据讲这一点。可以换个问法，或者上传相关材料。</p>
+    )
+  }
+  if (answer.status === 'general') {
+    return (
+      <>
+        <p className="hint">材料里没有讲到这个，下面是模型自己的知识，不是来自你的材料。</p>
+        <p className="answer">{answer.segments.map(({ text }) => text).join('\n')}</p>
+      </>
     )
   }
   const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))

@@ -158,7 +158,14 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
     const recalled = await recalledFor(view, space.id, question)
     let answer: Answer
     try {
-      answer = await answerFrom({ question, hits, history: historyOf(earlier), model, recalled })
+      answer = await answerFrom({
+        question,
+        hits,
+        history: historyOf(earlier),
+        model,
+        recalled,
+        general: !model.onlyMaterial,
+      })
       // Pointed to after the answer is made, so the model never reads another space.
       const elsewhere = elsewhereFor(view, space.id, question)
       if (elsewhere.length > 0) answer = { ...answer, elsewhere }
@@ -207,6 +214,10 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
         body[key] === undefined ? undefined : body[key] === '' ? '' : text(body, key, 500).trim()
       const apiKey = optional('apiKey')
       const reasoningEffort = optional('reasoningEffort')
+      const onlyMaterial = body['onlyMaterial']
+      if (onlyMaterial !== undefined && typeof onlyMaterial !== 'boolean') {
+        refuse('invalid_request', '“只用材料回答”只能设为开或关。')
+      }
       try {
         return {
           model: await settings.save({
@@ -214,6 +225,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
             model: text(body, 'model', 200).trim(),
             ...(apiKey === undefined ? {} : { apiKey }),
             ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+            ...(onlyMaterial === undefined ? {} : { onlyMaterial }),
           }),
         }
       } catch (error) {
