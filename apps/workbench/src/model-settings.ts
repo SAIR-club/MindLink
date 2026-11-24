@@ -21,6 +21,7 @@ export interface SavedModel {
   readonly model: string
   readonly apiKey?: string
   readonly reasoningEffort?: string
+  readonly onlyMaterial?: boolean
 }
 
 /** What a page may see of the settings: never the key itself. */
@@ -33,6 +34,7 @@ export interface ModelSettingsView {
   readonly model?: string
   readonly hasKey: boolean
   readonly reasoningEffort?: string
+  readonly onlyMaterial?: boolean
 }
 
 const LIMITS = { maxCalls: 100, maxTokens: 200_000 }
@@ -81,6 +83,7 @@ function savedFrom(value: unknown): SavedModel | undefined {
     model,
     ...(apiKey === undefined ? {} : { apiKey }),
     ...(reasoningEffort === undefined ? {} : { reasoningEffort }),
+    ...(record['onlyMaterial'] === true ? { onlyMaterial: true } : {}),
   }
 }
 
@@ -137,6 +140,10 @@ export class ModelSettings implements ModelClient {
     return this.#client.simulated
   }
 
+  get onlyMaterial(): boolean {
+    return this.#saved?.onlyMaterial === true || this.fromEnvironment?.onlyMaterial === true
+  }
+
   complete(...args: Parameters<ModelClient['complete']>): ReturnType<ModelClient['complete']> {
     return this.#client.complete(...args)
   }
@@ -148,6 +155,7 @@ export class ModelSettings implements ModelClient {
         simulated: this.simulated,
         source: 'environment',
         hasKey: false,
+        ...(this.onlyMaterial ? { onlyMaterial: true } : {}),
       }
     }
     const saved = this.#saved
@@ -161,6 +169,7 @@ export class ModelSettings implements ModelClient {
       baseUrl: saved.baseUrl,
       model: saved.model,
       hasKey: saved.apiKey !== undefined,
+      ...(this.onlyMaterial ? { onlyMaterial: true } : {}),
       ...(saved.reasoningEffort === undefined ? {} : { reasoningEffort: saved.reasoningEffort }),
     }
   }
@@ -169,12 +178,7 @@ export class ModelSettings implements ModelClient {
    * Tries the model with one short question and keeps it only if it answers. `apiKey` undefined keeps the saved
    * key when the address is unchanged; an empty string removes it. A failure leaves everything as it was.
    */
-  async save(next: {
-    readonly baseUrl: string
-    readonly model: string
-    readonly apiKey?: string
-    readonly reasoningEffort?: string
-  }): Promise<ModelSettingsView> {
+  async save(next: SavedModel): Promise<ModelSettingsView> {
     if (this.fromEnvironment !== undefined) {
       throw new ModelFailure(
         'unauthorized',
@@ -192,6 +196,7 @@ export class ModelSettings implements ModelClient {
       ...(next.reasoningEffort === undefined || next.reasoningEffort === ''
         ? {}
         : { reasoningEffort: next.reasoningEffort }),
+      ...(next.onlyMaterial === true ? { onlyMaterial: true } : {}),
     }
     const client = clientFor(saved)
     try {

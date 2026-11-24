@@ -30,6 +30,7 @@ const NOTES = `# Transformer 笔记
 
 interface Pending {
   readonly id: string
+  readonly rationale?: string
   readonly basis?: string
   readonly speaker?: string
   readonly similar?: string
@@ -64,6 +65,8 @@ class ScriptedModel implements ModelClient {
   readonly calls: (readonly ModelMessage[])[] = []
   failing = false
   thread = '{"items":[]}'
+  takeaways = '{"items":[]}'
+  takeawaysFailing = false
   challenge =
     '{"challenge":"没有位置编码时，模型真的完全不知道顺序吗？","quote":"没有它，注意力机制看不出词的先后。"}'
   reply = '位置编码把序列的顺序告诉模型[1]。'
@@ -74,6 +77,11 @@ class ScriptedModel implements ModelClient {
     this.calls.push(messages)
     if (this.failing) return Promise.reject(new ModelFailure('timeout', '模型超时了。'))
     const system = messages[0]?.content ?? ''
+    if (system.includes('提炼最多')) {
+      return this.takeawaysFailing
+        ? Promise.reject(new ModelFailure('timeout', '模型超时了。'))
+        : Promise.resolve({ text: this.takeaways })
+    }
     if (system.includes('编号 N 开头')) {
       return this.relateFailing
         ? Promise.reject(new ModelFailure('timeout', '模型超时了。'))
@@ -262,6 +270,105 @@ describe('candidates', () => {
     await accept(pending[0]?.id ?? '')
     const [node] = (await held(space)).nodes
     expect(node?.origin).toMatchObject({ speaker: 'model', basis: 'inferred', turn: asked.reply })
+  })
+
+  it('keeps up to three verbatim takeaways and reuses the exact picks on retry', async () => {
+    const model = new ScriptedModel()
+    const quotes = [
+      '位置编码把序列的顺序告诉模型。',
+      '没有位置编码，注意力机制看不出词的先后。',
+      '位置编码让模型区分词的位置。',
+      '位置编码补充了顺序信息。',
+    ]
+    model.reply = quotes.map((quote) => `${quote}[1]`).join('\n')
+    model.takeaways = JSON.stringify({
+      items: [
+        null,
+        { label: '位置编码改变了词义。', quote: '位置编码把序列的顺序告诉我。' },
+        ...quotes.map((quote) => ({ label: quote, quote })),
+      ],
+    })
+    await start(model)
+    const space = await spaceWithNotes()
+    const asked = await ask(space, '位置编码的作用是什么')
+    const offer = () =>
+      call<Submitted>(`${scene}/candidates`, {
+        space: space.id,
+        thread: asked.thread,
+        reply: asked.reply,
+      })
+    const [first, concurrent] = await Promise.all([offer(), offer()])
+    expect(first.body.refused).toEqual([])
+    expect(first.body.suggestions).toHaveLength(3)
+    expect(concurrent.body.suggestions).toEqual(first.body.suggestions)
+    const { pending } = await held(space)
+    expect(pending.map(({ origin }) => origin?.excerpt).sort()).toEqual(quotes.slice(0, 3).sort())
+    expect(
+      pending.some(({ rationale }) => rationale === '来自模型的回答，引用了《笔记.md》。'),
+    ).toBe(true)
+
+    model.takeaways = JSON.stringify({ items: [{ label: '另一种说法。', quote: quotes[3] }] })
+    await service.close()
+    await start(model)
+    const repeat = await offer()
+    expect(repeat.body.suggestions).toEqual(first.body.suggestions)
+    expect(
+      model.calls.filter((messages) => messages[0]?.content.includes('提炼最多')),
+    ).toHaveLength(1)
+  })
+
+  it('falls back to the three longest supported segments when distilling fails', async () => {
+    const model = new ScriptedModel()
+    const longest = [
+      '没有位置编码时注意力机制看不出序列中的词的先后；',
+      '位置编码可以把序列中的词的顺序告诉模型；',
+      '注意力机制本身不看出词的先后；',
+    ]
+    model.reply = [
+      '模型。',
+      ...longest,
+      '光合作用的暗反应完全不需要这里讨论的任何关于能量转换的额外条件。',
+    ]
+      .map((quote) => `${quote}[1]`)
+      .join('\n')
+    await start(model)
+    const space = await spaceWithNotes()
+    const asked = await ask(space, '位置编码的作用是什么')
+    expect(asked.answer?.segments.at(-1)?.weak).toBe(true)
+    model.takeawaysFailing = true
+    const result = await call<Submitted>(`${scene}/candidates`, {
+      space: space.id,
+      thread: asked.thread,
+      reply: asked.reply,
+    })
+    expect(result.body.refused).toEqual([])
+    expect(result.body.suggestions).toHaveLength(3)
+    const { pending } = await held(space)
+    expect(pending.map(({ origin }) => origin?.excerpt).sort()).toEqual([...longest].sort())
+    expect(pending.map(({ proposal }) => proposal.label).sort()).toEqual(
+      longest.map((quote) => quote.slice(0, -1)).sort(),
+    )
+  })
+
+  it('distills a general answer and says where it came from', async () => {
+    const model = new ScriptedModel()
+    model.reply = '过拟合会使模型难以在新数据上泛化。'
+    model.takeaways = JSON.stringify({
+      items: [{ label: '过拟合影响模型的泛化能力。', quote: model.reply }],
+    })
+    await start(model)
+    const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '机器学习' })).body
+    const asked = await ask(space, '什么是过拟合？')
+    expect(asked.answer?.status).toBe('general')
+    await call(`${scene}/candidates`, { space: space.id, thread: asked.thread, reply: asked.reply })
+    expect((await held(space)).pending).toMatchObject([
+      {
+        proposal: { label: '过拟合影响模型的泛化能力。' },
+        origin: { excerpt: model.reply },
+        rationale: '来自模型的回答，不是材料里的。',
+        basis: 'inferred',
+      },
+    ])
   })
 
   it('decides whose words a thread candidate is by where the quote is, not what the model says', async () => {
@@ -892,8 +999,10 @@ describe('reusing', () => {
       { nodeId: node.nodeId, label: node.label, conflict: false },
     ])
     const prompt = model.calls.at(-1)?.at(-1)?.content ?? ''
-    expect(prompt).toContain(`<prior>\n- ${node.label}`)
+    expect(prompt).toContain(`<confirmed>\n- ${node.label}`)
     expect(prompt).toContain('不是材料')
+    expect(prompt).toContain('你之前确认过的理解')
+    expect(prompt).toContain('不要提到任何标签名')
     // Being recalled does not make it a citation.
     expect(asked.answer?.citations.every((citation) => citation.quote !== node.label)).toBe(true)
   })
@@ -974,9 +1083,10 @@ describe('reusing', () => {
     const { node } = await hold(space, '光合作用发生在叶绿体里')
     const before = model.calls.length
     const asked = await ask(space, '光合作用发生在哪里')
-    expect(asked.answer?.status).toBe('insufficient_evidence')
+    expect(asked.answer?.status).toBe('general')
     expect(asked.answer?.recalled?.[0]?.nodeId).toBe(node.nodeId)
-    expect(model.calls.length).toBe(before)
+    expect(model.calls.length).toBe(before + 1)
+    expect(model.calls.at(-1)?.at(-1)?.content).toContain(`<confirmed>\n- ${node.label}`)
   })
 
   it('leaves out of a new plan only what is still held', async () => {

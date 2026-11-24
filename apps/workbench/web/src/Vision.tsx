@@ -22,11 +22,11 @@ import {
   type WorkflowInfo,
 } from './api.js'
 import { visionHref, type VisionKind, type VisionPlace } from './routes.js'
-import { wordsOf } from './Understanding.js'
+import { reviewRationale, wordsOf } from './Understanding.js'
 
 /** The published workbench: one first-level navigation over the service's existing graph and REST paths. */
 
-type Run = (work: () => Promise<unknown>) => void
+type Run = (work: () => Promise<unknown>, refreshOnFailure?: boolean) => void
 
 interface Reading {
   readonly space: Space
@@ -252,11 +252,16 @@ export function VisionDesk(props: VisionDeskProps) {
     }
   }, [props.listed, props.spaces, props.guard, version])
 
-  const run: Run = (work) => {
+  const run: Run = (work, refreshOnFailure = false) => {
     setBusy(true)
     props.guard(async () => {
       try {
-        await work()
+        try {
+          await work()
+        } catch (error) {
+          if (refreshOnFailure) setVersion((count) => count + 1)
+          throw error
+        }
         await props.onChanged()
         setVersion((count) => count + 1)
       } finally {
@@ -1042,6 +1047,7 @@ function ReviewCenterPage(props: {
   const filtered = entries.filter(({ reading, candidate }) =>
     matches(props.query, reading.space.name, candidateLabel(candidate), candidate.rationale),
   )
+  const ready = filtered.filter(({ candidate }) => candidate.link?.ready !== false)
   const [selectedId, setSelectedId] = useState<string>()
   const [editing, setEditing] = useState(false)
   const [label, setLabel] = useState('')
@@ -1125,6 +1131,7 @@ function ReviewCenterPage(props: {
 
   // A state proposal changes the state of a held understanding; it is never a new or rewritten node.
   const isState = selected?.candidate.state !== undefined
+  const rationale = reviewRationale(selected?.candidate.rationale ?? '')
 
   return (
     <div className="review-layout">
@@ -1133,6 +1140,23 @@ function ReviewCenterPage(props: {
           <h2>候选理解队列</h2>
           <span className="hint">{entries.length} 条</span>
         </div>
+        {ready.length >= 2 && (
+          <button
+            type="button"
+            className="vision-button secondary"
+            disabled={props.busy}
+            onClick={() =>
+              props.run(async () => {
+                for (const { candidate } of ready) await api.accept(candidate.id)
+                setSelectedId(undefined)
+                setEditing(false)
+                setMerging(false)
+              }, true)
+            }
+          >
+            全部确认（{ready.length}）
+          </button>
+        )}
         <ul className="vision-candidate-list">
           {filtered.length === 0 ? (
             <li className="hint">当前没有匹配的候选理解。</li>
@@ -1178,15 +1202,19 @@ function ReviewCenterPage(props: {
               <dd>{selected.candidate.proposedBy ?? '未记录'}</dd>
               <dt>提出时间</dt>
               <dd>{dayOf(selected.candidate.proposedAt)}</dd>
-              <dt>理由</dt>
-              <dd>{selected.candidate.rationale}</dd>
+              {rationale !== '' && (
+                <>
+                  <dt>理由</dt>
+                  <dd>{rationale}</dd>
+                </>
+              )}
             </dl>
             <section className="vision-evidence">
               <h4>来源证据</h4>
               <p>{wordsOf(selected.candidate.basis, selected.candidate.wordsBy)}</p>
-              <blockquote>
-                {selected.candidate.origin?.excerpt ?? selected.candidate.rationale}
-              </blockquote>
+              {selected.candidate.origin?.excerpt !== undefined && (
+                <blockquote>{selected.candidate.origin.excerpt}</blockquote>
+              )}
               {selected.candidate.origin?.turn !== undefined && (
                 <p className="hint">证据来自对话中的原话：{selected.candidate.origin.turn}</p>
               )}

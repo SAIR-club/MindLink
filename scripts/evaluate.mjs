@@ -201,7 +201,7 @@ async function openWorkbench(client) {
     startService({
       port: 0,
       graph: join(directory, 'graph.db'),
-      profile: workbenchProfile({ model: client }),
+      profile: workbenchProfile({ model: { ...client, onlyMaterial: true } }),
       mode: 'shared',
       users,
       publicOrigin: 'https://workbench.example.edu',

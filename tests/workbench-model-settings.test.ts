@@ -168,6 +168,45 @@ describe('model settings', () => {
     })
   })
 
+  it('saves and reloads the material-only setting and uses it when answering', async () => {
+    const file = join(directory, 'model.json')
+    const settings = await ModelSettings.open(file)
+    const running = await serve(settings)
+    const person = running.humanToken!
+    const provider = { baseUrl: providerUrl, model: 'm', apiKey: KEY }
+    const invalid = await call(
+      running,
+      '/model/settings',
+      { ...provider, onlyMaterial: 'true' },
+      person,
+    )
+    expect(invalid.body['code']).toBe('invalid_request')
+    expect(seen).toEqual([])
+
+    const saved = await call(
+      running,
+      '/model/settings',
+      { ...provider, onlyMaterial: true },
+      person,
+    )
+    expect(saved.body['model']).toMatchObject({ onlyMaterial: true })
+    expect((await call(running, '/model')).body).toMatchObject({ onlyMaterial: true })
+    expect((await ModelSettings.open(file)).view()).toMatchObject({ onlyMaterial: true })
+    const { body } = await call(running, '/spaces', { name: '机器学习' }, person)
+    const space = (body['space'] as { id: string }).id
+    const question = { space, question: '什么是过拟合？' }
+    expect((await call(running, '/ask', question, person)).body['answer']).toMatchObject({
+      status: 'insufficient_evidence',
+    })
+    expect(seen).toHaveLength(1)
+
+    await call(running, '/model/settings', { ...provider, onlyMaterial: false }, person)
+    expect((await ModelSettings.open(file)).onlyMaterial).toBe(false)
+    expect((await call(running, '/ask', question, person)).body['answer']).toMatchObject({
+      status: 'general',
+    })
+  })
+
   it('is the person’s: a request without their credential cannot change it', async () => {
     const settings = await ModelSettings.open(join(directory, 'model.json'))
     const running = await serve(settings)
