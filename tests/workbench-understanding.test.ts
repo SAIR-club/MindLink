@@ -33,6 +33,7 @@ interface Pending {
   readonly basis?: string
   readonly speaker?: string
   readonly similar?: string
+  readonly topics?: HeldNode['topics']
   readonly proposal: {
     readonly kind: string
     readonly label?: string
@@ -518,6 +519,98 @@ describe('candidates', () => {
 })
 
 describe('topics', () => {
+  it('uses the matching answer segments for each candidate and falls back to the whole answer', async () => {
+    const detection = '训练集误差降低时，验证集误差上升。'
+    const regularization = ['L1 正则化对权重绝对值求和。', 'Dropout 随机停用一部分神经元。']
+    const inference = '交叉熵可以用来衡量概率分布之间的差异。'
+    const notes = `# 判断过拟合\n\n${detection}\n\n# 正则化\n\n${regularization.join('\n')}`
+    const model = new ScriptedModel()
+    model.reply = [
+      ...[detection, ...regularization].map((sentence) => `${sentence}[1]`),
+      `${inference}[推断]`,
+    ].join('\n')
+    await start(model)
+    const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '过拟合' })).body
+    await call(`${scene}/materials`, {
+      space: space.id,
+      fileName: '过拟合与正则化.md',
+      contentBase64: Buffer.from(notes).toString('base64'),
+    })
+
+    const learner = '我想弄清训练集误差降低而验证集误差上升的情况'
+    const { thread, reply, turn, answer } = await ask(space, learner)
+    expect(answer?.citations).toMatchObject([{ quote: notes }])
+    await call(`${scene}/candidates`, { space: space.id, thread, reply })
+    await call(`${scene}/candidates/turn`, { space: space.id, thread, turn })
+
+    const reworded = '对照两条曲线来诊断模型'
+    const unmatched = '用交叉熵比较分布'
+    model.thread = JSON.stringify({
+      items: [
+        { ref: 'a', role: 'claim', label: reworded, quote: '验证集误差上升。' },
+        { ref: 'b', role: 'claim', label: unmatched, quote: inference },
+      ],
+    })
+    await call(`${scene}/candidates/thread`, { space: space.id, thread })
+
+    const expected = [
+      [detection, ['判断过拟合']],
+      [reworded, ['判断过拟合']],
+      [unmatched, ['正则化', '判断过拟合']],
+      [learner, ['正则化', '判断过拟合']],
+    ] as const
+    const { pending } = await held(space)
+    for (const [label, topics] of expected) {
+      const candidate = pending.find((item) => item.proposal.label === label)
+      expect(
+        candidate?.topics?.map((topic) => topic.section),
+        label,
+      ).toEqual(topics)
+      expect((await accept(candidate?.id ?? '')).status).toBe(200)
+    }
+    const { nodes } = await held(space)
+    for (const [label, topics] of expected) {
+      const node = nodes.find((item) => item.label === label)
+      expect(
+        node?.topics.map((topic) => topic.section),
+        label,
+      ).toEqual(topics)
+    }
+  })
+
+  it('uses the evidence location within a single chunk with several headings', async () => {
+    const heading = '## 如何判断过拟合'
+    const sentence = '训练集误差降低时，验证集误差上升。'
+    const notes = `# 正则化\n\n约束参数的大小。\n\n${heading}\n\n${sentence}\n\n## 早停\n\n提前结束训练。`
+    const model = new ScriptedModel()
+    await start(model)
+    const { space } = (await call<{ space: Space }>(`${scene}/spaces`, { name: '过拟合' })).body
+    await call(`${scene}/materials`, {
+      space: space.id,
+      fileName: '过拟合与正则化.md',
+      contentBase64: Buffer.from(notes).toString('base64'),
+    })
+
+    model.reply = `${sentence}[1]`
+    const answer = (await ask(space, '训练集和验证集误差有什么变化？')).answer
+    expect(answer?.citations).toMatchObject([{ quote: notes, section: '正则化' }])
+    expect(answer?.segments[0]?.evidence?.[0]?.start).toBe(notes.indexOf(sentence))
+    const body = await hold(space, '我发现训练集和验证集误差走势相反')
+    expect(body.node.topics.map((topic) => topic.section)).toEqual(['如何判断过拟合'])
+
+    model.reply = '判断过拟合[1]。'
+    const atHeading = (await ask(space, '如何判断过拟合？')).answer
+    expect(atHeading?.segments[0]?.evidence?.[0]?.start).toBe(notes.indexOf(heading))
+    const onHeading = await hold(space, '如何判断过拟合是我接下来想弄懂的事')
+    expect(onHeading.node.topics.map((topic) => topic.section)).toEqual(['如何判断过拟合'])
+
+    model.reply = '交叉熵[1]。'
+    const withoutEvidence = (await ask(space, '正则化约束什么？')).answer
+    expect(withoutEvidence?.segments[0]?.evidence).toBeUndefined()
+    const legacy = await hold(space, '我还想了解正则化怎么约束参数')
+    expect(legacy.node.topics.map((topic) => topic.section)).toEqual(['正则化'])
+  })
+
   /** A first section long enough that the passage cited for the second one starts under the first heading. */
   const LONG = `# 位置编码\n\n${'自注意力本身不知道词的先后顺序，所以需要位置编码把序列的顺序告诉模型。'.repeat(14)}\n\n# 多头注意力\n\n多头注意力把查询、键和值投影到多个子空间，让模型同时关注不同位置的不同关系。\n`
 

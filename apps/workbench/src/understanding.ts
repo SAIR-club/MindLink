@@ -203,19 +203,21 @@ export interface Topic {
 
 /**
  * What an item was learned from, read off the conversation it came from: the passages the answer cited. An item
- * drawn from an answer takes that answer's; the person's own words take the answer they were said with, the reply
- * to them first and otherwise the one before. Nothing is guessed: an item no answer cited has no topic.
+ * drawn from an answer takes the passages cited by its matching sentences, or the whole answer when none match.
+ * The person's own words take the answer they were said with, the reply to them first and otherwise the one before.
  */
 export function topicsAt(
   view: SceneView,
   thread: string | undefined,
   turn: string | undefined,
+  words?: string,
 ): readonly Topic[] {
   if (thread === undefined || turn === undefined) return []
   const turns = view.threadView(thread)?.turns ?? []
   const at = turns.findIndex((candidate) => candidate.id === turn)
   if (at < 0) return []
   const said = turns[at]
+  const source = said?.speaker === 'learner' ? undefined : words?.trim()
   const around =
     said?.speaker === 'learner'
       ? [...turns.slice(at + 1), ...turns.slice(0, at).reverse()]
@@ -227,14 +229,21 @@ export function topicsAt(
     const answer = view.records.get(`${ANSWER_PREFIX}${candidate.id}`)?.value as Answer | undefined
     if (answer === undefined || answer.citations.length === 0) continue
     const byNumber = new Map(answer.citations.map((citation) => [citation.n, citation]))
-    // Counted by the sentences that rest on each part, so the part the answer leans on most comes first.
+    const material = answer.segments.filter((segment) => segment.basis === 'material')
+    // A segment may carry `**` around a key term; the item's own words never do.
+    const matching = source
+      ? material.filter(({ text: shown }) => {
+          const text = shown.replaceAll('**', '')
+          return source.includes(text) || text.includes(source) || coverage(text, source) >= 0.5
+        })
+      : []
+    // Count the sentences that rest on each part, so the most cited part comes first.
     const counted = new Map<string, { topic: Topic; count: number }>()
-    for (const segment of answer.segments) {
-      if (segment.basis !== 'material') continue
+    for (const segment of matching.length > 0 ? matching : material) {
       for (const n of segment.citations) {
         const citation = byNumber.get(n)
         if (citation === undefined) continue
-        const at = segment.evidence?.find((found) => found.n === n)?.start ?? citation.start
+        const at = segment.evidence?.find((found) => found.n === n)?.start
         const section = sectionAt(citation, at)
         const topic: Topic = {
           materialId: citation.materialId,
@@ -258,10 +267,18 @@ const HEADING = /^#{1,6}[ \t]+(.+?)[ \t#]*$/gmu
  * The heading a place in a cited passage sits under. A passage can run across headings, and the one it started
  * under is only right for its first lines, so the passage's own headings are read up to that place.
  */
-function sectionAt(citation: Answer['citations'][number], at: number): string | undefined {
-  const within = citation.quote.slice(0, Math.max(0, at - citation.start))
+function sectionAt(
+  citation: Answer['citations'][number],
+  at: number | undefined,
+): string | undefined {
+  if (at === undefined) return citation.section
+  const offset = at - citation.start
+  if (offset < 0 || offset >= citation.quote.length) return citation.section
   let found = citation.section
-  for (const match of within.matchAll(HEADING)) found = match[1]
+  for (const match of citation.quote.matchAll(HEADING)) {
+    if (match.index > offset) break
+    found = match[1]
+  }
   return found
 }
 
@@ -529,7 +546,7 @@ export function heldNodes(view: SceneView, space: string): readonly HeldNode[] {
         openChallenges: challenges.filter(
           (challenge) => challenge.node === node.nodeId && challenge.status === 'open',
         ).length,
-        topics: topicsAt(view, kept?.thread, kept?.turn),
+        topics: topicsAt(view, kept?.thread, kept?.turn, kept?.quote ?? node.label),
       },
     ]
   })
@@ -1454,7 +1471,12 @@ export function understandingRoutes(options: UnderstandingOptions): readonly Sce
           return [
             {
               ...suggestion,
-              topics: topicsAt(view, origin?.thread, origin?.turn),
+              topics: topicsAt(
+                view,
+                origin?.thread,
+                origin?.turn,
+                origin?.quote ?? (proposal.kind === 'node' ? proposal.label : undefined),
+              ),
               ...(origin === undefined ? {} : { speaker: origin.speaker }),
               ...(wordsBy === undefined ? {} : { wordsBy }),
               ...(similar === undefined ? {} : { similar }),

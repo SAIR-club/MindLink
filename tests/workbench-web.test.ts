@@ -263,13 +263,13 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
   }
 
   const newPlan = async (topic: string, minutes: number, mode: string): Promise<void> => {
-    // The form waits behind a link.
-    const adding = page.getByRole('button', { name: '新建学习计划' })
-    if ((await adding.count()) > 0) await adding.click()
-    await page.getByLabel('想学什么').fill(topic)
-    await page.getByLabel('可用时间').fill(String(minutes))
-    await page.getByRole('radio', { name: mode }).check()
-    await page.getByRole('button', { name: '生成计划' }).click()
+    await page.getByRole('button', { name: '新建学习计划' }).click()
+    const dialog = page.getByRole('dialog', { name: '新建学习计划' })
+    await dialog.getByLabel('想学什么').fill(topic)
+    await dialog.getByLabel('可用时间').fill(String(minutes))
+    await dialog.getByRole('radio', { name: mode }).check()
+    await dialog.getByRole('button', { name: '生成计划' }).click()
+    await dialog.waitFor({ state: 'hidden' })
     await page.getByRole('heading', { name: topic }).waitFor()
   }
 
@@ -277,6 +277,21 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await open()
     await newSpace('机器学习')
     await addMaterial('a.md', NOTES)
+
+    const adding = page.getByRole('button', { name: '新建学习计划' })
+    const dialog = page.getByRole('dialog', { name: '新建学习计划' })
+    await adding.click()
+    expect(await dialog.evaluate((element) => element.matches(':modal'))).toBe(true)
+    expect(
+      await dialog.getByLabel('想学什么').evaluate((element) => element.matches(':focus')),
+    ).toBe(true)
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await adding.evaluate((element) => element.matches(':focus'))).toBe(true)
+    await adding.click()
+    await dialog.getByRole('button', { name: '取消' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await adding.evaluate((element) => element.matches(':focus'))).toBe(true)
 
     // A speedrun, and the person changes the plan before starting.
     await newPlan('位置编码', 30, '速通')
@@ -496,6 +511,8 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
   }, 120_000)
 
   it('keeps a contradiction open, takes a model challenge, and withdraws', async () => {
+    const contradiction =
+      '位置编码不是必需的，因为还可以用其他方式把词的顺序告诉模型，例如让模型只注意前面的词'
     const model: ModelClient = {
       name: 'stub',
       simulated: false,
@@ -520,7 +537,7 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
 
     // Understanding has its own page now: the conversation is one step back in learning.
     await page.getByRole('button', { name: '学习', exact: true }).click()
-    await holdOwnWords('位置编码不是必需的')
+    await holdOwnWords(contradiction)
     await page.getByRole('button', { name: '和另一条矛盾' }).click()
     await page.getByRole('button', { name: '记下这个矛盾' }).click()
     await page.locator('.marks').getByText('未解决的矛盾').waitFor()
@@ -538,8 +555,19 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await rail.getByRole('button', { name: '图谱', exact: true }).click()
     await rail.locator('.knowledge-graph .map-contradicts').first().waitFor()
     expect(await rail.locator('.knowledge-graph .map-node[data-state="conflict"]').count()).toBe(2)
-    await rail.locator('.knowledge-graph .map-node', { hasText: '位置编码不是必需的' }).click()
-    await page.locator('.node-label', { hasText: '位置编码不是必需的' }).waitFor()
+    const graph = rail.locator('.knowledge-graph')
+    const point = graph.getByRole('button', { name: contradiction, exact: true })
+    const dot = point.locator('circle[data-held]')
+    expect(await point.locator('text').textContent()).toBe(`${contradiction.slice(0, 31)}…`)
+    expect(await point.locator('tspan').textContent()).toBe(`${contradiction.slice(16, 31)}…`)
+    await point.focus()
+    expect(await graph.getByRole('tooltip').textContent()).toBe(contradiction)
+    await graph.getByRole('button', { name: '放大' }).focus()
+    await graph.getByRole('tooltip').waitFor({ state: 'hidden' })
+    await dot.hover()
+    expect(await graph.getByRole('tooltip').textContent()).toBe(contradiction)
+    await dot.click()
+    await page.locator('.node-label', { hasText: contradiction }).waitFor()
 
     // Neither is forced out, and the conversation says so when it brings one up.
     await page.getByRole('button', { name: '我的理解（2）' }).waitFor()
