@@ -550,7 +550,6 @@ button:not(
   .plain,
   .live-branch,
   .live-node-title,
-  .live-node-actions button,
   [role="tab"]
 ),
 .upload {
@@ -580,7 +579,6 @@ button:not(
   .plain,
   .live-branch,
   .live-node-title,
-  .live-node-actions button,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {

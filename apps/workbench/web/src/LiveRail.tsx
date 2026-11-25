@@ -541,23 +541,28 @@ function LiveNode(props: {
       {quote !== undefined && quote !== '' && <p className="live-quote">{shortened(quote)}</p>}
       <p className="live-node-actions">
         {anchor !== undefined && (
-          <button type="button" onClick={() => props.onJump(anchor.thread, anchor.turn)}>
+          <button
+            type="button"
+            className="plain"
+            onClick={() => props.onJump(anchor.thread, anchor.turn)}
+          >
             原话
           </button>
         )}
-        <button type="button" onClick={() => props.onAskAbout(node.label)}>
+        <button type="button" className="plain" onClick={() => props.onAskAbout(node.label)}>
           追问
         </button>
         {anchor !== undefined && anchor.thread === props.thread && (
           <button
             type="button"
+            className="plain"
             disabled={props.busy || props.archived}
             onClick={() => props.onFork(anchor.turn)}
           >
             分叉
           </button>
         )}
-        <button type="button" onClick={() => props.onOpenNode(node.nodeId)}>
+        <button type="button" className="plain" onClick={() => props.onOpenNode(node.nodeId)}>
           详情
         </button>
       </p>
@@ -604,14 +609,18 @@ function NodeSheet(props: {
       )}
       <p className="live-node-actions">
         {anchor !== undefined && (
-          <button type="button" onClick={() => props.onJump(anchor.thread, anchor.turn)}>
+          <button
+            type="button"
+            className="plain"
+            onClick={() => props.onJump(anchor.thread, anchor.turn)}
+          >
             原话
           </button>
         )}
-        <button type="button" onClick={() => props.onAskAbout(node.label)}>
+        <button type="button" className="plain" onClick={() => props.onAskAbout(node.label)}>
           追问
         </button>
-        <button type="button" onClick={() => props.onOpenNode(node.nodeId)}>
+        <button type="button" className="plain" onClick={() => props.onOpenNode(node.nodeId)}>
           整页查看
         </button>
       </p>
