@@ -152,6 +152,10 @@ export interface WorkflowInfo {
   readonly id: string
   readonly title: string
   readonly description: string
+  /** The blocks it runs, in order: once at the start, for each focus, and once at the end. */
+  readonly opening: readonly string[]
+  readonly perFocus: readonly string[]
+  readonly closing: readonly string[]
 }
 
 export interface BlockInfo {

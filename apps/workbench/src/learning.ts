@@ -582,11 +582,16 @@ export function learningRoutes(options: LearningOptions): readonly SceneRoute[] 
 
   return [
     route('GET', '/workflows', () => ({
-      workflows: library.workflows.map(({ id, title, description }) => ({
-        id,
-        title,
-        description,
-      })),
+      workflows: library.workflows.map(
+        ({ id, title, description, opening, perFocus, closing }) => ({
+          id,
+          title,
+          description,
+          opening,
+          perFocus,
+          closing,
+        }),
+      ),
       blocks: library.blocks.map(({ id, title, interaction, maxRounds }) => ({
         id,
         title,

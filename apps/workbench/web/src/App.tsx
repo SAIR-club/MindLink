@@ -24,7 +24,6 @@ import {
   type Me,
   type ModelInfo,
   type Offered,
-  type PendingCandidate,
   type Plan,
   type Session,
   type Space,
@@ -57,7 +56,9 @@ import {
 } from './routes.js'
 import { AgentTurn, LearnerTurn, Links, messageOf } from './Turns.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
-import { UnderstandingPanel, wordsOf } from './Understanding.js'
+import { LiveRail } from './LiveRail.js'
+import { PendingList } from './Pending.js'
+import { UnderstandingPanel } from './Understanding.js'
 import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 import { VisionDesk } from './Vision.js'
 
@@ -112,6 +113,7 @@ const WITHOUT_RAIL: ReadonlySet<Place['kind']> = new Set([
   'unfiled',
   'agent-sessions',
   'commons',
+  'live',
 ])
 
 const NO_UNDERSTANDING: Understanding = { nodes: [], pending: [], challenges: [], dimensions: [] }
@@ -249,7 +251,7 @@ function Desk({
   const [heldSpace, setHeldSpace] = useState<string | undefined>(kept(LAST_SPACE) ?? undefined)
   const namedSpace = 'space' in place ? place.space : undefined
   const spaceId = typeof namedSpace === 'string' ? namedSpace : heldSpace
-  const threadId = place.kind === 'thread' ? place.thread : undefined
+  const threadId = place.kind === 'thread' || place.kind === 'live' ? place.thread : undefined
   const planId = place.kind === 'plan' ? place.plan : undefined
   const commons = place.kind === 'commons'
   const publication = place.kind === 'commons' ? place.publication : undefined
@@ -277,6 +279,7 @@ function Desk({
   )
   const [notice, setNotice] = useState<string>()
   const [asking, setAsking] = useState(false)
+  const [askSeed, setAskSeed] = useState<{ readonly text: string; readonly nonce: number }>()
   const [failed, setFailed] = useState<{ question: string; failure: Failure }>()
   const [library, setLibrary] = useState<{
     workflows: readonly WorkflowInfo[]
@@ -379,6 +382,7 @@ function Desk({
     place.kind === 'conversations' ||
     place.kind === 'unfiled' ||
     place.kind === 'agent-sessions' ||
+    place.kind === 'live' ||
     isVisionPlace(place)
   useEffect(() => {
     if (addressedSpace !== undefined) {
@@ -540,6 +544,29 @@ function Desk({
     relateLater(made)
   }
 
+  /** The live panel's "提炼这段": the same scene route the conversation's extract button uses. */
+  const extractLive = async (): Promise<string | undefined> => {
+    if (spaceId === undefined || threadId === undefined) return undefined
+    const made = await api.candidatesFromThread(spaceId, threadId)
+    await refreshUnderstanding()
+    relateLater(made)
+    return made.message
+  }
+
+  /** A person's own understanding from the live panel; it belongs to the space, not to one turn. */
+  const saveLive = async (label: string): Promise<void> => {
+    if (spaceId === undefined) return
+    await api.saveUnderstanding(spaceId, label)
+    await refreshUnderstanding()
+  }
+
+  const askAbout = useCallback((label: string): void => {
+    setAskSeed({ text: `关于「${label}」：`, nonce: Date.now() })
+    setPane('talk')
+  }, [])
+
+  const clearSeed = useCallback((): void => setAskSeed(undefined), [])
+
   const ask = (question: string, retry: boolean): void => {
     if (spaceId === undefined) return
     setAsking(true)
@@ -560,9 +587,11 @@ function Desk({
         if (asked.thread !== threadId) {
           threadInHand.current = asked.thread
           // A new conversation takes the empty one's place, so going back skips it.
-          go({ kind: 'thread', space: spaceId, thread: asked.thread }, here.current.panel, {
-            replace: true,
-          })
+          const next =
+            place.kind === 'live'
+              ? { kind: 'live' as const, space: spaceId, thread: asked.thread }
+              : { kind: 'thread' as const, space: spaceId, thread: asked.thread }
+          go(next, here.current.panel, { replace: true })
         }
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
       } finally {
@@ -610,7 +639,11 @@ function Desk({
     if (spaceId === undefined || threadId === undefined) return
     const { session } = await api.fork(spaceId, threadId, turn)
     setSessions((await api.sessions(spaceId)).sessions)
-    moveTo({ kind: 'thread', space: spaceId, thread: session.id })
+    moveTo(
+      place.kind === 'live'
+        ? { kind: 'live', space: spaceId, thread: session.id }
+        : { kind: 'thread', space: spaceId, thread: session.id },
+    )
   }
   const canFork =
     spaceId !== undefined &&
@@ -651,12 +684,13 @@ function Desk({
     if (spaceId === undefined) return
     const plan = plans.find((candidate) => candidate.thread === thread)
     const { turn: _dropped, ...rest } = panel
-    go(
+    const next =
       plan !== undefined && plan.origin !== 'host'
-        ? { kind: 'plan', space: spaceId, plan: plan.id }
-        : { kind: 'thread', space: spaceId, thread },
-      turn === undefined ? rest : { ...rest, turn },
-    )
+        ? { kind: 'plan' as const, space: spaceId, plan: plan.id }
+        : place.kind === 'live' && plan === undefined
+          ? { kind: 'live' as const, space: spaceId, thread }
+          : { kind: 'thread' as const, space: spaceId, thread }
+    go(next, turn === undefined ? rest : { ...rest, turn })
     setPane('talk')
   }
 
@@ -684,8 +718,16 @@ function Desk({
   )
   const heldCount = heldNodes.length
 
-  const railAllowed = spaceKnown && !welcoming && !WITHOUT_RAIL.has(place.kind)
-  const right = opensSide(panel) ? 'source' : railAllowed && railOpen ? 'rail' : 'none'
+  const liveMode = place.kind === 'live'
+  const showLive = liveMode && spaceId !== undefined && spaceKnown
+  const railAllowed = !liveMode && spaceKnown && !welcoming && !WITHOUT_RAIL.has(place.kind)
+  const right = opensSide(panel)
+    ? 'source'
+    : showLive
+      ? 'rail'
+      : railAllowed && railOpen
+        ? 'rail'
+        : 'none'
   const toggleRail = (): void => {
     const next = !(right === 'rail')
     setRailOpen(next)
@@ -759,7 +801,7 @@ function Desk({
         className="desk"
         data-pane={pane}
         data-right={right}
-        data-rail={railAllowed ? 'allowed' : undefined}
+        data-rail={railAllowed || showLive ? 'allowed' : undefined}
         data-shelf={shelfOpen ? undefined : 'closed'}
         style={
           {
@@ -785,7 +827,9 @@ function Desk({
         {right !== 'none' && (
           <Resizer
             edge="right"
-            label={right === 'rail' ? '调整理解层宽度' : '调整原文宽度'}
+            label={
+              right === 'rail' ? (showLive ? '调整旁注宽度' : '调整理解层宽度') : '调整原文宽度'
+            }
             width={rightWidth}
             min={300}
             max={720}
@@ -940,6 +984,30 @@ function Desk({
                 <span key={index}>{crumb}</span>
               ))}
             </p>
+            {place.kind === 'live' ? (
+              <button
+                type="button"
+                className="tool"
+                onClick={() =>
+                  threadId === undefined
+                    ? moveTo({ kind: 'space', space: place.space })
+                    : moveTo({ kind: 'thread', space: place.space, thread: threadId })
+                }
+              >
+                回到工作台
+              </button>
+            ) : place.kind === 'thread' && spaceId !== undefined ? (
+              <button
+                type="button"
+                className="tool"
+                onClick={() => {
+                  go({ kind: 'live', space: spaceId, thread: place.thread }, panel)
+                  setPane('rail')
+                }}
+              >
+                实时旁注
+              </button>
+            ) : null}
             {railAllowed && (
               <button
                 type="button"
@@ -1159,6 +1227,9 @@ function Desk({
               extract={
                 <ExtractFromThread space={spaceId} thread={threadId} onMade={madeFromThread} />
               }
+              {...(place.kind === 'live' && askSeed !== undefined
+                ? { seed: askSeed, onSeedUsed: clearSeed }
+                : {})}
             />
           ) : planInView?.origin === 'host' && spaceId !== undefined ? (
             <Outcomes
@@ -1215,24 +1286,58 @@ function Desk({
             setPane('talk')
           }}
         />
-        {railAllowed && spaceId !== undefined && (
-          <Rail
+        {showLive && spaceId !== undefined && space !== undefined && !opensSide(panel) ? (
+          <LiveRail
+            space={spaceId}
+            spaceName={space.name}
+            thread={threadId}
+            turns={turnsOf === threadId ? turns : NO_TURNS}
+            sessions={sessions.filter(
+              (session) => !plans.some((plan) => plan.thread === session.id),
+            )}
             understanding={understanding}
-            relating={relating > 0}
-            thread={threadInView}
-            turns={turnsOf === threadInView ? turns : NO_TURNS}
-            sessions={sessions}
+            blocks={library.blocks}
+            workflows={library.workflows}
+            archived={space.archived}
             guard={guard}
             onDecided={decided}
+            onClose={() =>
+              threadId === undefined
+                ? moveTo({ kind: 'space', space: spaceId })
+                : moveTo({ kind: 'thread', space: spaceId, thread: threadId })
+            }
+            onOpenThread={(id) => moveTo({ kind: 'live', space: spaceId, thread: id })}
             onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
             onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
             onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
-            onClose={() => {
-              setRailOpen(false)
-              keep(RAIL, 'closed')
-              setPane('talk')
-            }}
+            {...(me.sharing ? { onOpenCommons: () => moveTo({ kind: 'commons' }) } : {})}
+            onAskAbout={askAbout}
+            onJump={jumpTo}
+            onFork={forkAt}
+            onExtract={extractLive}
+            onSave={saveLive}
           />
+        ) : (
+          railAllowed &&
+          spaceId !== undefined && (
+            <Rail
+              understanding={understanding}
+              relating={relating > 0}
+              thread={threadInView}
+              turns={turnsOf === threadInView ? turns : NO_TURNS}
+              sessions={sessions}
+              guard={guard}
+              onDecided={decided}
+              onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
+              onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
+              onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
+              onClose={() => {
+                setRailOpen(false)
+                keep(RAIL, 'closed')
+                setPane('talk')
+              }}
+            />
+          )
         )}
         <nav className="switcher" aria-label="切换页面">
           <button type="button" aria-current={pane === 'shelf'} onClick={() => setPane('shelf')}>
@@ -1244,9 +1349,9 @@ function Desk({
           <button type="button" aria-current={pane === 'side'} onClick={() => setPane('side')}>
             原文
           </button>
-          {railAllowed && (
+          {(railAllowed || showLive) && (
             <button type="button" aria-current={pane === 'rail'} onClick={() => setPane('rail')}>
-              理解层
+              {showLive ? '旁注' : '理解层'}
             </button>
           )}
         </nav>
@@ -1695,16 +1800,28 @@ function Conversation(props: {
   onCandidates: (reply: string) => Promise<string | undefined>
   onMaterials: () => void
   extract: ReactNode
+  /** Words the live panel sends into the composer, with a new nonce each time so the same words count again. */
+  seed?: { readonly text: string; readonly nonce: number }
+  /** Called once the seed is in the composer, so returning to the page does not write over what was typed since. */
+  onSeedUsed?: () => void
 }) {
   const { space, asking, failed } = props
   const loading = props.turns === undefined
   const turns = props.turns ?? []
   const [draft, setDraft] = useState('')
+  const composer = useRef<HTMLTextAreaElement>(null)
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'end' })
   }, [turns.length, asking, failed])
+
+  useEffect(() => {
+    if (props.seed === undefined) return
+    setDraft(props.seed.text)
+    composer.current?.focus()
+    props.onSeedUsed?.()
+  }, [props.seed, props.onSeedUsed])
 
   if (space === undefined) {
     return (
@@ -1810,6 +1927,7 @@ function Conversation(props: {
       </div>
       <form className="composer" onSubmit={submit}>
         <textarea
+          ref={composer}
           aria-label="你的问题"
           placeholder={space.archived ? '这个空间已归档' : '问一个关于材料的问题'}
           rows={2}
@@ -1845,6 +1963,7 @@ const PAGE_NAMES: Partial<Record<Place['kind'], string>> = {
   review: '待确认',
   understanding: '我的理解',
   new: '新对话',
+  live: '实时旁注',
   connect: '接入 Agent',
   model: '模型',
   conversations: '所有对话',
@@ -1865,9 +1984,11 @@ function crumbsOf(
   const page =
     place.kind === 'thread'
       ? (names.thread ?? '对话')
-      : place.kind === 'plan'
-        ? (names.plan ?? '学习计划')
-        : PAGE_NAMES[place.kind]
+      : place.kind === 'live'
+        ? (names.thread ?? '实时旁注')
+        : place.kind === 'plan'
+          ? (names.plan ?? '学习计划')
+          : PAGE_NAMES[place.kind]
   const inSpace = 'space' in place && names.space !== undefined
   return [inSpace ? names.space : undefined, page].filter(
     (crumb): crumb is string => crumb !== undefined,
@@ -2030,7 +2151,7 @@ function Rail(props: {
   onClose: () => void
 }) {
   const { understanding, thread, turns } = props
-  const pending = useMemo(() => withWaitingLinks(understanding.pending), [understanding.pending])
+  const pending = understanding.pending
   const [view, setView] = useState<'tree' | 'graph'>(railViewWas)
   const [wanted, setWanted] = useState<Scope>('thread')
   // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
@@ -2268,208 +2389,5 @@ function SourceView({ request }: { request: SourceRequest | undefined }) {
         )}
       </pre>
     </>
-  )
-}
-
-/** A candidate to decide, with the links that wait on it. */
-interface Waiting {
-  readonly candidate: PendingCandidate
-  readonly links: readonly PendingCandidate[]
-}
-
-/**
- * What waits, with each link that can be confirmed only after a waiting candidate shown under that candidate rather
- * than as an item of its own: deciding the candidate is what comes first, and the link says what it would connect to.
- */
-function withWaitingLinks(pending: readonly PendingCandidate[]): readonly Waiting[] {
-  const candidates = new Set(
-    pending.flatMap((each) => (each.proposal.kind === 'node' ? [`cand:${each.id}`] : [])),
-  )
-  const beside = new Map<string, PendingCandidate[]>()
-  const own = pending.filter((each) => {
-    if (each.link?.ready !== false) return true
-    const end = [each.proposal.from, each.proposal.to].find(
-      (it) => it !== undefined && candidates.has(it),
-    )
-    if (end === undefined) return true
-    beside.set(end, [...(beside.get(end) ?? []), each])
-    return false
-  })
-  return own.map((candidate) => ({
-    candidate,
-    links: beside.get(`cand:${candidate.id}`) ?? [],
-  }))
-}
-
-/** How a link reads from the end it is shown under. */
-function linkFrom(link: PendingCandidate, candidate: string): { words: string; other: string } {
-  const outgoing = link.proposal.from === `cand:${candidate}`
-  const other = (outgoing ? link.link?.toLabel : link.link?.fromLabel) ?? ''
-  if (link.proposal.relation === 'contradicts') return { words: '可能和这条矛盾', other }
-  return { words: outgoing ? '可能支持' : '可能被这条支持', other }
-}
-
-function PendingList(props: {
-  pending: readonly PendingCandidate[]
-  /** Shows only the first few. */
-  limit?: number
-  guard: (work: () => Promise<unknown>) => void
-  onDecided: () => Promise<void>
-}) {
-  const waiting = withWaitingLinks(props.pending)
-  if (waiting.length === 0) {
-    return (
-      <p className="hint">
-        没有待确认的内容。可以点你说过的话旁边的“这是我的理解”，或回答下面的“提炼成待确认的理解”。
-      </p>
-    )
-  }
-  return (
-    <ul className="pending">
-      {waiting.slice(0, props.limit ?? waiting.length).map(({ candidate, links }) => (
-        <PendingItem
-          key={candidate.id}
-          candidate={candidate}
-          links={links}
-          guard={props.guard}
-          onDecided={props.onDecided}
-        />
-      ))}
-    </ul>
-  )
-}
-
-function PendingItem(props: {
-  candidate: PendingCandidate
-  links: readonly PendingCandidate[]
-  guard: (work: () => Promise<unknown>) => void
-  onDecided: () => Promise<void>
-}) {
-  const { candidate, links: waitingLinks, guard, onDecided } = props
-  const [editing, setEditing] = useState(false)
-  const [label, setLabel] = useState(candidate.proposal.label ?? '')
-  const { link, state } = candidate
-  const decide = (work: () => Promise<unknown>): void => {
-    guard(async () => {
-      await work()
-      await onDecided()
-    })
-  }
-  if (state !== undefined) {
-    return (
-      <li>
-        <p className="candidate">{state.label}</p>
-        <p className="candidate">
-          <span className="hint">把{state.dimension}记为：</span>
-          {state.level}
-        </p>
-        <p className="hint">{candidate.rationale}</p>
-        <p className="decisions">
-          <button type="button" onClick={() => decide(() => api.accept(candidate.id))}>
-            同意，记下来
-          </button>
-          <button
-            type="button"
-            className="link"
-            onClick={() => decide(() => api.dismiss(candidate.id))}
-          >
-            不同意
-          </button>
-        </p>
-      </li>
-    )
-  }
-  if (link !== undefined) {
-    const relation =
-      candidate.proposal.relation === 'evolves_to'
-        ? '修正为'
-        : candidate.proposal.relation === 'contradicts'
-          ? '和这一条矛盾：'
-          : '支持这一条：'
-    return (
-      <li>
-        <p className="candidate">{link.fromLabel}</p>
-        <p className="candidate link-to" data-relation={candidate.proposal.relation}>
-          <span className="relation-words">{relation}</span>
-          {link.toLabel}
-        </p>
-        <p className="hint">{candidate.rationale}</p>
-        {!link.ready && <p className="hint">先确认它连着的两条，才能确认这个关系。</p>}
-        <p className="decisions">
-          <button
-            type="button"
-            disabled={!link.ready}
-            onClick={() => decide(() => api.accept(candidate.id))}
-          >
-            确认这个关系
-          </button>
-          <button
-            type="button"
-            className="link"
-            onClick={() => decide(() => api.dismiss(candidate.id))}
-          >
-            不要
-          </button>
-        </p>
-      </li>
-    )
-  }
-  return (
-    <li>
-      {editing ? (
-        <textarea
-          aria-label="修改这条理解"
-          rows={3}
-          value={label}
-          onChange={(event) => setLabel(event.target.value)}
-        />
-      ) : (
-        <p className="candidate">{candidate.proposal.label}</p>
-      )}
-      <p className="hint">
-        {wordsOf(candidate.basis, candidate.wordsBy)}。{candidate.rationale}
-      </p>
-      {candidate.similar !== undefined && <p className="hint">和这一条相近：{candidate.similar}</p>}
-      {waitingLinks.length > 0 && (
-        <ul className="waiting-links" aria-label="和你已有理解的关系">
-          {waitingLinks.map((each) => {
-            const { words, other } = linkFrom(each, candidate.id)
-            return (
-              <li key={each.id} data-relation={each.proposal.relation} title={each.rationale}>
-                <span className="relation-words">{words}</span>
-                <span className="relation-other">{other}</span>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-      <p className="decisions">
-        {editing ? (
-          <button
-            type="button"
-            disabled={label.trim() === ''}
-            onClick={() => decide(() => api.acceptEdited(candidate, label.trim()))}
-          >
-            保存为我的理解
-          </button>
-        ) : (
-          <>
-            <button type="button" onClick={() => decide(() => api.accept(candidate.id))}>
-              确认为我的理解
-            </button>
-            <button type="button" className="link" onClick={() => setEditing(true)}>
-              改一改
-            </button>
-          </>
-        )}
-        <button
-          type="button"
-          className="link"
-          onClick={() => decide(() => api.dismiss(candidate.id))}
-        >
-          不要
-        </button>
-      </p>
-    </li>
   )
 }
