@@ -863,7 +863,8 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-.answer-block {
+.answer-block,
+.pending-answer {
   max-width: 62ch;
   margin-bottom: 8px;
 }
