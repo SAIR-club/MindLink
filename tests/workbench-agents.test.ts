@@ -14,6 +14,7 @@ import {
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { mcpWire } from './mcp-wire.js'
+import { rest } from './rest.js'
 
 /**
  * Connecting the agents of this computer: it finds them, adds the workbench with their own command or by changing
@@ -742,16 +743,8 @@ describe('the agents page over the service', () => {
     service = undefined
   })
 
-  async function call(path: string, body?: unknown, token?: string) {
-    const response = await fetch(`${service!.url}/api/v1/scene/workbench${path}`, {
-      ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-      headers: {
-        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-      },
-    })
-    return { status: response.status, body: (await response.json()) as Record<string, unknown> }
-  }
+  const call = (path: string, body?: unknown, token?: string) =>
+    rest(service!.url, `/api/v1/scene/workbench${path}`, body, token)
 
   it('is the person’s alone, and notes the agents that call over MCP', async () => {
     await mkdir(join(home, '.cursor'))

@@ -10,6 +10,7 @@ import { workflowTools } from '../../apps/mindlink/src/blocks/mcp.js'
 import { workflowRoutes } from '../../apps/mindlink/src/blocks/routes.js'
 import { projectTools } from '../../apps/mindlink/src/project/mcp.js'
 import { projectRoutes } from '../../apps/mindlink/src/project/routes.js'
+import { serviceCaller, type ToolResult } from '../mcp-wire.js'
 import { fakeProjects, registryOf } from './engine-helpers.js'
 
 /**
@@ -19,13 +20,6 @@ import { fakeProjects, registryOf } from './engine-helpers.js'
 
 type Json = Record<string, unknown>
 
-interface ToolResult {
-  readonly content?: readonly { readonly type: string; readonly text: string }[]
-  readonly structuredContent?: Json
-  readonly isError?: boolean
-}
-
-const PROTOCOL = '2026-07-28'
 const API = '/api/v1/scene/mindlink'
 
 let directory: string
@@ -79,49 +73,6 @@ async function rest(
   return { status: response.status, body: (await response.json().catch(() => ({}))) as Json }
 }
 
-/** A minimal MCP host speaking raw JSON-RPC, so what is exercised is the wire itself. */
-function agent(name: string) {
-  let nextId = 1
-  return async (tool: string, args: Json): Promise<ToolResult> => {
-    const response = await fetch(service.mcpUrl, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${service.humanToken}`,
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        'mcp-protocol-version': PROTOCOL,
-        'mcp-method': 'tools/call',
-        'mcp-name': tool,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: nextId++,
-        method: 'tools/call',
-        params: {
-          name: tool,
-          arguments: args,
-          _meta: {
-            'io.modelcontextprotocol/protocolVersion': PROTOCOL,
-            'io.modelcontextprotocol/clientInfo': { name, version: '1' },
-            'io.modelcontextprotocol/clientCapabilities': {},
-          },
-        },
-      }),
-    })
-    const text = await response.text()
-    const json = response.headers.get('content-type')?.includes('text/event-stream')
-      ? text
-          .split('\n')
-          .filter((line) => line.startsWith('data: '))
-          .map((line) => line.slice('data: '.length))
-          .at(-1)
-      : text
-    const body = JSON.parse(json ?? '{}') as Json
-    if (body['result'] === undefined) throw new Error(`no result for ${tool}: ${text}`)
-    return body['result'] as ToolResult
-  }
-}
-
 const textOf = (result: ToolResult): string =>
   result.content?.map((part) => part.text).join('\n') ?? ''
 
@@ -134,7 +85,11 @@ const GUIDE_SECTIONS = {
 
 describe('a scripted agent through the apply workflow', () => {
   it('gets each guide at its own intensity and never the other two', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     const guides: { path: string; intensity: string; text: string }[] = []
     const paths: string[] = []
 
@@ -204,7 +159,11 @@ describe('a scripted agent through the apply workflow', () => {
   })
 
   it('refuses a result the activity does not declare, and records nothing', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     await call('workflow_next', { project: 'p1' })
     const bad = await call('workflow_report', {
       project: 'p1',
@@ -220,7 +179,11 @@ describe('a scripted agent through the apply workflow', () => {
 
 describe('a run over REST', () => {
   it('is read and adjusted, and the agent’s next step follows', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     await call('workflow_next', { project: 'p2' })
     await call('workflow_report', { project: 'p2', step: 'light-a' })
 
@@ -269,7 +232,11 @@ describe('a run over REST', () => {
 
 describe('a learning project opened by the agent', () => {
   it('runs the workflow the project was created with', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     const created = await rest('POST', '/projects/create', {
       title: '贝叶斯',
       goalType: 'apply',

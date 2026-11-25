@@ -7,7 +7,7 @@ export const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : '出了点问题。请重试。'
 
 /** What a turn needs to reach the understanding drawn from it, and to go the other way. */
-export interface TurnLinks {
+interface TurnLinks {
   readonly nodes: readonly HeldNode[]
   /** The turn a node's page sent the person back to. */
   readonly focused: string | undefined

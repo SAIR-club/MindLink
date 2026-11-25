@@ -164,7 +164,7 @@ function lineageOf(view: SceneView, start: string): readonly LineageStep[] {
   return steps.reverse()
 }
 
-export interface SharingOptions {
+interface SharingOptions {
   readonly now: () => number
 }
 

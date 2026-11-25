@@ -7,6 +7,7 @@ import { workbenchProfile, workbenchScene } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type McpWire, mcpWire } from './mcp-wire.js'
 import { noModel } from './model.js'
+import { rest as restOf } from './rest.js'
 
 /**
  * An attempt that falls short puts a doubt to the person about what they hold on its objective (a negotiated learner
@@ -38,20 +39,8 @@ async function ok<T = Record<string, unknown>>(
 const made = <T = Record<string, unknown>>(name: string, args: Record<string, unknown>) =>
   ok<T>(name, { submission: submission(), ...args })
 
-async function rest<T = Record<string, unknown>>(
-  path: string,
-  body?: unknown,
-): Promise<{ status: number; body: T }> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${service.humanToken ?? ''}`,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as T }
-}
+const rest = <T = Record<string, unknown>>(path: string, body?: unknown) =>
+  restOf<T>(service.apiUrl, path, body, service.humanToken)
 
 interface Plan {
   readonly id: string

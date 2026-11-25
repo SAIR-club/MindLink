@@ -6,7 +6,7 @@
  * that carries a learner's answer back.
  */
 
-export const PROTOCOL = '2026-07-28'
+const PROTOCOL = '2026-07-28'
 
 export interface ToolResult {
   readonly content?: readonly { readonly type: string; readonly text: string }[]
@@ -24,7 +24,7 @@ export interface WireOptions {
   readonly headers?: Record<string, string>
 }
 
-export interface Client {
+interface Client {
   readonly name: string
   readonly version: string
   /** What the client declares it can do, such as showing the user an elicitation form. */
@@ -98,4 +98,16 @@ export function mcpWire(url: () => string, client: Client): McpWire {
   }
 
   return { rpc, call }
+}
+
+/** A service's tool caller, carrying the credential its person or host holds. */
+export function serviceCaller(url: () => string, client: Client, token?: string): McpWire['call'] {
+  const wire = mcpWire(url, client)
+  return (name, args, extra, options) =>
+    wire.call(name, args, extra, {
+      ...options,
+      ...(token === undefined
+        ? {}
+        : { headers: { ...options?.headers, authorization: `Bearer ${token}` } }),
+    })
 }

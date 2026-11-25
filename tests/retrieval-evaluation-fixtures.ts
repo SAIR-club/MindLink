@@ -36,8 +36,6 @@ const CLAIM = {
   peIndex: asId<NodeId>('claim_pe_index'),
 } as const
 
-export const EVALUATION_CLAIM_IDS = CLAIM
-
 /**
  * The graph every case is evaluated against.
  *

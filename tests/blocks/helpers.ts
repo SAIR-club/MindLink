@@ -44,7 +44,7 @@ params:
 做完。
 `
 
-export const ACTIVITY = `---
+const ACTIVITY = `---
 format: 1
 id: a
 level: activity
@@ -96,7 +96,7 @@ export const NOTES = `# 笔记
 一些资料。
 `
 
-export const EXAMPLE = `---
+const EXAMPLE = `---
 intensity: tell
 result:
   outcome: done

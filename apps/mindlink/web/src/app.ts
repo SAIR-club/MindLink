@@ -45,7 +45,7 @@ export interface MindLink {
 }
 
 /** Every registered page, the welcome page at `/` unless a feature has one, and a page for any other path. */
-export function routesOf(registry: Registry): RouteRecordRaw[] {
+function routesOf(registry: Registry): RouteRecordRaw[] {
   const records: RouteRecordRaw[] = registry.routes().map((route) => ({
     path: route.path,
     component: route.component,

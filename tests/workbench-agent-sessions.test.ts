@@ -5,6 +5,7 @@ import { createRequire } from 'node:module'
 import { addPerson, addToken, startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile, type AgentEnvironment } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { rest } from './rest.js'
 
 /**
  * The conversations the agents of this computer keep for themselves, read only and only by the person; and the
@@ -40,16 +41,8 @@ const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as {
 const jsonl = (...lines: unknown[]): string =>
   `${lines.map((line) => JSON.stringify(line)).join('\n')}\n`
 
-async function call(path: string, body?: unknown, token = service?.humanToken) {
-  const response = await fetch(`${service!.url}/api/v1/scene/workbench${path}`, {
-    ...(body === undefined ? {} : { method: 'POST', body: JSON.stringify(body) }),
-    headers: {
-      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-      ...(token === undefined ? {} : { authorization: `Bearer ${token}` }),
-    },
-  })
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> }
-}
+const call = (path: string, body?: unknown, token = service?.humanToken) =>
+  rest(service!.url, `/api/v1/scene/workbench${path}`, body, token)
 
 async function serve(): Promise<EpistemeService> {
   service = await startService({

@@ -65,7 +65,7 @@ const MAX_MAIN_LINES = 500
 const MAX_FILE_BYTES = 64 * 1024
 const MAX_BLOCK_BYTES = 256 * 1024
 
-export const ID = /^[a-z][a-z0-9-]{0,63}$/
+const ID = /^[a-z][a-z0-9-]{0,63}$/
 const FIELD_NAME = /^[a-z][a-z0-9_]{0,31}$/
 const ENUM_VALUE = /^[a-z][a-z0-9-]*$/
 const TOOL_NAME = /^[a-z][a-z0-9_]*$/

@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { startMindLink } from '@mindlink/app'
 import type { Launched } from '@mindlink/platform'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { serviceCaller, type ToolResult } from '../mcp-wire.js'
+import { speedrunLibrary } from './engine-helpers.js'
 
 /**
  * The block reads (MindLink#11) through the launcher: an agent calls each tool over MCP against a real graph, where
@@ -16,21 +18,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 type Json = Record<string, unknown>
 
-interface ToolResult {
-  readonly content?: readonly { readonly type: string; readonly text: string }[]
-  readonly structuredContent?: Json
-  readonly isError?: boolean
-}
-
-const PROTOCOL = '2026-07-28'
-
-/** A block library holding the one workflow a project here starts from; the built-in content lands later. */
-const LIBRARY = {
-  get: () => undefined,
-  resolve: () => undefined,
-  list: () => [{ level: 'workflow', key: 'builtin:speedrun' }] as never,
-}
-
 let directory: string
 let service: Launched
 
@@ -41,7 +28,7 @@ beforeEach(async () => {
     graph: join(directory, 'graph.jsonl'),
     port: 0,
     sharing: true,
-    registry: () => LIBRARY,
+    registry: () => speedrunLibrary,
   })
 })
 
@@ -65,49 +52,6 @@ async function rest(method: 'GET' | 'POST', path: string, body?: Json): Promise<
   return json
 }
 
-/** A minimal MCP host speaking raw JSON-RPC, so what is exercised is the wire itself. */
-function agent(name: string) {
-  let nextId = 1
-  return async (tool: string, args: Json): Promise<ToolResult> => {
-    const response = await fetch(service.mcpUrl, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${service.humanToken}`,
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
-        'mcp-protocol-version': PROTOCOL,
-        'mcp-method': 'tools/call',
-        'mcp-name': tool,
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: nextId++,
-        method: 'tools/call',
-        params: {
-          name: tool,
-          arguments: args,
-          _meta: {
-            'io.modelcontextprotocol/protocolVersion': PROTOCOL,
-            'io.modelcontextprotocol/clientInfo': { name, version: '1' },
-            'io.modelcontextprotocol/clientCapabilities': {},
-          },
-        },
-      }),
-    })
-    const text = await response.text()
-    const json = response.headers.get('content-type')?.includes('text/event-stream')
-      ? text
-          .split('\n')
-          .filter((line) => line.startsWith('data: '))
-          .map((line) => line.slice('data: '.length))
-          .at(-1)
-      : text
-    const body = JSON.parse(json ?? '{}') as Json
-    if (body['result'] === undefined) throw new Error(`no result for ${tool}: ${text}`)
-    return body['result'] as ToolResult
-  }
-}
-
 const textOf = (result: ToolResult): string =>
   result.content?.map((part) => part.text).join('\n') ?? ''
 
@@ -116,7 +60,11 @@ const SCENE = '/api/v1/scene/mindlink'
 
 describe('the block reads through the launcher', () => {
   it('answers each tool over MCP from the learner’s own graph and public publications', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     const created = await rest('POST', `${SCENE}/projects/create`, {
       title: '线性代数',
       course: 'linalg',

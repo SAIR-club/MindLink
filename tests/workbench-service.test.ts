@@ -11,11 +11,7 @@ import {
   type Space,
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-
-interface Reply<T> {
-  readonly status: number
-  readonly body: T & { readonly code?: string; readonly error?: string }
-}
+import { rest as restOf } from './rest.js'
 
 let directory: string
 let graph: string
@@ -25,18 +21,12 @@ const start = async (model: ModelClient = new SimulatedModel()): Promise<void> =
   service = await startService({ graph, port: 0, profile: workbenchProfile({ model }) })
 }
 
-async function call<T = Record<string, unknown>>(
+const call = <T = Record<string, unknown>>(
   path: string,
   body?: unknown,
-  token = service.humanToken ?? '',
-): Promise<Reply<T>> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as Reply<T>['body'] }
-}
+  token = service.humanToken,
+) =>
+  restOf<T & { readonly code?: string; readonly error?: string }>(service.apiUrl, path, body, token)
 
 const scene = '/scene/workbench'
 

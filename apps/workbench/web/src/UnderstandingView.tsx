@@ -15,7 +15,7 @@ export function stateOf(node: HeldNode): ItemState {
   return 'held'
 }
 
-export const STATE_WORDS: Readonly<Record<ItemState, string>> = {
+const STATE_WORDS: Readonly<Record<ItemState, string>> = {
   held: '已确认',
   pending: '等你确认',
   conflict: '有未解决的矛盾',
@@ -30,7 +30,7 @@ const RELATION_WORDS: Readonly<Record<string, string>> = {
   forks_from: '分叉自',
 }
 
-export function relationWords(type: string, direction: 'in' | 'out'): string {
+function relationWords(type: string, direction: 'in' | 'out'): string {
   if (type === 'supports') return direction === 'out' ? '支持' : '得到支持'
   if (type === 'evolves_to') return direction === 'out' ? '修正为' : '修正自'
   return RELATION_WORDS[type] ?? type
@@ -41,7 +41,7 @@ const TOPIC = 'topic:'
 const MATERIAL = 'material:'
 
 /** One section of one material; a material with no headings is a single topic of its own. */
-export function topicKey(topic: Topic): string {
+function topicKey(topic: Topic): string {
   return topic.section === undefined
     ? `${MATERIAL}${topic.materialId}`
     : `${TOPIC}${topic.materialId}:${topic.section}`
@@ -203,7 +203,7 @@ export function shownFor(
 }
 
 /** The small mark in front of an item, the same in the tree and the legend. */
-export function StateMark({ state }: { state: ItemState }) {
+function StateMark({ state }: { state: ItemState }) {
   return (
     <span className="state-mark" data-state={state} title={STATE_WORDS[state]} aria-hidden="true" />
   )

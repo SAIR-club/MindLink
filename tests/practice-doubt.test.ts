@@ -11,6 +11,7 @@ import {
 } from '@mindlink/workbench'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type McpWire, mcpWire } from './mcp-wire.js'
+import { rest as restOf } from './rest.js'
 
 /**
  * Practice on the page reaches what the person holds the way an agent's record does: once they have said which of
@@ -50,20 +51,8 @@ let service: EpistemeService
 let host: McpWire
 let counter = 0
 
-async function rest<T = Record<string, unknown>>(
-  path: string,
-  body?: unknown,
-): Promise<{ status: number; body: T & { code?: string } }> {
-  const response = await fetch(`${service.apiUrl}${path}`, {
-    method: body === undefined ? 'GET' : 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${service.humanToken ?? ''}`,
-    },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-  })
-  return { status: response.status, body: (await response.json()) as T & { code?: string } }
-}
+const rest = <T = Record<string, unknown>>(path: string, body?: unknown) =>
+  restOf<T & { code?: string }>(service.apiUrl, path, body, service.humanToken)
 
 async function ok<T = Record<string, unknown>>(
   name: string,

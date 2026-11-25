@@ -154,7 +154,7 @@ function VisionNav(props: {
         <span className="vision-logo" aria-hidden="true">
           ✦
         </span>
-        <span>MindLink</span>
+        <span>Episteme</span>
       </a>
       <nav aria-label="页面">
         <ul>

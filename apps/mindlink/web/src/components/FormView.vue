@@ -7,7 +7,7 @@ import { initialValues, missingMessage, type Field, type Values } from '../form.
  * A form: labelled fields, a submit button, and the refusal's text when the service says no.
  *
  * While `submit` runs the button is disabled, so a slow request is not sent twice. A required field left empty
- * is caught here, before anything is sent. Build a level or dimension field with `levelField` / `dimensionField`,
+ * is caught here, before anything is sent. Build a level field with `levelField`,
  * so it offers what the vocabulary lists.
  */
 

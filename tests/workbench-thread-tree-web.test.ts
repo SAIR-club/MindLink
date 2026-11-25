@@ -1,12 +1,11 @@
-import { exec } from 'node:child_process'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { promisify } from 'node:util'
 import { startService, type EpistemeService } from '@episteme/service'
 import { SimulatedModel, workbenchProfile } from '@mindlink/workbench'
 import { type Page } from 'playwright-core'
 import { installedBrowser } from './browser.js'
+import { builtWorkbenchPage } from './workbench-page.js'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 /**
@@ -73,10 +72,7 @@ describe.skipIf(browser === undefined)('branching a conversation in a browser', 
   }
 
   beforeAll(async () => {
-    built = await mkdtemp(join(tmpdir(), 'episteme-web-build-'))
-    await promisify(exec)(
-      `pnpm --filter @mindlink/workbench-web exec vite build --outDir "${built}" --emptyOutDir`,
-    )
+    built = await builtWorkbenchPage()
   }, 180_000)
 
   afterAll(async () => {

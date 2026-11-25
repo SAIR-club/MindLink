@@ -71,9 +71,9 @@ export interface NodeName {
 }
 
 /** The scope that covers every learning project. */
-export const ALL_SCOPES = '*'
+const ALL_SCOPES = '*'
 
-export const SUGGESTED_NODE = 'cand:'
+const SUGGESTED_NODE = 'cand:'
 
 // ---------------------------------------------------------------------------------------------------------------
 // Reading the service's answers. Anything without the documented shape is dropped rather than shown half-read.
@@ -275,7 +275,7 @@ function nameOf(proposal: Proposal): string | undefined {
  * How a node a proposal refers to is shown: an existing node by its label, a node suggested alongside by what it
  * proposes (marked as still waiting), or one that was not accepted as such.
  */
-export function nodeText(nodeId: string, context: Context): string {
+function nodeText(nodeId: string, context: Context): string {
   if (nodeId.startsWith(SUGGESTED_NODE)) {
     const id = nodeId.slice(SUGGESTED_NODE.length)
     const pending = context.pending.get(id)
@@ -529,7 +529,7 @@ export function normaliseScope(scope: string): string {
 }
 
 /** Whether a live delegation covers a suggestion: one for every scope, or for the suggestion's own. */
-export function coveringDelegation(
+function coveringDelegation(
   delegations: readonly Delegation[],
   suggestion: Suggestion,
 ): Delegation | undefined {
