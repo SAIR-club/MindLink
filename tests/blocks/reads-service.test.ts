@@ -177,7 +177,11 @@ describe('the block reads through the launcher', () => {
   })
 
   it('reads what the learner accepted from a distillation given the project’s course as its scope', async () => {
-    const call = agent('scripted-host')
+    const call = serviceCaller(
+      () => service.mcpUrl,
+      { name: 'scripted-host', version: '1' },
+      service.humanToken,
+    )
     const created = await rest('POST', `${SCENE}/projects/create`, {
       title: '线性代数',
       course: 'linalg',
