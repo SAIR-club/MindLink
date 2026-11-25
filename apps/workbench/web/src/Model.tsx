@@ -39,7 +39,7 @@ export function ModelPage(props: {
   const [thinking, setThinking] = useState(model?.reasoningEffort === 'none')
   const [onlyMaterial, setOnlyMaterial] = useState(model?.onlyMaterial ?? false)
   const [working, setWorking] = useState<'saving' | 'clearing'>()
-  const [result, setResult] = useState<{ ok: boolean; text: string }>()
+  const [result, setResult] = useState<{ ok: boolean; text: string; slowSeconds?: number }>()
 
   // Opened by its address, the page can come before the saved settings do: fill in what is still empty.
   const savedUrl = model?.baseUrl
@@ -66,6 +66,7 @@ export function ModelPage(props: {
     event.preventDefault()
     setWorking('saving')
     setResult(undefined)
+    const started = performance.now()
     api
       .saveModel({
         baseUrl: baseUrl.trim(),
@@ -81,9 +82,11 @@ export function ModelPage(props: {
           return
         }
         setKey('')
+        const elapsed = (performance.now() - started) / 1000
         setResult({
           ok: true,
           text: `已保存。${reply.model.name} 回答了测试问题，之后的回答都由它来写。`,
+          ...(elapsed > 8 ? { slowSeconds: Math.ceil(elapsed) } : {}),
         })
         props.onChanged(reply.model)
       })
@@ -146,6 +149,11 @@ export function ModelPage(props: {
         )}
       </section>
 
+      {model?.source !== 'environment' && (
+        <p className="hint page-hint">
+          回答慢多半是模型在先思考。选一个不带思考的模型会快很多，例如 DeepSeek 的 deepseek-chat。
+        </p>
+      )}
       {model?.source === 'environment' ? (
         <p className="hint">
           要在这里修改，请先去掉 EPISTEME_MODEL_BASE_URL 和 EPISTEME_MODEL_NAME，再重启服务。
@@ -209,7 +217,7 @@ export function ModelPage(props: {
               checked={thinking}
               onChange={(event) => setThinking(event.target.checked)}
             />
-            关掉思考（本机思考型模型回答为空时勾上）
+            关掉思考（回答更快；本机思考型模型回答为空时也勾上）
           </label>
           <label className="check">
             <input
@@ -241,6 +249,12 @@ export function ModelPage(props: {
           {result !== undefined && (
             <p className={result.ok ? 'hint' : 'banner banner-error'} role="status">
               {result.text}
+            </p>
+          )}
+          {result?.slowSeconds !== undefined && (
+            <p className="hint">
+              这个模型回答一句话用了 {result.slowSeconds}{' '}
+              秒，日常提问可能会比较慢。可以换一个不带思考的模型，或者勾上“关掉思考”。
             </p>
           )}
           <p className="hint">

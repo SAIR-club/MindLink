@@ -237,7 +237,29 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await expect.poll(() => page.locator('mark').textContent()).toBe('位置编码记录顺序。')
   }, 60_000)
 
-  it('adds material from the picker and a drop while keeping the conversation draft', async () => {
+  it('adds pasted text as Markdown from the materials page', async () => {
+    await open()
+    await newSpace('机器学习')
+    await page.getByRole('button', { name: '材料（0）' }).click()
+    const form = page.locator('.paste-material')
+    const title = form.getByLabel('标题')
+    expect(await title.inputValue()).toMatch(/^粘贴的文字 \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/)
+    const add = form.getByRole('button', { name: '加入材料' })
+    await add.click()
+    await form.getByRole('alert').getByText('请先粘贴文字。').waitFor()
+
+    await title.fill('编码/笔记:一')
+    await form.getByLabel('文字').fill(NOTES)
+    await add.click()
+    await page.getByRole('button', { name: '材料（1）' }).waitFor()
+    // The row's replace and delete buttons name the file too, so match the title button exactly.
+    await page
+      .locator('.material-list')
+      .getByRole('button', { name: '编码笔记一.md', exact: true })
+      .waitFor()
+  }, 60_000)
+
+  it('adds material from the picker, a drop and pasted text while keeping the conversation draft', async () => {
     await open()
     await newSpace('机器学习')
     const draft = page.getByLabel('你的问题')
@@ -261,8 +283,54 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await draft.dispatchEvent('drop', { dataTransfer })
     await status.getByText('已加入《顺序.txt》').waitFor()
     await page.getByRole('button', { name: '材料（2）' }).waitFor()
+
+    const paste = page.getByRole('button', { name: '粘贴文字' })
+    const dialog = page.getByRole('dialog', { name: '粘贴文字' })
+    await paste.click()
+    await dialog.waitFor()
+    expect(
+      await dialog.getByLabel('标题').evaluate((input) => input === document.activeElement),
+    ).toBe(true)
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    expect(await paste.evaluate((button) => button === document.activeElement)).toBe(true)
+
+    await paste.click()
+    await dialog.getByLabel('标题').fill('摘录')
+    await dialog.getByLabel('文字').fill('注意力让模型发现词元之间的关系。')
+    await dialog.getByRole('button', { name: '加入材料' }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await status.getByText('已加入《摘录.md》').waitFor()
+    await page.getByRole('button', { name: '材料（3）' }).waitFor()
     expect(page.url()).toBe(url)
     expect(await draft.inputValue()).toBe('位置编码有什么用')
+  }, 60_000)
+
+  it('shows that the model is thinking while waiting for its first words', async () => {
+    let finish = (): void => undefined
+    const waiting = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    await open({
+      name: 'slow',
+      simulated: false,
+      async complete() {
+        await waiting
+        return { text: '位置编码把序列的顺序告诉模型。[1]' }
+      },
+    })
+    await newSpace('机器学习')
+    await addMaterial('a.md', NOTES)
+
+    try {
+      await ask('位置编码有什么用')
+      await page.getByText('正在查材料并回答…').waitFor()
+      await page.getByText(/模型正在思考…（已 \d+ 秒）/).waitFor({ timeout: 15_000 })
+    } finally {
+      finish()
+    }
+    await page.getByRole('button', { name: /查看引用 1/ }).waitFor()
+    await page.getByText(/模型正在思考/).waitFor({ state: 'hidden' })
   }, 60_000)
 
   it('confirms all visible candidates from the review page', async () => {

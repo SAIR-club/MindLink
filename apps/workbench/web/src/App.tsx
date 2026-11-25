@@ -40,7 +40,7 @@ import { UnfiledPage } from './Unfiled.js'
 import { ModelPage } from './Model.js'
 import { Welcome } from './Welcome.js'
 import { PlanShelf, PlanView } from './Learning.js'
-import { MATERIAL_ACCEPT, MaterialsPage } from './Materials.js'
+import { MATERIAL_ACCEPT, MaterialsPage, PasteMaterialForm } from './Materials.js'
 import { Outcomes } from './Outcomes.js'
 import {
   VISION_KINDS,
@@ -55,7 +55,7 @@ import {
   type Place,
   type Section,
 } from './routes.js'
-import { AgentTurn, LearnerTurn, Links, messageOf } from './Turns.js'
+import { AgentTurn, LearnerTurn, Links, messageOf, WaitingText } from './Turns.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { reviewRationale, UnderstandingPanel, wordsOf } from './Understanding.js'
 import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
@@ -1731,6 +1731,7 @@ function Conversation(props: {
   const [uploading, setUploading] = useState(false)
   const [uploadNote, setUploadNote] = useState<{ space: string; text: string }>()
   const fileInput = useRef<HTMLInputElement>(null)
+  const pasteDialog = useRef<HTMLDialogElement>(null)
   const end = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1752,29 +1753,30 @@ function Conversation(props: {
     setDraft('')
     props.onAsk(question, false)
   }
+  const noteUpload = (text: string): void => setUploadNote({ space: space.id, text })
+  const addFiles = async (files: readonly File[]): Promise<void> => {
+    setUploading(true)
+    noteUpload('正在加入材料…')
+    let title: string | undefined
+    try {
+      for (const file of files) title = await props.onUpload(space.id, file)
+    } finally {
+      setUploading(false)
+      if (title === undefined) setUploadNote(undefined)
+      else noteUpload(`已加入《${title}》`)
+    }
+  }
   const upload = (files: FileList | null): void => {
     if (files === null || files.length === 0 || space.archived || uploading) return
     const extensions = MATERIAL_ACCEPT.split(',')
     const chosen = [...files].filter((file) =>
       extensions.some((ext) => file.name.toLowerCase().endsWith(ext)),
     )
-    const note = (text: string): void => setUploadNote({ space: space.id, text })
     if (chosen.length === 0) {
-      note('请选择 TXT、Markdown 或 PDF 文件。')
+      noteUpload('请选择 TXT、Markdown 或 PDF 文件。')
       return
     }
-    setUploading(true)
-    note('正在加入材料…')
-    props.guard(async () => {
-      let title: string | undefined
-      try {
-        for (const file of chosen) title = await props.onUpload(space.id, file)
-      } finally {
-        setUploading(false)
-        if (title === undefined) setUploadNote(undefined)
-        else note(`已加入《${title}》`)
-      }
-    })
+    props.guard(() => addFiles(chosen))
   }
 
   const { branchOf } = props
@@ -1848,7 +1850,7 @@ function Conversation(props: {
         {own.map(shown)}
         {pendingText === '' && (
           <p className="working" role="status">
-            正在查材料并回答…
+            <WaitingText text="正在查材料并回答…" afterFive="模型正在思考…" />
           </p>
         )}
         {pendingText !== undefined && pendingText !== '' && (
@@ -1897,7 +1899,7 @@ function Conversation(props: {
           }}
         />
         {!space.archived && (
-          <>
+          <div className="composer-materials">
             <button
               type="button"
               className="tool"
@@ -1915,6 +1917,17 @@ function Conversation(props: {
                 />
               </svg>
             </button>
+            <button
+              type="button"
+              className="tool"
+              aria-haspopup="dialog"
+              onClick={(event) => {
+                event.currentTarget.focus()
+                pasteDialog.current?.showModal()
+              }}
+            >
+              粘贴文字
+            </button>
             <input
               ref={fileInput}
               className="hidden-input"
@@ -1927,7 +1940,7 @@ function Conversation(props: {
                 event.target.value = ''
               }}
             />
-          </>
+          </div>
         )}
         <button type="submit" disabled={asking || draft.trim() === '' || space.archived}>
           提问
@@ -1936,6 +1949,19 @@ function Conversation(props: {
           {uploadNote?.space === space.id ? uploadNote.text : undefined}
         </div>
       </form>
+      {!space.archived && (
+        <dialog key={space.id} ref={pasteDialog} className="paste-dialog" aria-label="粘贴文字">
+          <PasteMaterialForm
+            busy={uploading}
+            onUpload={async (file) => {
+              const dialog = pasteDialog.current
+              await addFiles([file])
+              dialog?.close()
+            }}
+            onCancel={() => pasteDialog.current?.close()}
+          />
+        </dialog>
+      )}
     </>
   )
 }
