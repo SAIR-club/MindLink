@@ -1893,7 +1893,8 @@ function Conversation(props: {
           </p>
         )}
         {pendingText !== undefined && pendingText !== '' && (
-          <div className="answer-block" aria-busy="true">
+          // Not an `answer-block`: that is a checked answer, and the words so far are not one yet.
+          <div className="pending-answer" aria-busy="true">
             <p className="answer answer-preview">{pendingText}</p>
           </div>
         )}
