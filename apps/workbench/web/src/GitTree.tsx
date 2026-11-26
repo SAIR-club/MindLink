@@ -61,41 +61,64 @@ export function GitTree(props: GitTreeProps) {
         const dot = element?.querySelector<HTMLElement>('.git-dot')
         if (element === undefined || dot == null) return undefined
         return {
-          x: dot.offsetLeft + dot.offsetWidth / 2,
+          x: element.offsetLeft + dot.offsetLeft + dot.offsetWidth / 2,
           y: element.offsetTop + dot.offsetTop + dot.offsetHeight / 2,
         }
       }
-      const paths: string[] = []
+      const paths: { d: string; kind: 'main' | 'branch' | 'live' }[] = []
+      const centreOf = (row: (typeof rows)[number] | undefined) =>
+        row === undefined ? undefined : center(elements.get(row.key))
       const main = rows
         .filter((row) => row.kind === 'node' && row.lane === 0)
-        .map((row) => center(elements.get(row.key)))
+        .map(centreOf)
         .filter((point): point is { x: number; y: number } => point !== undefined)
       const first = main[0]
       const last = main[main.length - 1]
       if (first !== undefined && last !== undefined && first !== last) {
-        paths.push(`M${first.x} ${first.y} L${last.x} ${last.y}`)
+        paths.push({ d: `M${first.x} ${first.y} L${last.x} ${last.y}`, kind: 'main' })
       }
       for (const row of rows) {
         if (row.kind !== 'branch') continue
-        const head = center(elements.get(row.key))
+        const head = centreOf(row)
         const from = center(elements.get(row.from))
         if (head === undefined || from === undefined) continue
-        paths.push(
-          `M${from.x} ${from.y} C${from.x} ${from.y + 18} ${head.x} ${head.y - 16} ${head.x} ${head.y}`,
-        )
+        paths.push({
+          d: `M${from.x} ${from.y} C${from.x} ${from.y + 20} ${head.x} ${head.y - 18} ${head.x} ${head.y}`,
+          kind: 'branch',
+        })
         const line = rows.filter((each) => each.kind === 'node' && each.thread === row.session.id)
-        const last = center(elements.get(line[line.length - 1]?.key ?? ''))
-        if (last !== undefined && last.y > head.y) {
-          paths.push(`M${head.x} ${head.y} L${last.x} ${last.y}`)
+        const end = centreOf(line[line.length - 1] ?? row)
+        if (end !== undefined && end.y > head.y) {
+          paths.push({ d: `M${head.x} ${head.y} L${end.x} ${end.y}`, kind: 'branch' })
+        }
+      }
+      // Notes are the working end of the line: a dashed wire runs from the last held node through them.
+      const notes = rows.filter((row) => row.kind === 'note')
+      const anchor = rows
+        .filter((row) => row.lane === 0 && (row.kind === 'node' || row.kind === 'branch'))
+        .at(-1)
+      const start = centreOf(anchor ?? notes[0] ?? rows[0])
+      const wire = notes
+        .map(centreOf)
+        .filter((point): point is { x: number; y: number } => point !== undefined)
+      if (start !== undefined && wire.length > 0) {
+        paths.push({
+          d: [`M${start.x} ${start.y}`, ...wire.map((point) => `L${point.x} ${point.y}`)].join(' '),
+          kind: 'live',
+        })
+        const tail = wire[wire.length - 1]
+        if (tail !== undefined) {
+          paths.push({
+            d: `M${tail.x} ${tail.y} L${tail.x} ${tail.y + 22}`,
+            kind: 'live',
+          })
         }
       }
       svg.replaceChildren(
-        ...paths.map((d) => {
+        ...paths.map(({ d, kind }) => {
           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
           path.setAttribute('d', d)
-          path.setAttribute('fill', 'none')
-          path.setAttribute('stroke', 'var(--rule-strong)')
-          path.setAttribute('stroke-width', '1.4')
+          path.setAttribute('class', `git-rail git-rail-${kind}`)
           return path
         }),
       )

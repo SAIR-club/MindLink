@@ -14,8 +14,6 @@ import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js
  */
 
 const RAIL_VIEW = 'workbench.rail-view'
-/** The rail keeps a few waiting items at hand; the review page has them all. */
-const RAIL_PENDING = 3
 
 function railViewWas(): 'thread' | 'graph' {
   const saved = kept(RAIL_VIEW)
@@ -123,61 +121,34 @@ export function Rail(props: RailProps) {
       )}
 
       <div className="rail-body" data-view={view}>
-        <section className="rail-section rail-waiting">
-          <h3
-            data-waiting={understanding.pending.length > 0}
-            title="对话里实时整理出的概要。它们默认进入理解层，最后统一收下。"
-          >
+        <section className="rail-summary" data-waiting={understanding.pending.length > 0}>
+          <h3>
             实时纪要
             <span className="count">{understanding.pending.length}</span>
           </h3>
-          {understanding.pending.length === 0 ? (
-            <p className="rail-empty">对话进行时，这里会长出概要。</p>
-          ) : (
-            <>
-              <ul className="live-notes">
-                {understanding.pending.slice(0, RAIL_PENDING).map((candidate) => (
-                  <li key={candidate.id}>
-                    <span className="state-mark" data-state="pending" aria-hidden="true" />
-                    <span>
-                      {candidate.proposal.label ??
-                        candidate.link?.toLabel ??
-                        candidate.state?.label ??
-                        '一条关系'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              <div className="live-note-actions">
-                <button
-                  type="button"
-                  className="plain"
-                  disabled={accepting}
-                  onClick={() => {
-                    setAccepting(true)
-                    props.guard(async () => {
-                      try {
-                        await props.onAcceptAll()
-                      } finally {
-                        setAccepting(false)
-                      }
-                    })
-                  }}
-                >
-                  {accepting ? '收下中' : '全部接受'}
-                </button>
-                {understanding.pending.length > RAIL_PENDING && (
-                  <button type="button" className="link" onClick={props.onOpenPending}>
-                    查看全部 {understanding.pending.length} 条
-                  </button>
-                )}
-              </div>
-            </>
+          {understanding.pending.length > 0 && (
+            <button
+              type="button"
+              className="plain"
+              disabled={accepting}
+              onClick={() => {
+                setAccepting(true)
+                props.guard(async () => {
+                  try {
+                    await props.onAcceptAll()
+                  } finally {
+                    setAccepting(false)
+                  }
+                })
+              }}
+            >
+              {accepting ? '收下中' : '全部接受'}
+            </button>
           )}
           {props.relating && (
-            <p className="rail-relating" role="status">
-              正在看它和你已确认的理解有什么关系…
-            </p>
+            <span className="rail-relating" role="status">
+              正在整理…
+            </span>
           )}
         </section>
 
