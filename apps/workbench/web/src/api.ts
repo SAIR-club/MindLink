@@ -8,6 +8,7 @@ import type {
   HeldNode,
   LaunchPlan,
   MaterialSummary,
+  NotesExport,
   ObjectiveReading,
   Plan,
   PublicQuestion,
@@ -693,6 +694,11 @@ export const api = {
     scene('/objectives/unlink', { space, objective, node }) as Promise<{ unlinked: boolean }>,
   understanding: (space: string) =>
     scene(`/understanding?space=${encoded(space)}`) as Promise<Understanding>,
+  exportNotes: (space: string, authors: ReadonlyMap<string, string>) => {
+    const query = new URLSearchParams({ space })
+    for (const [id, name] of authors) query.set(`author.${id}`, name)
+    return scene(`/understanding/export?${query}`) as Promise<NotesExport>
+  },
   unfiled: () =>
     scene('/understanding/unfiled') as Promise<{ pending: readonly UnfiledCandidate[] }>,
   // The person's decision, through the API's own decision route. The workbench has no other way to make one.

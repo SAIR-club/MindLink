@@ -8,6 +8,7 @@ import {
   type ElsewhereUnderstanding,
   type RecalledUnderstanding,
 } from './answer.js'
+import { buildExportNotes } from './export-notes.js'
 import type { MaterialStore, SearchHit } from './materials.js'
 import { ModelFailure, type ModelClient } from './model.js'
 import {
@@ -1633,6 +1634,31 @@ export function understandingRoutes(options: UnderstandingOptions): readonly Sce
       const node = nodes.find((candidate) => candidate.nodeId === id)
       if (node === undefined) refuse('unknown_node', '这个空间里没有这条理解。')
       return { node, trail: trailOf(view, node, nodes) }
+    }),
+    route('GET', '/understanding/export', ({ view, writes, query }) => {
+      const space = spaceOf(view, required(query, 'space'))
+      const decided = new Map(
+        view
+          .reviews()
+          .filter(({ outcome }) => outcome === 'accepted' || outcome === 'modified')
+          .map(({ suggestionId, decidedAt }) => [suggestionId, decidedAt]),
+      )
+      const nodes = heldNodes(view, space.id)
+      const confirmedAt = new Map<string, number>()
+      for (const node of nodes) {
+        const at = decided.get(node.fromSuggestion ?? '')
+        if (at !== undefined) confirmedAt.set(node.nodeId, at)
+      }
+      return buildExportNotes({
+        spaceName: space.name,
+        exportedAt: now(),
+        actor: writes.actor,
+        nodes,
+        confirmedAt,
+        threadTitle: (id) => view.threadView(id)?.thread.title,
+        // The scene can read cited items; display names live in /me. These hints only label citations already held.
+        authorName: (id) => query.get(`author.${id}`)?.trim().slice(0, 200) || undefined,
+      })
     }),
     route('POST', '/candidates', fromAnswer),
     route('POST', '/candidates/turn', fromTurn),

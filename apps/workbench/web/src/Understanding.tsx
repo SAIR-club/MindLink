@@ -66,7 +66,11 @@ export function UnderstandingPanel(props: PanelProps) {
   const node = understanding.nodes.find((candidate) => candidate.nodeId === selected)
   if (node !== undefined) return <NodeDetail {...props} node={node} />
   if (understanding.nodes.length === 0) {
-    return <p className="hint">这里只放你亲自确认过的内容。还没有。</p>
+    return (
+      <p className="hint" id="understanding-empty">
+        这里只放你亲自确认过的内容。还没有。
+      </p>
+    )
   }
   const current = understanding.nodes.filter((held) => isHeld(held))
   const past = understanding.nodes.filter((held) => !isHeld(held))

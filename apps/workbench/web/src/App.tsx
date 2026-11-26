@@ -60,6 +60,7 @@ import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { reviewRationale, UnderstandingPanel, wordsOf } from './Understanding.js'
 import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 import { VisionDesk } from './Vision.js'
+import { storedZip } from './zip.js'
 
 type Pane = 'shelf' | 'talk' | 'side' | 'rail'
 
@@ -271,6 +272,7 @@ function Desk({
   /** A conversation whose turns are already in hand because asking just started it. */
   const threadInHand = useRef<string | undefined>(undefined)
   const [understanding, setUnderstanding] = useState<Understanding>(NO_UNDERSTANDING)
+  const [exportingNotes, setExportingNotes] = useState(false)
   const [pane, setPane] = useState<Pane>(() =>
     opensSide(panel) ? 'side' : place.kind === 'home' ? 'shelf' : 'talk',
   )
@@ -362,6 +364,30 @@ function Desk({
     },
     [me.mode, onSignIn],
   )
+
+  function exportNotes(space: string): void {
+    setExportingNotes(true)
+    guard(async () => {
+      try {
+        const authors = new Map<string, string>()
+        for (const { adoptedFrom } of understanding.nodes) {
+          if (adoptedFrom === undefined) continue
+          const name = me.names[adoptedFrom.author]
+          if (name !== undefined) authors.set(adoptedFrom.author, name)
+        }
+        const { fileName, files } = await api.exportNotes(space, authors)
+        const url = URL.createObjectURL(storedZip(files))
+        const link = document.createElement('a')
+        link.href = url
+        link.download = fileName
+        link.click()
+        // Give the browser time to start reading the object after the click.
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+      } finally {
+        setExportingNotes(false)
+      }
+    })
+  }
 
   useEffect(() => {
     guard(async () => {
@@ -1122,6 +1148,21 @@ function Desk({
             ) : (
               <div className="page understanding">
                 <h2 className="space-title">我的理解</h2>
+                <button
+                  type="button"
+                  disabled={exportingNotes || understanding.nodes.length === 0}
+                  title={
+                    understanding.nodes.length === 0
+                      ? '确认一条理解后，就可以导出笔记。'
+                      : undefined
+                  }
+                  aria-describedby={
+                    understanding.nodes.length === 0 ? 'understanding-empty' : undefined
+                  }
+                  onClick={() => exportNotes(place.space)}
+                >
+                  {exportingNotes ? '正在导出…' : '导出为 Markdown 笔记'}
+                </button>
                 <UnderstandingPanel
                   space={place.space}
                   understanding={understanding}
