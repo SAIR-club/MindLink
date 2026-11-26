@@ -2339,6 +2339,44 @@ li[data-status="skipped"] > span:first-child {
   white-space: nowrap;
 }
 
+.live-notes {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+}
+
+.live-notes li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 9px;
+}
+
+.live-note-actions button {
+  font-size: 12px;
+}
+
+.git-note .git-title {
+  cursor: default;
+}
+
+.git-note .git-dot {
+  border-color: var(--wait);
+  background: var(--wait-soft);
+}
+
 .rail-past {
   margin-top: 12px;
   color: var(--ink-soft);

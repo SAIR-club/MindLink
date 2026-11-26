@@ -158,7 +158,30 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
     const recalled = await recalledFor(view, space.id, question)
     let answer: Answer
     try {
-      answer = await answerFrom({ question, hits, history: historyOf(earlier), model, recalled })
+      const greeting = /^(你好|您好|hi|hello|hey|嗨|在吗|早|晚上好|[?？！!。，,.、\s]+)$/iu.test(
+        question.trim(),
+      )
+      if (greeting && !model.simulated) {
+        // Ordinary conversation stays ordinary. Only claims need material evidence.
+        const reply = await model.complete([
+          {
+            role: 'system',
+            content: '你是工作台里的学习助手。自然简短地回应问候或闲聊，不提材料，不编造内容。',
+          },
+          ...historyOf(earlier).slice(-4),
+          { role: 'user', content: question },
+        ])
+        answer = {
+          status: 'answered',
+          segments: [{ text: reply.text, basis: 'question', citations: [] }],
+          citations: [],
+          invalidCitations: [],
+          model: { name: model.name, simulated: model.simulated },
+          ...(recalled.length === 0 ? {} : { recalled }),
+        }
+      } else {
+        answer = await answerFrom({ question, hits, history: historyOf(earlier), model, recalled })
+      }
       // Pointed to after the answer is made, so the model never reads another space.
       const elsewhere = elsewhereFor(view, space.id, question)
       if (elsewhere.length > 0) answer = { ...answer, elsewhere }

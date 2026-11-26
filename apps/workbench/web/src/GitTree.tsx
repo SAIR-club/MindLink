@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
-import type { HeldNode, Session, Turn } from './api.js'
+import type { HeldNode, PendingCandidate, Session, Turn } from './api.js'
 import { wordsOf } from './Understanding.js'
 import { stateOf } from './UnderstandingView.js'
 import { rowsOf } from './gitRows.js'
@@ -25,6 +25,7 @@ function shortened(text: string): string {
 interface GitTreeProps {
   readonly sessions: readonly Session[]
   readonly nodes: readonly HeldNode[]
+  readonly pending: readonly PendingCandidate[]
   readonly turns: readonly Turn[]
   readonly current: string | undefined
   readonly onOpenNode: (node: string) => void
@@ -36,7 +37,10 @@ interface GitTreeProps {
 export function GitTree(props: GitTreeProps) {
   const wrap = useRef<HTMLDivElement>(null)
   const rails = useRef<SVGSVGElement>(null)
-  const rows = useMemo(() => rowsOf(props.sessions, props.nodes), [props.sessions, props.nodes])
+  const rows = useMemo(
+    () => rowsOf(props.sessions, props.nodes, props.pending, props.current),
+    [props.sessions, props.nodes, props.pending, props.current],
+  )
   const labels = useMemo(
     () => new Map(props.nodes.map((node) => [node.nodeId, node.label])),
     [props.nodes],
@@ -113,7 +117,28 @@ export function GitTree(props: GitTreeProps) {
       <svg className="git-rails" ref={rails} aria-hidden="true" />
       <ol className="git-rows">
         {rows.map((row) =>
-          row.kind === 'branch' ? (
+          row.kind === 'note' ? (
+            <li
+              key={row.key}
+              className="git-row git-note"
+              data-key={row.key}
+              data-lane={row.lane}
+              data-live="true"
+              style={{ '--lane': row.lane } as CSSProperties}
+            >
+              <span className="git-dot" data-state="pending" aria-hidden="true" />
+              <p className="git-meta">
+                <span className="state-mark" data-state="pending" aria-hidden="true" />
+                <span>实时纪要</span>
+              </p>
+              <p className="git-title">
+                {row.candidate.proposal.label ??
+                  row.candidate.link?.toLabel ??
+                  row.candidate.state?.label ??
+                  '一条关系'}
+              </p>
+            </li>
+          ) : row.kind === 'branch' ? (
             <li
               key={row.key}
               className="git-row git-branch"

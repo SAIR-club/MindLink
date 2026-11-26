@@ -1,4 +1,4 @@
-import type { HeldNode, Session } from './api.js'
+import type { HeldNode, PendingCandidate, Session } from './api.js'
 
 /** The rows of the branch tree, read from the same record the page uses. */
 
@@ -14,6 +14,14 @@ export type GitRow =
       readonly key: string
       readonly kind: 'node'
       readonly node: HeldNode
+      readonly lane: number
+      readonly at: number
+      readonly thread: string
+    }
+  | {
+      readonly key: string
+      readonly kind: 'note'
+      readonly candidate: PendingCandidate
       readonly lane: number
       readonly at: number
       readonly thread: string
@@ -43,6 +51,8 @@ export function lineLabel(title: string, parent?: string): string {
 export function rowsOf(
   sessions: readonly Session[],
   nodes: readonly HeldNode[],
+  pending: readonly PendingCandidate[] = [],
+  current?: string,
 ): readonly GitRow[] {
   const byId = new Map(sessions.map((session) => [session.id, session]))
   const lanes = new Map<string, number>()
@@ -72,6 +82,20 @@ export function rowsOf(
     at: node.origin?.at ?? 0,
     thread: node.origin?.thread ?? '',
   }))
+  // Live notes sit on the line being read. They become ordinary nodes when the person accepts the summary.
+  const noteThread = current !== undefined && lanes.has(current) ? current : roots[0]?.id
+  if (noteThread !== undefined) {
+    pending.forEach((candidate, index) => {
+      rows.push({
+        key: `note-${candidate.id}`,
+        kind: 'note',
+        candidate,
+        lane: lanes.get(noteThread) ?? 0,
+        at: typeof candidate.proposedAt === 'number' ? candidate.proposedAt : Date.now() + index,
+        thread: noteThread,
+      })
+    })
+  }
   // Several lines can name their branch "分支 1". Keep the full title then, so the rows can be told apart.
   const counts = new Map<string, number>()
   for (const session of sessions) {

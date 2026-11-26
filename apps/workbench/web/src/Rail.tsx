@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import type { Session, Turn, Understanding } from './api.js'
 import { GitTree } from './GitTree.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
-import { PendingList } from './Pending.js'
 import { branchLines, type LineChip } from './lines.js'
 import { kept, keep } from './storage.js'
 import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
@@ -40,6 +39,7 @@ interface RailProps {
   readonly onJump: (thread: string, turn: string | undefined) => void
   readonly onOpenThread: (thread: string) => void
   readonly onTidy: () => Promise<void>
+  readonly onAcceptAll: () => Promise<void>
 }
 
 export function Rail(props: RailProps) {
@@ -47,6 +47,7 @@ export function Rail(props: RailProps) {
   const [view, setView] = useState<'thread' | 'graph'>(railViewWas)
   const [wanted, setWanted] = useState<Scope>('thread')
   const [tidying, setTidying] = useState(false)
+  const [accepting, setAccepting] = useState(false)
   // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
   const scope: Scope = thread === undefined ? 'space' : wanted
   const shown = useMemo(
@@ -125,26 +126,52 @@ export function Rail(props: RailProps) {
         <section className="rail-section rail-waiting">
           <h3
             data-waiting={understanding.pending.length > 0}
-            title="Agent 只能提议。只有你确认过的，才算你的理解。"
+            title="对话里实时整理出的概要。它们默认进入理解层，最后统一收下。"
           >
-            等你确认
+            实时纪要
             <span className="count">{understanding.pending.length}</span>
           </h3>
           {understanding.pending.length === 0 ? (
-            <p className="rail-empty">AI 提出的理解会先停在这里，等你确认。</p>
+            <p className="rail-empty">对话进行时，这里会长出概要。</p>
           ) : (
             <>
-              <PendingList
-                pending={understanding.pending}
-                limit={RAIL_PENDING}
-                guard={props.guard}
-                onDecided={props.onDecided}
-              />
-              {understanding.pending.length > RAIL_PENDING && (
-                <button type="button" className="link rail-more" onClick={props.onOpenPending}>
-                  查看全部 {understanding.pending.length} 条
+              <ul className="live-notes">
+                {understanding.pending.slice(0, RAIL_PENDING).map((candidate) => (
+                  <li key={candidate.id}>
+                    <span className="state-mark" data-state="pending" aria-hidden="true" />
+                    <span>
+                      {candidate.proposal.label ??
+                        candidate.link?.toLabel ??
+                        candidate.state?.label ??
+                        '一条关系'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="live-note-actions">
+                <button
+                  type="button"
+                  className="plain"
+                  disabled={accepting}
+                  onClick={() => {
+                    setAccepting(true)
+                    props.guard(async () => {
+                      try {
+                        await props.onAcceptAll()
+                      } finally {
+                        setAccepting(false)
+                      }
+                    })
+                  }}
+                >
+                  {accepting ? '收下中' : '全部接受'}
                 </button>
-              )}
+                {understanding.pending.length > RAIL_PENDING && (
+                  <button type="button" className="link" onClick={props.onOpenPending}>
+                    查看全部 {understanding.pending.length} 条
+                  </button>
+                )}
+              </div>
             </>
           )}
           {props.relating && (
@@ -200,6 +227,7 @@ export function Rail(props: RailProps) {
             <GitTree
               sessions={props.sessions}
               nodes={understanding.nodes}
+              pending={understanding.pending}
               turns={turns}
               current={thread}
               onOpenNode={props.onOpenNode}

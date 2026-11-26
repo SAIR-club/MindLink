@@ -254,6 +254,9 @@ function Desk({
   const [turnsOf, setTurnsOf] = useState<string>()
   /** A conversation whose turns are already in hand because asking just started it. */
   const threadInHand = useRef<string | undefined>(undefined)
+  /** The rolling summary waits for a pause in the conversation; one pass reads the whole thread. */
+  const summaryTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(summaryTimer.current), [])
   const [understanding, setUnderstanding] = useState<Understanding>(NO_UNDERSTANDING)
   const [pane, setPane] = useState<Pane>(() =>
     opensSide(panel) ? 'side' : place.kind === 'home' ? 'shelf' : 'talk',
@@ -556,6 +559,19 @@ function Desk({
           })
         }
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
+        // A rolling summary, not one note per turn: the pause lets the whole thread be read at once.
+        if (asked.failure === undefined) {
+          clearTimeout(summaryTimer.current)
+          summaryTimer.current = setTimeout(() => {
+            void api
+              .candidatesFromThread(spaceId, asked.thread)
+              .then(async (made) => {
+                await refreshUnderstanding()
+                relateLater(made)
+              })
+              .catch(() => undefined)
+          }, 4000)
+        }
       } finally {
         setAsking(false)
       }
@@ -586,6 +602,14 @@ function Desk({
     await refreshUnderstanding()
     relateLater(made)
     return made.message
+  }
+
+  /** The live notes are accepted by default: one decision puts the whole summary into the understanding layer. */
+  const acceptAllNotes = async (): Promise<void> => {
+    const ids = understanding.pending.map((candidate) => candidate.id)
+    if (ids.length === 0) return
+    for (const id of ids) await api.accept(id)
+    await decided()
   }
 
   /** The rail's "整理": one pass over the whole conversation, still ending in the person's decision. */
@@ -1239,6 +1263,7 @@ function Desk({
             onJump={jumpTo}
             onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
             onTidy={tidyThread}
+            onAcceptAll={acceptAllNotes}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
