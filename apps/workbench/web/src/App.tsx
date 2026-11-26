@@ -276,6 +276,11 @@ function Desk({
   )
   const [notice, setNotice] = useState<string>()
   const [asking, setAsking] = useState(false)
+  const [pendingAnswer, setPendingAnswer] = useState<{
+    space: string
+    thread: string | undefined
+    text: string
+  }>()
   const [failed, setFailed] = useState<{ question: string; failure: Failure }>()
   const [library, setLibrary] = useState<{
     workflows: readonly WorkflowInfo[]
@@ -552,6 +557,9 @@ function Desk({
   const ask = (question: string, retry: boolean): void => {
     if (spaceId === undefined) return
     setAsking(true)
+    const showText = (text: string): void =>
+      setPendingAnswer({ space: spaceId, thread: threadId, text })
+    showText('')
     setFailed(undefined)
     if (panel.turn !== undefined) {
       const { turn: _dropped, ...rest } = panel
@@ -562,10 +570,9 @@ function Desk({
     }
     guard(async () => {
       try {
-        const asked = await api.ask(spaceId, question, threadId, retry)
+        const asked = await api.ask(spaceId, question, threadId, retry, showText)
         setTurns((await api.session(asked.thread)).turns)
         setTurnsOf(asked.thread)
-        setSessions((await api.sessions(spaceId)).sessions)
         if (asked.thread !== threadId) {
           threadInHand.current = asked.thread
           // A new conversation takes the empty one's place, so going back skips it.
@@ -573,8 +580,13 @@ function Desk({
             replace: true,
           })
         }
+        setPendingAnswer(undefined)
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
+        // The answer is on the page: the person can ask again or branch from it while the shelf catches up.
+        setAsking(false)
+        setSessions((await api.sessions(spaceId)).sessions)
       } finally {
+        setPendingAnswer(undefined)
         setAsking(false)
       }
     })
@@ -1161,6 +1173,11 @@ function Desk({
               onForkPoint={(parent) => jumpTo(parent.thread, parent.turn)}
               turns={turnsOf === threadId ? turns : undefined}
               asking={asking}
+              pendingText={
+                pendingAnswer?.space === spaceId && pendingAnswer?.thread === threadId
+                  ? pendingAnswer?.text
+                  : undefined
+              }
               failed={failed}
               onAsk={ask}
               guard={guard}
@@ -1699,6 +1716,7 @@ function Conversation(props: {
   /** Undefined while the conversation's turns are being read, so another conversation's never show under its name. */
   turns: readonly Turn[] | undefined
   asking: boolean
+  pendingText: string | undefined
   failed: { question: string; failure: Failure } | undefined
   onAsk: (question: string, retry: boolean) => void
   guard: (work: () => Promise<unknown>) => void
@@ -1708,7 +1726,7 @@ function Conversation(props: {
   onMaterials: () => void
   extract: ReactNode
 }) {
-  const { space, asking, failed } = props
+  const { space, asking, pendingText, failed } = props
   const loading = props.turns === undefined
   const turns = props.turns ?? []
   const [draft, setDraft] = useState('')
@@ -1719,7 +1737,7 @@ function Conversation(props: {
 
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'end' })
-  }, [turns.length, asking, failed])
+  }, [turns.length, asking, pendingText, failed])
 
   if (space === undefined) {
     return (
@@ -1830,10 +1848,16 @@ function Conversation(props: {
           </>
         )}
         {own.map(shown)}
-        {asking && (
+        {pendingText === '' && (
           <p className="working" role="status">
             正在查材料并回答…
           </p>
+        )}
+        {pendingText !== undefined && pendingText !== '' && (
+          // Not an `answer-block`: that is a checked answer, and the words so far are not one yet.
+          <div className="pending-answer" aria-busy="true">
+            <p className="answer answer-preview">{pendingText}</p>
+          </div>
         )}
         {failed !== undefined && (
           <div className="failed" role="alert">

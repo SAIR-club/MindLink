@@ -18,13 +18,17 @@ export interface ModelReply {
   readonly tokens?: number
 }
 
+interface CompletionOptions {
+  readonly onText?: (soFar: string) => void
+}
+
 export interface ModelClient {
   readonly name: string
   /** True when no language model is involved, so a surface can say so. */
   readonly simulated: boolean
   /** The workbench may limit answers to the supplied material. */
   readonly onlyMaterial?: boolean
-  complete(messages: readonly ModelMessage[]): Promise<ModelReply>
+  complete(messages: readonly ModelMessage[], options?: CompletionOptions): Promise<ModelReply>
 }
 
 export type ModelFailureCode =
@@ -86,22 +90,37 @@ function failureOf(error: unknown): ModelFailure {
 
 /** Models that think aloud put it in these tags. It is not the answer. */
 const THINKING = /<think>[\s\S]*?<\/think>/g
+const PARTIAL_THINKING = /<think>[\s\S]*$|<(?:t|th|thi|thin|think)?$/
+const TEXT_INTERVAL_MS = 150
 
 export const DEFAULT_OUTPUT_TOKENS = 2048
 
 /** A client for any OpenAI-compatible service, with a timeout and one retry so a failure is bounded. */
 export function remoteModel(options: RemoteModelOptions): ModelClient {
+  const timeout = options.timeoutMs ?? 60_000
   const client = new OpenAI({
     baseURL: options.baseUrl,
     // The client insists on a key; a local server ignores it. Never written to a log or a response.
     apiKey: options.apiKey ?? 'not-needed',
-    timeout: options.timeoutMs ?? 60_000,
+    timeout,
     maxRetries: 1,
   })
   return {
     name: options.model,
     simulated: false,
-    async complete(messages) {
+    async complete(messages, { onText } = {}) {
+      const request = {
+        model: options.model,
+        messages: messages.map(({ role, content }) => ({ role, content })),
+        max_tokens: options.maxOutputTokens ?? DEFAULT_OUTPUT_TOKENS,
+        temperature: 0.2,
+        ...(options.reasoningEffort === undefined
+          ? {}
+          : {
+              // Whatever the configured service accepts: providers differ on these values.
+              reasoning_effort: options.reasoningEffort as OpenAI.ReasoningEffort & string,
+            }),
+      }
       const once = async (): Promise<{
         readonly text: string
         readonly tokens: number | undefined
@@ -109,18 +128,7 @@ export function remoteModel(options: RemoteModelOptions): ModelClient {
       }> => {
         let completion: OpenAI.Chat.Completions.ChatCompletion
         try {
-          completion = await client.chat.completions.create({
-            model: options.model,
-            messages: messages.map(({ role, content }) => ({ role, content })),
-            max_tokens: options.maxOutputTokens ?? DEFAULT_OUTPUT_TOKENS,
-            temperature: 0.2,
-            ...(options.reasoningEffort === undefined
-              ? {}
-              : {
-                  // Whatever the configured service accepts: providers differ on these values.
-                  reasoning_effort: options.reasoningEffort as OpenAI.ReasoningEffort & string,
-                }),
-          })
+          completion = await client.chat.completions.create(request)
         } catch (error) {
           throw failureOf(error)
         }
@@ -131,12 +139,84 @@ export function remoteModel(options: RemoteModelOptions): ModelClient {
           cutOff: choice?.finish_reason === 'length',
         }
       }
-      let reply = await once()
+
+      let fellBack = false
+      const completeOnce = async (): ReturnType<typeof once> => {
+        if (onText === undefined) return once()
+        // The SDK's request timeout stops at the headers. Keep a deadline while reading the answer too.
+        const signal = AbortSignal.timeout(Math.ceil(timeout))
+        let text = ''
+        let tokens: number | undefined
+        let finish: string | null | undefined
+        let lastUpdate = -Infinity
+        let lastText = ''
+        try {
+          const response = await client.chat.completions
+            .create(
+              { ...request, stream: true, stream_options: { include_usage: true } },
+              { signal, maxRetries: 0 },
+            )
+            .asResponse()
+          const reader = response.body?.pipeThrough(new TextDecoderStream()).getReader()
+          if (reader === undefined) throw new Error('Missing response body')
+          let buffer = ''
+          try {
+            read: for (;;) {
+              const { value, done } = await reader.read()
+              buffer += value ?? ''
+              const lines = buffer.split('\n')
+              buffer = done ? '' : (lines.pop() ?? '')
+              for (const line of lines) {
+                if (!line.startsWith('data:')) continue
+                const data = line.slice('data:'.length).trim()
+                if (data === '[DONE]') break read
+                const event = JSON.parse(data) as OpenAI.Chat.Completions.ChatCompletionChunk
+                if ('error' in event) throw new Error('Model service interrupted the stream')
+                const choice = event.choices?.[0]
+                tokens = event.usage?.total_tokens ?? tokens
+                finish = choice?.finish_reason ?? finish
+                if (!choice?.delta?.content) continue
+                text += choice.delta.content
+                const now = performance.now()
+                if (now - lastUpdate < TEXT_INTERVAL_MS) continue
+                const preview = text.replace(THINKING, '').replace(PARTIAL_THINKING, '').trim()
+                if (preview === lastText) continue
+                lastText = preview
+                lastUpdate = now
+                onText(preview)
+              }
+              if (done) {
+                if (finish === undefined) throw new Error('Incomplete response stream')
+                break
+              }
+            }
+            signal.throwIfAborted()
+          } finally {
+            void reader.cancel().catch(() => undefined)
+            reader.releaseLock()
+          }
+        } catch (error) {
+          if (text.trim() === '') {
+            fellBack = true
+            return once()
+          }
+          throw failureOf(
+            signal.aborted
+              ? new OpenAI.APIConnectionTimeoutError()
+              : new OpenAI.APIConnectionError({
+                  cause: error instanceof Error ? error : undefined,
+                }),
+          )
+        }
+        return { text: text.replace(THINKING, '').trim(), tokens, cutOff: finish === 'length' }
+      }
+
+      let reply = await completeOnce()
       let spent = reply.tokens
       // A blank reply that was not cut off happens now and then on the same prompt (evaluation round 2): ask once
       // more, as the client already does for a failed request. One cut off would be cut off again.
-      if (reply.text === '' && !reply.cutOff) {
-        reply = await once()
+      if (reply.text === '' && !reply.cutOff && !fellBack) {
+        reply = await completeOnce()
         spent =
           spent === undefined && reply.tokens === undefined
             ? undefined
@@ -150,6 +230,7 @@ export function remoteModel(options: RemoteModelOptions): ModelClient {
             : '模型连续两次没有返回内容。可以重试。',
         )
       }
+      onText?.(reply.text.replace(PARTIAL_THINKING, '').trim())
       return spent === undefined ? { text: reply.text } : { text: reply.text, tokens: spent }
     },
   }
@@ -166,7 +247,7 @@ export function budgeted(
     name: model.name,
     simulated: model.simulated,
     spent: () => ({ calls, tokens }),
-    async complete(messages) {
+    async complete(messages, options) {
       if (calls >= limits.maxCalls || tokens >= limits.maxTokens) {
         throw new ModelFailure(
           'budget_exhausted',
@@ -174,7 +255,7 @@ export function budgeted(
         )
       }
       calls += 1
-      const reply = await model.complete(messages)
+      const reply = await model.complete(messages, options)
       tokens += reply.tokens ?? 0
       return reply
     },
@@ -193,7 +274,10 @@ export class SimulatedModel implements ModelClient {
   readonly name = 'simulated'
   readonly simulated = true
 
-  complete(messages: readonly ModelMessage[]): Promise<ModelReply> {
+  complete(
+    messages: readonly ModelMessage[],
+    { onText }: CompletionOptions = {},
+  ): Promise<ModelReply> {
     const last = messages.at(-1)?.content ?? ''
     const question = /<question>([\s\S]*?)<\/question>/.exec(last)?.[1] ?? ''
     const wanted = new Set(tokenize(question))
@@ -208,12 +292,13 @@ export class SimulatedModel implements ModelClient {
       }
       if (best.hits > 0) picks.push({ n: match[1] ?? '', ...best })
     }
-    if (picks.length === 0) return Promise.resolve({ text: '[证据不足]' })
     const lines = picks
       .sort((left, right) => right.hits - left.hits)
       .slice(0, 2)
       .map(({ n, sentence }) => `${sentence}[${n}]`)
-    return Promise.resolve({ text: lines.join('\n') })
+    const text = lines.length === 0 ? '[证据不足]' : lines.join('\n')
+    onText?.(text)
+    return Promise.resolve({ text })
   }
 }
 

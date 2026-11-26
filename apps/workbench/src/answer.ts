@@ -353,6 +353,7 @@ export interface AskInput {
   readonly hits: readonly SearchHit[]
   readonly history: readonly ModelMessage[]
   readonly model: ModelClient
+  readonly onText?: (soFar: string) => void
   /** When the material does not cover the question, the model may answer from its own knowledge. Defaults to true. */
   readonly general?: boolean
   /** What this step of a learning process asks for, after the rules on evidence, which it cannot lift. */
@@ -367,23 +368,38 @@ export async function answerFrom({
   hits,
   history,
   model,
+  onText,
   general = true,
   instruction,
   recalled = [],
 }: AskInput): Promise<Answer> {
   const withRecalled = (answer: Answer): Answer =>
     recalled.length === 0 ? answer : { ...answer, recalled }
+  const options =
+    onText === undefined
+      ? undefined
+      : {
+          onText: (text: string) =>
+            onText(
+              text
+                .replace(/\[(?:\d+|推断|证据不足)\]|\*\*/g, '')
+                .replace(/\[(?:\d+|推|推断|证|证据|证据不|证据不足)?$|\*$/, '')
+                .trim(),
+            ),
+        }
   const usable = relevant(hits)
   const reply =
     usable.length === 0
       ? INSUFFICIENT_MARK
-      : (await model.complete(promptFor(question, usable, history, instruction, recalled))).text
+      : (await model.complete(promptFor(question, usable, history, instruction, recalled), options))
+          .text
   const checked = checkReply(reply, citationsOf(usable), model)
   if (checked.status !== 'insufficient_evidence' || !general) {
     return withRecalled(checked)
   }
   const fallback = await model.complete(
     promptFor(question, [], history, undefined, recalled, GENERAL_SYSTEM),
+    options,
   )
   const plain = checkReply(fallback.text, [], model)
   // The simulated model can only quote excerpts, so it still has nothing to say here.

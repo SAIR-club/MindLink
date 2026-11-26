@@ -1,5 +1,6 @@
-import { createServer, type Server } from 'node:http'
+import { createServer, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { setTimeout as delay } from 'node:timers/promises'
 import { CognitiveSession } from '@episteme/application'
 import {
   answerFrom,
@@ -16,7 +17,7 @@ import {
   type ModelClient,
   type ModelMessage,
 } from '@mindlink/workbench'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const simulated = new SimulatedModel()
 
@@ -44,6 +45,30 @@ async function storeWith(...materials: readonly (readonly [string, string])[]) {
 }
 
 describe('answers', () => {
+  it('cleans progress for a general-knowledge reply too', async () => {
+    const snapshots: string[] = []
+    const model: ModelClient = {
+      name: 'm',
+      simulated: false,
+      complete(_messages, options) {
+        options?.onText?.('**通用回答**。[推')
+        options?.onText?.('**通用回答**。[推断][证据不')
+        const text = '**通用回答**。[推断][证据不足]'
+        options?.onText?.(text)
+        return Promise.resolve({ text })
+      },
+    }
+    const answer = await answerFrom({
+      question: '怎么复习',
+      hits: [],
+      history: [],
+      model,
+      onText: (text) => snapshots.push(text),
+    })
+    expect(snapshots).toEqual(['通用回答。', '通用回答。', '通用回答。'])
+    expect(answer.status).toBe('general')
+  })
+
   it('cites the passage that holds the answer, and says exactly where it is', async () => {
     const text = `第一行是引言。\n第二行无关。\n位置编码把序列的顺序告诉模型。\n最后一行。`
     const store = await storeWith(['编码笔记', text])
@@ -413,6 +438,7 @@ describe('the model client', () => {
       status: number
       body?: unknown
       hang?: boolean
+      stream?: (response: ServerResponse) => void
     },
   ): Promise<string> {
     server = createServer((request, response) => {
@@ -422,6 +448,11 @@ describe('the model client', () => {
         const parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')) as Record<string, unknown>
         const reply = handle(parsed, request.headers)
         if (reply.hang === true) return
+        if (reply.stream !== undefined) {
+          response.writeHead(reply.status, { 'content-type': 'text/event-stream' })
+          reply.stream(response)
+          return
+        }
         response.writeHead(reply.status, { 'content-type': 'application/json' })
         response.end(JSON.stringify(reply.body ?? {}))
       })
@@ -437,6 +468,128 @@ describe('the model client', () => {
     model: 'm',
     choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content } }],
     usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+  })
+
+  const sse = (data: unknown): string => `data: ${JSON.stringify(data)}\r\n\r\n`
+  const delta = (content: string): string => sse({ choices: [{ delta: { content } }] })
+
+  it('shows clean text before SSE finishes and accounts for the streamed usage', async () => {
+    let response: ServerResponse | undefined
+    const requests: Record<string, unknown>[] = []
+    const baseUrl = await serviceAnswering((body) => {
+      requests.push(body)
+      if (body['stream'] !== true) return { status: 200, body: completion('答案[1]') }
+      return {
+        status: 200,
+        stream: (res) => {
+          response = res
+        },
+      }
+    })
+    const model = budgeted(
+      remoteModel({ baseUrl, model: 'm', maxOutputTokens: 123, timeoutMs: 3_000 }),
+      { maxCalls: 2, maxTokens: 17 },
+    )
+    const store = await storeWith(['编码', '位置编码把顺序告诉模型。'])
+    const snapshots: string[] = []
+    const question = '位置编码有什么用'
+    const pending = answerFrom({
+      question,
+      hits: store.search('a', 's', question),
+      history: [],
+      model,
+      onText: (text) => snapshots.push(text),
+    })
+    try {
+      await vi.waitFor(() => expect(response).toBeDefined())
+      const line = delta('<think>思考</think>**位置编码**把顺序告诉模型。[1')
+      const split = line.indexOf('[1') + 1
+      response!.write(line.slice(0, split))
+      await delay(20)
+      response!.write(line.slice(split))
+      await vi.waitFor(() => expect(snapshots).toEqual(['位置编码把顺序告诉模型。']))
+    } finally {
+      response?.write(
+        delta(']') +
+          delta('\n还可以换种说法。[推断][证据不足]') +
+          sse({ choices: [{ delta: {}, finish_reason: 'stop' }] }) +
+          sse({ choices: [], usage: { total_tokens: 17 } }) +
+          'data: [DONE]\r\n\r\n' +
+          delta('这段在结束标记之后。'),
+      )
+      try {
+        await pending
+      } finally {
+        response?.end()
+      }
+    }
+    expect(snapshots.at(-1)).toBe('位置编码把顺序告诉模型。\n还可以换种说法。')
+    expect((await pending).citations).toHaveLength(1)
+    expect(requests).toEqual([
+      expect.objectContaining({
+        stream: true,
+        stream_options: { include_usage: true },
+        max_tokens: 123,
+      }),
+    ])
+    expect(model.spent()).toEqual({ calls: 1, tokens: 17 })
+    await expect(model.complete([])).rejects.toMatchObject({ code: 'budget_exhausted' })
+  })
+
+  it.each(['rejects streaming', 'closes before any text'])(
+    'falls back once when a service %s',
+    async (problem) => {
+      const streams: unknown[] = []
+      const baseUrl = await serviceAnswering((body) => {
+        streams.push(body['stream'])
+        if (body['stream'] !== true) return { status: 200, body: completion('答案[1]') }
+        if (problem === 'rejects streaming')
+          return { status: 400, body: { error: { message: 'unsupported' } } }
+        return {
+          status: 200,
+          stream: (response) => response.end(sse({ choices: [{ delta: {} }] })),
+        }
+      })
+      const snapshots: string[] = []
+      const reply = await remoteModel({ baseUrl, model: 'm' }).complete(
+        [{ role: 'user', content: 'q' }],
+        { onText: (text) => snapshots.push(text) },
+      )
+      expect(reply).toEqual({ text: '答案[1]', tokens: 3 })
+      expect(snapshots).toEqual(['答案[1]'])
+      expect(streams).toEqual([true, undefined])
+    },
+  )
+
+  it('times out after partial text without retrying the reply', async () => {
+    let calls = 0
+    const baseUrl = await serviceAnswering(() => {
+      calls += 1
+      return { status: 200, stream: (response) => response.write(delta('半句')) }
+    })
+    const snapshots: string[] = []
+    await expect(
+      remoteModel({ baseUrl, model: 'm', timeoutMs: 350 }).complete(
+        [{ role: 'user', content: 'q' }],
+        { onText: (text) => snapshots.push(text) },
+      ),
+    ).rejects.toMatchObject({ code: 'timeout' })
+    expect(snapshots).toEqual(['半句'])
+    expect(calls).toBe(1)
+  })
+
+  it('reports a blank fallback without sending it again', async () => {
+    const streams: unknown[] = []
+    const baseUrl = await serviceAnswering((body) => {
+      streams.push(body['stream'])
+      return body['stream'] === true
+        ? { status: 400, body: { error: { message: 'unsupported' } } }
+        : { status: 200, body: completion('  ') }
+    })
+    await expect(
+      remoteModel({ baseUrl, model: 'm' }).complete([], { onText: () => undefined }),
+    ).rejects.toMatchObject({ code: 'empty_reply' })
+    expect(streams).toEqual([true, undefined])
   })
 
   it('sends the model, bounds the output, passes the key, and drops thinking', async () => {

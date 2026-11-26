@@ -43,6 +43,8 @@ import {
 const MAX_NAME = 80
 const MAX_QUESTION = 4000
 const THREAD_TITLE = 40
+const PROGRESS_ID = /^[A-Za-z0-9_-]{8,64}$/
+const PROGRESS_TTL_MS = 120_000
 /** Base64 grows a file by a third; the rest of the body is a few short fields. */
 const MAX_UPLOAD_BODY = Math.ceil((MAX_MATERIAL_BYTES * 4) / 3) + 4096
 
@@ -104,6 +106,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
   const library = options.library ?? BUILT_IN_LIBRARY
   const problems = libraryProblems(library)
   if (problems.length > 0) throw new Error(`Invalid learning library: ${problems.join('; ')}`)
+  const progress = new Map<string, { text: string }>()
   let opened: Promise<MaterialStore> | undefined
   const materialsOf = (writes: SceneWrites): Promise<MaterialStore> => {
     opened ??= MaterialStore.open(writes.log('materials'))
@@ -122,7 +125,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
     ...(maxBodyBytes === undefined ? {} : { maxBodyBytes }),
   })
 
-  async function ask({ view, writes, body }: SceneRouteContext) {
+  async function ask({ view, writes, body }: SceneRouteContext, onText?: (soFar: string) => void) {
     const space = openSpaceOf(view, text(body, 'space'))
     const question = text(body, 'question', MAX_QUESTION).trim()
     const scope = scopeOf(space.id)
@@ -165,6 +168,7 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
         model,
         recalled,
         general: !model.onlyMaterial,
+        ...(onText === undefined ? {} : { onText }),
       })
       // Pointed to after the answer is made, so the model never reads another space.
       const elsewhere = elsewhereFor(view, space.id, question)
@@ -474,7 +478,30 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
       return { session: { ...shownThread(view, fork), ownTurns: 0 } }
     }),
 
-    route('POST', '/ask', ask),
+    route('POST', '/ask', async (context) => {
+      const id = context.body['progress']
+      if (typeof id !== 'string' || !PROGRESS_ID.test(id)) return ask(context)
+      const key = `${context.writes.actor}:${id}`
+      if (progress.has(key)) return ask(context)
+      const entry = { text: '' }
+      progress.set(key, entry)
+      const drop = (): void => {
+        if (progress.get(key) === entry) progress.delete(key)
+      }
+      const expiry = setTimeout(drop, PROGRESS_TTL_MS).unref()
+      try {
+        return await ask(context, (text) => {
+          entry.text = text
+        })
+      } finally {
+        clearTimeout(expiry)
+        drop()
+      }
+    }),
+    route('GET', '/ask/progress', ({ query, writes }) => {
+      const entry = progress.get(`${writes.actor}:${query.get('id') ?? ''}`)
+      return { text: entry?.text ?? '', done: entry === undefined }
+    }),
     ...conversationRoutes(),
   ]
 }
