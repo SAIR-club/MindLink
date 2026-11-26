@@ -582,6 +582,8 @@ function Desk({
         }
         setPendingAnswer(undefined)
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
+        // The answer is on the page: the person can ask again or branch from it while the shelf catches up.
+        setAsking(false)
         setSessions((await api.sessions(spaceId)).sessions)
       } finally {
         setPendingAnswer(undefined)
