@@ -63,25 +63,25 @@ describe('answers', () => {
     expect(answer.segments[0]?.text).toContain('位置编码把序列的顺序告诉模型')
   })
 
-  it('does not send unrelated material to the model, and does not make anything up', async () => {
+  it('answers general questions without citing unrelated material as evidence', async () => {
     const store = await storeWith(['植物', '光合作用发生在叶绿体中。'])
-    const model = scripted('编造的答案[1]')
+    const model = scripted('量子纠缠是粒子之间的关联。')
     const answer = await answerFrom({
       question: '量子纠缠是什么',
       hits: store.search('a', 's', '量子纠缠是什么'),
       history: [],
       model,
     })
-    expect(answer.status).toBe('insufficient_evidence')
-    expect(answer.segments).toEqual([])
+    expect(answer.status).toBe('conversation')
     expect(answer.citations).toEqual([])
-    expect(model.calls).toBe(0)
-    expect(answerText(answer)).toContain('没有找到足够的依据')
+    expect(answer.segments[0]?.text).toBe('量子纠缠是粒子之间的关联。')
+    expect(model.calls).toBe(1)
+    expect(answerText(answer)).toBe('量子纠缠是粒子之间的关联。')
   })
 
-  it('treats a passage that shares only a passing word as unrelated', async () => {
+  it('treats a passage that shares only a passing word as unrelated material', async () => {
     const store = await storeWith(['植物', '叶绿体模型展示了光合作用。'])
-    const model = scripted('编造[1]')
+    const model = scripted('这些词说的是训练方法。')
     const hits = store.search('a', 's', '模型 训练 优化器 梯度 损失函数')
     expect(hits.length).toBeGreaterThan(0)
     const answer = await answerFrom({
@@ -90,8 +90,9 @@ describe('answers', () => {
       history: [],
       model,
     })
-    expect(answer.status).toBe('insufficient_evidence')
-    expect(model.calls).toBe(0)
+    expect(answer.status).toBe('conversation')
+    expect(answer.citations).toEqual([])
+    expect(model.calls).toBe(1)
   })
 
   it('opens the conversation with the person, even when the thread opened with the workbench', async () => {

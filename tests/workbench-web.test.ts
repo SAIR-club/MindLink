@@ -185,9 +185,11 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     const model: ModelClient = {
       name: 'stub',
       simulated: false,
-      complete: () =>
+      complete: (messages) =>
         Promise.resolve({
-          text: '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
+          text: messages.at(-1)?.content.includes('暗反应')
+            ? '材料没有讲暗反应，按一般知识它在叶绿体基质里进行。'
+            : '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
         }),
     }
     await open(model)
@@ -201,7 +203,8 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.locator('.sourced', { hasText: '位置编码把序列' }).waitFor()
 
     await ask('光合作用的暗反应在哪里发生')
-    await page.getByText('材料里没有足够的依据').waitFor()
+    await page.getByText('材料没有讲暗反应').waitFor()
+    expect(await page.locator('.answer-block').last().locator('.cite').count()).toBe(0)
   }, 60_000)
 
   it('says why a file is refused, keeps a failed question, and answers it on retry', async () => {

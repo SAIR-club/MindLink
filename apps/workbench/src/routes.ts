@@ -20,6 +20,7 @@ import { ModelFailure, type ModelClient, type ModelMessage } from './model.js'
 import type { ModelSettings } from './model-settings.js'
 import { MAX_MATERIAL_BYTES, MaterialRefusal, parseMaterial } from './parse.js'
 import { sharingRoutes } from './sharing.js'
+import { tokenize } from './tokens.js'
 import { elsewhereFor, heldNodes, recalledFor, understandingRoutes } from './understanding.js'
 import {
   ANSWER_PREFIX,
@@ -45,6 +46,21 @@ const MAX_QUESTION = 4000
 const THREAD_TITLE = 40
 /** Base64 grows a file by a third; the rest of the body is a few short fields. */
 const MAX_UPLOAD_BODY = Math.ceil((MAX_MATERIAL_BYTES * 4) / 3) + 4096
+
+/** A passage needs two of the question's content words before it counts as being about that question. */
+function onTopic<T extends { readonly chunk: { readonly text: string } }>(
+  question: string,
+  hits: readonly T[],
+): readonly T[] {
+  const wanted = new Set(tokenize(question))
+  if (wanted.size === 0) return hits
+  return hits.filter((hit) => {
+    const present = new Set(tokenize(hit.chunk.text))
+    let matched = 0
+    for (const word of wanted) if (present.has(word)) matched += 1
+    return matched >= 2
+  })
+}
 
 function bytesOf(body: Readonly<Record<string, unknown>>): Uint8Array {
   const content = body['contentBase64']
@@ -148,40 +164,22 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
 
     const store = await materialsOf(writes)
     let hits = store.search(writes.actor, space.id, question)
-    // A follow-up such as "why?" says little on its own, so it is read with the question before it.
-    if (relevant(hits).length === 0) {
+    // Only a real follow-up borrows the previous question. A new topic must answer as a new question, even
+    // when the conversation happens to be about material the space already holds.
+    const followUp = /^(为什么|为何|怎么|如何|继续|然后呢|还有呢|这个|那个|它|[?？]+)/u.test(
+      question.trim(),
+    )
+    if (followUp && relevant(hits).length === 0) {
       const previous = earlier.findLast((candidate) => candidate.speaker === 'learner')
       if (previous !== undefined) {
         hits = store.search(writes.actor, space.id, `${previous.text}\n${question}`)
       }
     }
+    hits = onTopic(question, hits)
     const recalled = await recalledFor(view, space.id, question)
     let answer: Answer
     try {
-      const greeting = /^(你好|您好|hi|hello|hey|嗨|在吗|早|晚上好|[?？！!。，,.、\s]+)$/iu.test(
-        question.trim(),
-      )
-      if (greeting && !model.simulated) {
-        // Ordinary conversation stays ordinary. Only claims need material evidence.
-        const reply = await model.complete([
-          {
-            role: 'system',
-            content: '你是工作台里的学习助手。自然简短地回应问候或闲聊，不提材料，不编造内容。',
-          },
-          ...historyOf(earlier).slice(-4),
-          { role: 'user', content: question },
-        ])
-        answer = {
-          status: 'answered',
-          segments: [{ text: reply.text, basis: 'question', citations: [] }],
-          citations: [],
-          invalidCitations: [],
-          model: { name: model.name, simulated: model.simulated },
-          ...(recalled.length === 0 ? {} : { recalled }),
-        }
-      } else {
-        answer = await answerFrom({ question, hits, history: historyOf(earlier), model, recalled })
-      }
+      answer = await answerFrom({ question, hits, history: historyOf(earlier), model, recalled })
       // Pointed to after the answer is made, so the model never reads another space.
       const elsewhere = elsewhereFor(view, space.id, question)
       if (elsewhere.length > 0) answer = { ...answer, elsewhere }
