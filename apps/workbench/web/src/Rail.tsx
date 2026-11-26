@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { HeldNode, Session, Turn, Understanding } from './api.js'
+import type { Session, Turn, Understanding } from './api.js'
+import { GitTree } from './GitTree.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { PendingList } from './Pending.js'
-import { branchLines, nodesInOrder, originTurn, type LineChip } from './lines.js'
+import { branchLines, type LineChip } from './lines.js'
 import { kept, keep } from './storage.js'
-import { wordsOf } from './Understanding.js'
 import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 
 /**
@@ -17,31 +17,6 @@ import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js
 const RAIL_VIEW = 'workbench.rail-view'
 /** The rail keeps a few waiting items at hand; the review page has them all. */
 const RAIL_PENDING = 3
-
-const STATE_WORD: Readonly<Record<string, string>> = {
-  held: '已确认',
-  conflict: '有未解决的矛盾',
-  challenged: '有质疑待回应',
-  past: '已修正或撤回',
-}
-
-const RELATION_WORD: Readonly<Record<string, string>> = {
-  supports: '支持',
-  contradicts: '矛盾',
-  evolves_to: '修正为',
-  forks_from: '分叉自',
-}
-
-function relationWord(type: string, direction: 'in' | 'out'): string {
-  if (type === 'supports') return direction === 'out' ? '支持' : '得到支持'
-  if (type === 'evolves_to') return direction === 'out' ? '修正为' : '修正自'
-  return RELATION_WORD[type] ?? type
-}
-
-function shortened(text: string): string {
-  const one = text.replace(/\s+/gu, ' ').trim()
-  return one.length > 88 ? `${one.slice(0, 88)}…` : one
-}
 
 function railViewWas(): 'thread' | 'graph' {
   const saved = kept(RAIL_VIEW)
@@ -64,12 +39,14 @@ interface RailProps {
   readonly onAskAbout: (label: string) => void
   readonly onJump: (thread: string, turn: string | undefined) => void
   readonly onOpenThread: (thread: string) => void
+  readonly onTidy: () => Promise<void>
 }
 
 export function Rail(props: RailProps) {
   const { understanding, thread, turns } = props
   const [view, setView] = useState<'thread' | 'graph'>(railViewWas)
   const [wanted, setWanted] = useState<Scope>('thread')
+  const [tidying, setTidying] = useState(false)
   // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
   const scope: Scope = thread === undefined ? 'space' : wanted
   const shown = useMemo(
@@ -82,16 +59,8 @@ export function Rail(props: RailProps) {
       scope === 'thread' ? shown.nodes.filter((node) => shown.focus.has(node.nodeId)) : shown.nodes,
     [shown, scope],
   )
-  const held = useMemo(
-    () =>
-      nodesInOrder(
-        inScope.filter((node) => stateOf(node) !== 'past'),
-        turns,
-      ),
-    [inScope, turns],
-  )
+  const held = useMemo(() => inScope.filter((node) => stateOf(node) !== 'past'), [inScope])
   const past = useMemo(() => inScope.filter((node) => stateOf(node) === 'past'), [inScope])
-  const labels = new Map(understanding.nodes.map((node) => [node.nodeId, node.label]))
   const choose = (next: 'thread' | 'graph'): void => {
     setView(next)
     keep(RAIL_VIEW, next)
@@ -119,6 +88,26 @@ export function Rail(props: RailProps) {
             图谱
           </button>
         </div>
+        {thread !== undefined && (
+          <button
+            type="button"
+            className="tool"
+            disabled={tidying}
+            title="让模型整理这段对话，新的理解先进待确认"
+            onClick={() => {
+              setTidying(true)
+              props.guard(async () => {
+                try {
+                  await props.onTidy()
+                } finally {
+                  setTidying(false)
+                }
+              })
+            }}
+          >
+            {tidying ? '整理中' : '整理'}
+          </button>
+        )}
         <button type="button" className="tool" onClick={props.onClose}>
           收起
         </button>
@@ -135,27 +124,23 @@ export function Rail(props: RailProps) {
       <div className="rail-body" data-view={view}>
         <section className="rail-section rail-waiting">
           <h3
-            data-waiting={shown.pending.length > 0}
+            data-waiting={understanding.pending.length > 0}
             title="Agent 只能提议。只有你确认过的，才算你的理解。"
           >
             等你确认
-            <span className="count">{shown.pending.length}</span>
+            <span className="count">{understanding.pending.length}</span>
           </h3>
-          {shown.pending.length === 0 ? (
-            <p className="rail-empty">
-              {scope === 'thread'
-                ? '这段对话没有待确认的内容。'
-                : 'AI 提出的理解会先停在这里，等你确认。'}
-            </p>
+          {understanding.pending.length === 0 ? (
+            <p className="rail-empty">AI 提出的理解会先停在这里，等你确认。</p>
           ) : (
             <>
               <PendingList
-                pending={shown.pending}
+                pending={understanding.pending}
                 limit={RAIL_PENDING}
                 guard={props.guard}
                 onDecided={props.onDecided}
               />
-              {shown.pending.length > RAIL_PENDING && (
+              {understanding.pending.length > RAIL_PENDING && (
                 <button type="button" className="link rail-more" onClick={props.onOpenPending}>
                   查看全部 {understanding.pending.length} 条
                 </button>
@@ -211,27 +196,17 @@ export function Rail(props: RailProps) {
                   : '还没有。确认一条提议，它就会出现在这里。'}
               </p>
             )
-          ) : held.length > 0 ? (
-            <ol className="rail-nodes">
-              {held.map((node) => (
-                <RailNode
-                  key={node.nodeId}
-                  node={node}
-                  labels={labels}
-                  turns={turns}
-                  used={shown.recalled.has(node.nodeId)}
-                  onOpen={props.onOpenNode}
-                  onAskAbout={props.onAskAbout}
-                  onJump={props.onJump}
-                />
-              ))}
-            </ol>
           ) : (
-            <p className="rail-empty">
-              {scope === 'thread'
-                ? '这段对话还没有你确认的理解。'
-                : '还没有。确认一条提议，它就会出现在这里。'}
-            </p>
+            <GitTree
+              sessions={props.sessions}
+              nodes={understanding.nodes}
+              turns={turns}
+              current={thread}
+              onOpenNode={props.onOpenNode}
+              onOpenThread={props.onOpenThread}
+              onAskAbout={props.onAskAbout}
+              onJump={props.onJump}
+            />
           )}
           {past.length > 0 && view === 'thread' && (
             <details className="rail-past">
@@ -298,78 +273,5 @@ function LineButton({ chip, onOpen }: { chip: LineChip; onOpen: (thread: string)
       </svg>
       <span>{chip.label}</span>
     </button>
-  )
-}
-
-/** What was confirmed in this conversation, with the words it came from and the two ways back into the work. */
-function RailNode(props: {
-  node: HeldNode
-  labels: ReadonlyMap<string, string>
-  turns: readonly Turn[]
-  used: boolean
-  onOpen: (node: string) => void
-  onAskAbout: (label: string) => void
-  onJump: (thread: string, turn: string | undefined) => void
-}) {
-  const { node } = props
-  const state = stateOf(node)
-  const origin = originTurn(node, props.turns)
-  const anchor =
-    node.origin?.thread !== undefined && node.origin.turn !== undefined
-      ? { thread: node.origin.thread, turn: node.origin.turn }
-      : undefined
-  const quote = node.excerpt ?? origin?.text
-  const topic = node.topics[0]
-  return (
-    <li className="rail-node" data-state={state}>
-      <p className="rail-node-meta">
-        <span className="state-mark" data-state={state} aria-hidden="true" />
-        <span>{STATE_WORD[state]}</span>
-        <span>{wordsOf(node.origin?.basis, node.wordsBy)}</span>
-        {topic !== undefined && (
-          <span className="rail-node-where" title={`${topic.title}：${topic.section ?? ''}`}>
-            {topic.section ?? topic.title}
-          </span>
-        )}
-        {props.used && <span className="rail-node-tag">本次用到</span>}
-      </p>
-      <button type="button" className="rail-node-title" onClick={() => props.onOpen(node.nodeId)}>
-        {node.label}
-      </button>
-      {quote !== undefined && quote !== '' && (
-        <p className="rail-node-quote" title={quote}>
-          {shortened(quote)}
-        </p>
-      )}
-      <p className="rail-node-actions">
-        {anchor !== undefined && (
-          <button
-            type="button"
-            className="link"
-            onClick={() => props.onJump(anchor.thread, anchor.turn)}
-          >
-            原话
-          </button>
-        )}
-        <button type="button" className="link" onClick={() => props.onAskAbout(node.label)}>
-          追问
-        </button>
-      </p>
-      {node.relations.length > 0 && (
-        <ul className="rail-node-relations">
-          {node.relations.map((relation) => (
-            <li
-              key={`${relation.type}-${relation.direction}-${relation.nodeId}`}
-              data-type={relation.type}
-            >
-              <span>{relationWord(relation.type, relation.direction)}</span>
-              <button type="button" className="link" onClick={() => props.onOpen(relation.nodeId)}>
-                {props.labels.get(relation.nodeId) ?? relation.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </li>
   )
 }

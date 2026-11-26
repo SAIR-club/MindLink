@@ -549,7 +549,8 @@ button:not(
   .tree-toggle,
   .plain,
   .rail-line,
-  .rail-node-title,
+  .git-title,
+  .git-branch-title,
   [role="tab"]
 ),
 .upload {
@@ -578,7 +579,8 @@ button:not(
   .tree-toggle,
   .plain,
   .rail-line,
-  .rail-node-title,
+  .git-title,
+  .git-branch-title,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {
@@ -2201,58 +2203,74 @@ li[data-status="skipped"] > span:first-child {
   font-weight: 600;
 }
 
-.rail-nodes {
+/* The branch tree: each confirmed understanding on the line it was made on, with rails drawn between lines. */
+.git-tree {
+  position: relative;
+}
+
+.git-rails {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.git-rows {
+  position: relative;
+  z-index: 2;
   margin: 0;
-  padding-left: 18px;
 }
 
-.rail-nodes li::marker {
-  color: var(--ink-soft);
-  font-size: 11.5px;
-}
-
-.rail-node {
-  padding: 10px 0 11px;
+.git-row {
+  position: relative;
+  padding: 10px 0 10px 76px;
   border-top: 1px solid var(--rule);
 }
 
-.rail-node:first-child {
+.git-row:first-child {
   border-top: 0;
 }
 
-.rail-node-meta {
+.git-row[data-live="true"] {
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.git-dot {
+  position: absolute;
+  top: 16px;
+  left: calc(18px + var(--lane, 0) * 16px);
+  z-index: 3;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 50%;
+  background: var(--canvas);
+}
+
+.git-branch .git-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.git-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 8px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   color: var(--ink-soft);
   font-size: 11.5px;
   line-height: 1.5;
 }
 
-.rail-node-meta .state-mark {
+.git-meta .state-mark {
   position: relative;
   top: -1px;
 }
 
-.rail-node-where {
-  overflow: hidden;
-  max-width: 100%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rail-node-tag {
-  padding: 0 6px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  line-height: 18px;
-}
-
-.rail-node-title {
+.git-title {
   display: block;
   width: 100%;
   padding: 2px 0;
@@ -2266,11 +2284,25 @@ li[data-status="skipped"] > span:first-child {
   text-align: left;
 }
 
-.rail-node-title:hover {
+.git-title:hover {
   color: var(--accent);
 }
 
-.rail-node-quote {
+.git-branch-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.git-quote {
   display: -webkit-box;
   overflow: hidden;
   margin: 2px 0 0;
@@ -2281,17 +2313,17 @@ li[data-status="skipped"] > span:first-child {
   -webkit-line-clamp: 2;
 }
 
-.rail-node-actions {
+.git-actions {
   display: flex;
   gap: 12px;
   margin-top: 5px;
 }
 
-.rail-node-actions button {
+.git-actions button {
   font-size: 12px;
 }
 
-.rail-node-relations {
+.git-relations {
   display: grid;
   gap: 2px;
   margin: 6px 0 0;
@@ -2300,22 +2332,7 @@ li[data-status="skipped"] > span:first-child {
   font-size: 12px;
 }
 
-.rail-node-relations li {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-}
-
-.rail-node-relations li > span {
-  flex: none;
-  color: var(--ink-soft);
-}
-
-.rail-node-relations li[data-type="contradicts"] > span {
-  color: var(--red);
-}
-
-.rail-node-relations .link {
+.git-relations .link {
   overflow: hidden;
   text-align: left;
   text-overflow: ellipsis;
@@ -2347,7 +2364,11 @@ li[data-status="skipped"] > span:first-child {
     min-height: 34px;
   }
 
-  .rail-node-actions button {
+  .git-branch-title {
+    min-height: 34px;
+  }
+
+  .git-actions button {
     padding: 6px 0;
   }
 }

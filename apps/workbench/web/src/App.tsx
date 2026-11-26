@@ -588,6 +588,14 @@ function Desk({
     return made.message
   }
 
+  /** The rail's "整理": one pass over the whole conversation, still ending in the person's decision. */
+  const tidyThread = async (): Promise<void> => {
+    if (spaceId === undefined || threadId === undefined) return
+    const made = await api.candidatesFromThread(spaceId, threadId)
+    await refreshUnderstanding()
+    relateLater(made)
+  }
+
   const offerTurn = async (thread: string, turn: string): Promise<string | undefined> => {
     if (spaceId === undefined) return undefined
     const made = await api.candidatesFromTurn(spaceId, thread, turn)
@@ -1230,6 +1238,7 @@ function Desk({
             onAskAbout={askAbout}
             onJump={jumpTo}
             onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
+            onTidy={tidyThread}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
