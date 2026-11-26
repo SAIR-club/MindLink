@@ -57,12 +57,14 @@ export function GitTree(props: GitTreeProps) {
           element,
         ]),
       )
+      const svgBox = svg.getBoundingClientRect()
       const center = (element: HTMLElement | undefined): { x: number; y: number } | undefined => {
         const dot = element?.querySelector<HTMLElement>('.git-dot')
         if (element === undefined || dot == null) return undefined
+        const dotBox = dot.getBoundingClientRect()
         return {
-          x: element.offsetLeft + dot.offsetLeft + dot.offsetWidth / 2,
-          y: element.offsetTop + dot.offsetTop + dot.offsetHeight / 2,
+          x: dotBox.left + dotBox.width / 2 - svgBox.left,
+          y: dotBox.top + dotBox.height / 2 - svgBox.top,
         }
       }
       const paths: { d: string; kind: 'main' | 'branch' | 'live' }[] = []
