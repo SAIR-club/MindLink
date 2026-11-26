@@ -718,6 +718,42 @@ button:disabled {
   margin-left: 8px;
 }
 
+.paste-material {
+  display: grid;
+  gap: 8px;
+}
+
+.materials .paste-material {
+  margin: 12px 0;
+}
+
+.paste-material label {
+  display: grid;
+  gap: 4px;
+}
+
+.paste-material textarea {
+  resize: vertical;
+}
+
+.paste-material .actions {
+  display: flex;
+  gap: 8px;
+}
+
+.paste-dialog {
+  width: min(480px, calc(100% - 32px));
+  padding: 20px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.paste-dialog::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+
 .hidden-input {
   display: none;
 }
@@ -941,6 +977,11 @@ ul.answer {
 
 .composer button[type="submit"] {
   border-radius: 9px;
+}
+
+.composer-materials {
+  display: flex;
+  white-space: nowrap;
 }
 
 .composer-status {

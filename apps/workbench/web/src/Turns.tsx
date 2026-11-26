@@ -1,10 +1,22 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Answer, Citation, Evidence, HeldNode, Turn } from './api.js'
 
 /** What the agent said, shared by a conversation and a plan. */
 
 export const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : '出了点问题。请重试。'
+
+export function WaitingText({ text, afterFive = text }: { text: string; afterFive?: string }) {
+  const [seconds, setSeconds] = useState(0)
+  useEffect(() => {
+    const started = performance.now()
+    const ticking = setInterval(() => {
+      setSeconds(Math.floor((performance.now() - started) / 1000))
+    }, 1000)
+    return () => clearInterval(ticking)
+  }, [])
+  return seconds < 5 ? text : `${afterFive}（已 ${seconds} 秒）`
+}
 
 /** What a turn needs to reach the understanding drawn from it, and to go the other way. */
 interface TurnLinks {
@@ -246,7 +258,13 @@ export function AgentTurn(props: {
                 })
             }}
           >
-            {state === 'working' ? '正在提炼…' : state === 'done' ? '已提炼' : '提炼成待确认的理解'}
+            {state === 'working' ? (
+              <WaitingText text="正在提炼…" />
+            ) : state === 'done' ? (
+              '已提炼'
+            ) : (
+              '提炼成待确认的理解'
+            )}
           </button>
         )}
         <ForkHere turn={turn} />

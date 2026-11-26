@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { api, type MaterialSummary, type Space } from './api.js'
+import { messageOf } from './Turns.js'
 
 /** What the space learns from: every file, with what it holds, and the ways to add, replace and remove one. */
 
@@ -10,6 +11,76 @@ const KIND: Readonly<Record<string, string>> = {
 }
 
 export const MATERIAL_ACCEPT = '.txt,.md,.markdown,.pdf'
+
+function pastedTitle(): string {
+  const time = new Date().toLocaleString('sv-SE', { dateStyle: 'short', timeStyle: 'short' })
+  return `粘贴的文字 ${time}`
+}
+
+export function PasteMaterialForm({
+  busy,
+  onUpload,
+  onCancel,
+}: {
+  busy: boolean
+  onUpload: (file: File) => Promise<void>
+  onCancel?: () => void
+}) {
+  const [title, setTitle] = useState(pastedTitle)
+  const [text, setText] = useState('')
+  const [problem, setProblem] = useState<string>()
+
+  const submit = (event: FormEvent): void => {
+    event.preventDefault()
+    if (busy) return
+    if (text.trim() === '') {
+      setProblem('请先粘贴文字。')
+      return
+    }
+    const name = title.replace(/[<>:"/\\|?*]|\p{Cc}/gu, '').trim() || '粘贴的文字'
+    setProblem(undefined)
+    onUpload(new File([text], `${name}.md`, { type: 'text/markdown' }))
+      .then(() => {
+        setTitle(pastedTitle())
+        setText('')
+      })
+      .catch((error: unknown) => setProblem(messageOf(error)))
+  }
+
+  return (
+    <form className="paste-material" onSubmit={submit}>
+      <h3>粘贴文字</h3>
+      <label>
+        标题
+        <input value={title} disabled={busy} onChange={(event) => setTitle(event.target.value)} />
+      </label>
+      <label>
+        文字
+        <textarea
+          rows={5}
+          value={text}
+          disabled={busy}
+          onChange={(event) => setText(event.target.value)}
+        />
+      </label>
+      {problem !== undefined && (
+        <p className="hint" role="alert">
+          {problem}
+        </p>
+      )}
+      <div className="actions">
+        <button type="submit" disabled={busy}>
+          加入材料
+        </button>
+        {onCancel !== undefined && (
+          <button type="button" className="secondary" onClick={onCancel}>
+            取消
+          </button>
+        )}
+      </div>
+    </form>
+  )
+}
 
 function sizeWords(material: MaterialSummary): string {
   const characters =
@@ -43,23 +114,18 @@ export function MaterialsPage(props: {
   const replaceTarget = useRef<string | undefined>(undefined)
   const replaceInput = useRef<HTMLInputElement>(null)
 
-  const upload = (files: FileList | null): void => {
-    if (files === null || files.length === 0) return
-    const chosen = [...files]
+  const upload = async (files: readonly File[]): Promise<void> => {
     setUploading(true)
     setNote(undefined)
-    guard(async () => {
-      try {
-        for (const file of chosen) {
-          const { duplicate } = await api.upload(space.id, file)
-          if (duplicate) setNote(`“${file.name}”的内容已经在这个空间里了。`)
-          else if (materials.length === 0) setAddedFirst(true)
-        }
-      } finally {
-        setUploading(false)
-        await props.onChanged()
+    try {
+      for (const file of files) {
+        const { duplicate } = await api.upload(space.id, file)
+        if (duplicate) setNote(`“${file.name}”的内容已经在这个空间里了。`)
+        else if (materials.length === 0) setAddedFirst(true)
       }
-    })
+    } finally {
+      await props.onChanged().finally(() => setUploading(false))
+    }
   }
 
   return (
@@ -130,7 +196,8 @@ export function MaterialsPage(props: {
             accept={MATERIAL_ACCEPT}
             disabled={uploading}
             onChange={(event) => {
-              upload(event.target.files)
+              const files = [...(event.target.files ?? [])]
+              if (files.length > 0) guard(() => upload(files))
               event.target.value = ''
             }}
           />
@@ -142,6 +209,9 @@ export function MaterialsPage(props: {
         </button>
       )}
       {note !== undefined && <p className="hint">{note}</p>}
+      {!space.archived && (
+        <PasteMaterialForm busy={uploading} onUpload={(file) => upload([file])} />
+      )}
       {materials.length > 0 && (
         <p className="hint">删除一份材料后，旧回答引用过的片段仍会保留，方便你回头核对。</p>
       )}
