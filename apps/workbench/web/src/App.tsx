@@ -55,33 +55,15 @@ import {
   type Section,
 } from './routes.js'
 import { AgentTurn, LearnerTurn, Links, messageOf } from './Turns.js'
-import { KnowledgeGraph } from './KnowledgeGraph.js'
-import { LiveRail } from './LiveRail.js'
 import { PendingList } from './Pending.js'
+import { Rail } from './Rail.js'
 import { UnderstandingPanel } from './Understanding.js'
-import { UnderstandingTree, pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
 import { VisionDesk } from './Vision.js'
+import { keep, kept } from './storage.js'
 
 type Pane = 'shelf' | 'talk' | 'side' | 'rail'
 
 const LAST_SPACE = 'workbench.space'
-
-/** What the browser kept under `key`, or nothing when storage is unavailable. */
-function kept(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function keep(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value)
-  } catch {
-    // Only a convenience: the default comes back next time.
-  }
-}
 
 const RAIL = 'workbench.rail'
 
@@ -113,7 +95,6 @@ const WITHOUT_RAIL: ReadonlySet<Place['kind']> = new Set([
   'unfiled',
   'agent-sessions',
   'commons',
-  'live',
 ])
 
 const NO_UNDERSTANDING: Understanding = { nodes: [], pending: [], challenges: [], dimensions: [] }
@@ -251,7 +232,7 @@ function Desk({
   const [heldSpace, setHeldSpace] = useState<string | undefined>(kept(LAST_SPACE) ?? undefined)
   const namedSpace = 'space' in place ? place.space : undefined
   const spaceId = typeof namedSpace === 'string' ? namedSpace : heldSpace
-  const threadId = place.kind === 'thread' || place.kind === 'live' ? place.thread : undefined
+  const threadId = place.kind === 'thread' ? place.thread : undefined
   const planId = place.kind === 'plan' ? place.plan : undefined
   const commons = place.kind === 'commons'
   const publication = place.kind === 'commons' ? place.publication : undefined
@@ -382,7 +363,6 @@ function Desk({
     place.kind === 'conversations' ||
     place.kind === 'unfiled' ||
     place.kind === 'agent-sessions' ||
-    place.kind === 'live' ||
     isVisionPlace(place)
   useEffect(() => {
     if (addressedSpace !== undefined) {
@@ -544,22 +524,6 @@ function Desk({
     relateLater(made)
   }
 
-  /** The live panel's "提炼这段": the same scene route the conversation's extract button uses. */
-  const extractLive = async (): Promise<string | undefined> => {
-    if (spaceId === undefined || threadId === undefined) return undefined
-    const made = await api.candidatesFromThread(spaceId, threadId)
-    await refreshUnderstanding()
-    relateLater(made)
-    return made.message
-  }
-
-  /** A person's own understanding from the live panel; it belongs to the space, not to one turn. */
-  const saveLive = async (label: string): Promise<void> => {
-    if (spaceId === undefined) return
-    await api.saveUnderstanding(spaceId, label)
-    await refreshUnderstanding()
-  }
-
   const askAbout = useCallback((label: string): void => {
     setAskSeed({ text: `关于「${label}」：`, nonce: Date.now() })
     setPane('talk')
@@ -587,11 +551,9 @@ function Desk({
         if (asked.thread !== threadId) {
           threadInHand.current = asked.thread
           // A new conversation takes the empty one's place, so going back skips it.
-          const next =
-            place.kind === 'live'
-              ? { kind: 'live' as const, space: spaceId, thread: asked.thread }
-              : { kind: 'thread' as const, space: spaceId, thread: asked.thread }
-          go(next, here.current.panel, { replace: true })
+          go({ kind: 'thread', space: spaceId, thread: asked.thread }, here.current.panel, {
+            replace: true,
+          })
         }
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
       } finally {
@@ -639,11 +601,7 @@ function Desk({
     if (spaceId === undefined || threadId === undefined) return
     const { session } = await api.fork(spaceId, threadId, turn)
     setSessions((await api.sessions(spaceId)).sessions)
-    moveTo(
-      place.kind === 'live'
-        ? { kind: 'live', space: spaceId, thread: session.id }
-        : { kind: 'thread', space: spaceId, thread: session.id },
-    )
+    moveTo({ kind: 'thread', space: spaceId, thread: session.id })
   }
   const canFork =
     spaceId !== undefined &&
@@ -687,9 +645,7 @@ function Desk({
     const next =
       plan !== undefined && plan.origin !== 'host'
         ? { kind: 'plan' as const, space: spaceId, plan: plan.id }
-        : place.kind === 'live' && plan === undefined
-          ? { kind: 'live' as const, space: spaceId, thread }
-          : { kind: 'thread' as const, space: spaceId, thread }
+        : { kind: 'thread' as const, space: spaceId, thread }
     go(next, turn === undefined ? rest : { ...rest, turn })
     setPane('talk')
   }
@@ -718,16 +674,8 @@ function Desk({
   )
   const heldCount = heldNodes.length
 
-  const liveMode = place.kind === 'live'
-  const showLive = liveMode && spaceId !== undefined && spaceKnown
-  const railAllowed = !liveMode && spaceKnown && !welcoming && !WITHOUT_RAIL.has(place.kind)
-  const right = opensSide(panel)
-    ? 'source'
-    : showLive
-      ? 'rail'
-      : railAllowed && railOpen
-        ? 'rail'
-        : 'none'
+  const railAllowed = spaceKnown && !welcoming && !WITHOUT_RAIL.has(place.kind)
+  const right = opensSide(panel) ? 'source' : railAllowed && railOpen ? 'rail' : 'none'
   const toggleRail = (): void => {
     const next = !(right === 'rail')
     setRailOpen(next)
@@ -801,7 +749,7 @@ function Desk({
         className="desk"
         data-pane={pane}
         data-right={right}
-        data-rail={railAllowed || showLive ? 'allowed' : undefined}
+        data-rail={railAllowed ? 'allowed' : undefined}
         data-shelf={shelfOpen ? undefined : 'closed'}
         style={
           {
@@ -827,9 +775,7 @@ function Desk({
         {right !== 'none' && (
           <Resizer
             edge="right"
-            label={
-              right === 'rail' ? (showLive ? '调整旁注宽度' : '调整理解层宽度') : '调整原文宽度'
-            }
+            label={right === 'rail' ? '调整理解层宽度' : '调整原文宽度'}
             width={rightWidth}
             min={300}
             max={720}
@@ -984,30 +930,6 @@ function Desk({
                 <span key={index}>{crumb}</span>
               ))}
             </p>
-            {place.kind === 'live' ? (
-              <button
-                type="button"
-                className="tool"
-                onClick={() =>
-                  threadId === undefined
-                    ? moveTo({ kind: 'space', space: place.space })
-                    : moveTo({ kind: 'thread', space: place.space, thread: threadId })
-                }
-              >
-                回到工作台
-              </button>
-            ) : place.kind === 'thread' && spaceId !== undefined ? (
-              <button
-                type="button"
-                className="tool"
-                onClick={() => {
-                  go({ kind: 'live', space: spaceId, thread: place.thread }, panel)
-                  setPane('rail')
-                }}
-              >
-                实时旁注
-              </button>
-            ) : null}
             {railAllowed && (
               <button
                 type="button"
@@ -1227,7 +1149,7 @@ function Desk({
               extract={
                 <ExtractFromThread space={spaceId} thread={threadId} onMade={madeFromThread} />
               }
-              {...(place.kind === 'live' && askSeed !== undefined
+              {...(place.kind === 'thread' && askSeed !== undefined
                 ? { seed: askSeed, onSeedUsed: clearSeed }
                 : {})}
             />
@@ -1286,58 +1208,29 @@ function Desk({
             setPane('talk')
           }}
         />
-        {showLive && spaceId !== undefined && space !== undefined && !opensSide(panel) ? (
-          <LiveRail
-            space={spaceId}
-            spaceName={space.name}
-            thread={threadId}
-            turns={turnsOf === threadId ? turns : NO_TURNS}
+        {railAllowed && spaceId !== undefined && (
+          <Rail
+            understanding={understanding}
+            relating={relating > 0}
+            thread={threadInView}
+            turns={turnsOf === threadInView ? turns : NO_TURNS}
             sessions={sessions.filter(
               (session) => !plans.some((plan) => plan.thread === session.id),
             )}
-            understanding={understanding}
-            blocks={library.blocks}
-            workflows={library.workflows}
-            archived={space.archived}
             guard={guard}
             onDecided={decided}
-            onClose={() =>
-              threadId === undefined
-                ? moveTo({ kind: 'space', space: spaceId })
-                : moveTo({ kind: 'thread', space: spaceId, thread: threadId })
-            }
-            onOpenThread={(id) => moveTo({ kind: 'live', space: spaceId, thread: id })}
             onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
             onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
             onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
-            {...(me.sharing ? { onOpenCommons: () => moveTo({ kind: 'commons' }) } : {})}
+            onClose={() => {
+              setRailOpen(false)
+              keep(RAIL, 'closed')
+              setPane('talk')
+            }}
             onAskAbout={askAbout}
             onJump={jumpTo}
-            onFork={forkAt}
-            onExtract={extractLive}
-            onSave={saveLive}
+            onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
           />
-        ) : (
-          railAllowed &&
-          spaceId !== undefined && (
-            <Rail
-              understanding={understanding}
-              relating={relating > 0}
-              thread={threadInView}
-              turns={turnsOf === threadInView ? turns : NO_TURNS}
-              sessions={sessions}
-              guard={guard}
-              onDecided={decided}
-              onOpenNode={(node) => moveTo({ kind: 'understanding', space: spaceId, node })}
-              onOpenPending={() => moveTo({ kind: 'review', space: spaceId })}
-              onOpenAll={() => moveTo({ kind: 'understanding', space: spaceId })}
-              onClose={() => {
-                setRailOpen(false)
-                keep(RAIL, 'closed')
-                setPane('talk')
-              }}
-            />
-          )
         )}
         <nav className="switcher" aria-label="切换页面">
           <button type="button" aria-current={pane === 'shelf'} onClick={() => setPane('shelf')}>
@@ -1349,9 +1242,9 @@ function Desk({
           <button type="button" aria-current={pane === 'side'} onClick={() => setPane('side')}>
             原文
           </button>
-          {(railAllowed || showLive) && (
+          {railAllowed && (
             <button type="button" aria-current={pane === 'rail'} onClick={() => setPane('rail')}>
-              {showLive ? '旁注' : '理解层'}
+              理解层
             </button>
           )}
         </nav>
@@ -1963,7 +1856,6 @@ const PAGE_NAMES: Partial<Record<Place['kind'], string>> = {
   review: '待确认',
   understanding: '我的理解',
   new: '新对话',
-  live: '实时旁注',
   connect: '接入 Agent',
   model: '模型',
   conversations: '所有对话',
@@ -1984,11 +1876,9 @@ function crumbsOf(
   const page =
     place.kind === 'thread'
       ? (names.thread ?? '对话')
-      : place.kind === 'live'
-        ? (names.thread ?? '实时旁注')
-        : place.kind === 'plan'
-          ? (names.plan ?? '学习计划')
-          : PAGE_NAMES[place.kind]
+      : place.kind === 'plan'
+        ? (names.plan ?? '学习计划')
+        : PAGE_NAMES[place.kind]
   const inSpace = 'space' in place && names.space !== undefined
   return [inSpace ? names.space : undefined, page].filter(
     (crumb): crumb is string => crumb !== undefined,
@@ -2116,164 +2006,6 @@ function LayerGlyph() {
         strokeDasharray="2 1.6"
       />
     </svg>
-  )
-}
-
-/**
- * The understanding layer, beside whatever page is open: what waits for the person's decision, and what they
- * already hold. Deciding here is the same as on the review page; only the person can do it.
- */
-const RAIL_VIEW = 'workbench.rail-view'
-/** The rail keeps a few waiting items at hand; the review page has them all. */
-const RAIL_PENDING = 3
-
-function railViewWas(): 'tree' | 'graph' {
-  return kept(RAIL_VIEW) === 'graph' ? 'graph' : 'tree'
-}
-
-/**
- * The understanding layer, beside whatever page is open: what waits for the person's decision, then the structure of
- * what they hold, as a tree or a graph, for the conversation on show or the whole space. Deciding here is the same
- * as on the review page; only the person can do it.
- */
-function Rail(props: {
-  understanding: Understanding
-  /** A model is reading what new candidates bear on; their links come when it is done. */
-  relating: boolean
-  thread: string | undefined
-  turns: readonly Turn[]
-  sessions: readonly Session[]
-  guard: (work: () => Promise<unknown>) => void
-  onDecided: () => Promise<void>
-  onOpenNode: (node: string) => void
-  onOpenPending: () => void
-  onOpenAll: () => void
-  onClose: () => void
-}) {
-  const { understanding, thread, turns } = props
-  const pending = understanding.pending
-  const [view, setView] = useState<'tree' | 'graph'>(railViewWas)
-  const [wanted, setWanted] = useState<Scope>('thread')
-  // A conversation is the default once there is one on show; elsewhere only the whole space makes sense.
-  const scope: Scope = thread === undefined ? 'space' : wanted
-  const shown = useMemo(
-    () => shownFor(understanding, scope, thread, turns),
-    [understanding, scope, thread, turns],
-  )
-  const held = understanding.nodes.filter((node) => stateOf(node) !== 'past')
-  const choose = (next: 'tree' | 'graph'): void => {
-    setView(next)
-    keep(RAIL_VIEW, next)
-  }
-  return (
-    <aside className="rail" aria-label="理解层">
-      <div className="rail-head">
-        <h2>理解层</h2>
-        <div className="segmented" role="group" aria-label="怎么看">
-          <button
-            type="button"
-            className="plain"
-            aria-pressed={view === 'tree'}
-            onClick={() => choose('tree')}
-          >
-            结构
-          </button>
-          <button
-            type="button"
-            className="plain"
-            aria-pressed={view === 'graph'}
-            onClick={() => choose('graph')}
-          >
-            图谱
-          </button>
-        </div>
-        <button type="button" className="tool" onClick={props.onClose}>
-          收起
-        </button>
-      </div>
-      <div className="rail-body" data-view={view}>
-        <section className="rail-section rail-waiting">
-          <h3
-            data-waiting={pending.length > 0}
-            title="Agent 只能提议。只有你确认过的，才算你的理解。"
-          >
-            等你确认
-            <span className="count">{pending.length}</span>
-          </h3>
-          {pending.length === 0 ? (
-            <p className="rail-empty">AI 提出的理解会先停在这里，等你确认。</p>
-          ) : (
-            <>
-              <PendingList
-                pending={understanding.pending}
-                limit={RAIL_PENDING}
-                guard={props.guard}
-                onDecided={props.onDecided}
-              />
-              {pending.length > RAIL_PENDING && (
-                <button type="button" className="link rail-more" onClick={props.onOpenPending}>
-                  查看全部 {pending.length} 条
-                </button>
-              )}
-            </>
-          )}
-          {props.relating && (
-            <p className="rail-relating" role="status">
-              正在看它和你已确认的理解有什么关系…
-            </p>
-          )}
-        </section>
-        <section className="rail-section rail-structure">
-          <h3>
-            你已确认
-            <span className="count">{held.length}</span>
-          </h3>
-          {thread !== undefined && (
-            <div className="segmented scope" role="group" aria-label="范围">
-              <button
-                type="button"
-                className="plain"
-                aria-pressed={scope === 'thread'}
-                onClick={() => setWanted('thread')}
-              >
-                这段对话
-              </button>
-              <button
-                type="button"
-                className="plain"
-                aria-pressed={scope === 'space'}
-                onClick={() => setWanted('space')}
-              >
-                整个空间
-              </button>
-            </div>
-          )}
-          {view === 'graph' && shown.items.length > 0 ? (
-            <KnowledgeGraph
-              items={shown.items}
-              edges={shown.edges}
-              onSelect={(item) => {
-                if (pendingId(item) !== undefined) props.onOpenPending()
-                else props.onOpenNode(item.id)
-              }}
-            />
-          ) : view === 'graph' ? (
-            <p className="rail-empty">
-              {scope === 'thread'
-                ? '这段对话还没有产生或用到你确认过的理解。'
-                : '还没有。确认一条提议，它就会出现在这里。'}
-            </p>
-          ) : (
-            <UnderstandingTree shown={shown} scope={scope} onOpen={props.onOpenNode} />
-          )}
-        </section>
-        <p className="rail-foot">
-          <button type="button" className="link" onClick={props.onOpenAll}>
-            整页查看我的理解
-          </button>
-        </p>
-      </div>
-    </aside>
   )
 }
 

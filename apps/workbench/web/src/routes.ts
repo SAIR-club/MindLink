@@ -61,8 +61,6 @@ export type Place =
   | { readonly kind: 'understanding'; readonly space: string; readonly node?: string }
   | { readonly kind: 'new'; readonly space: string }
   | { readonly kind: 'thread'; readonly space: string; readonly thread: string }
-  /** One conversation read as it is being made, with the live panel beside it. */
-  | { readonly kind: 'live'; readonly space: string; readonly thread?: string }
   | { readonly kind: 'plan'; readonly space: string; readonly plan: string }
   | VisionPlace
 
@@ -85,7 +83,6 @@ export function sectionOf(place: Place): Section | undefined {
       return 'understanding'
     case 'new':
     case 'thread':
-    case 'live':
     case 'plan':
       return 'learning'
     default:
@@ -118,7 +115,6 @@ export function usePlace(): Place {
   const [, myMaterials] = useRoute('/my-materials/:space?')
   const [, client] = useRoute('/client/:space?')
   const [, thread] = useRoute('/spaces/:space/threads/:thread')
-  const [, live] = useRoute('/spaces/:space/live/:thread?')
   const [, plan] = useRoute('/spaces/:space/plans/:plan')
   const [, fresh] = useRoute('/spaces/:space/new')
   const [, materials] = useRoute('/spaces/:space/materials')
@@ -181,13 +177,6 @@ export function usePlace(): Place {
     return publication === undefined ? { kind: 'commons' } : { kind: 'commons', publication }
   }
   if (thread !== null) return { kind: 'thread', space: thread.space, thread: thread.thread }
-  if (live !== null) {
-    return {
-      kind: 'live',
-      space: live.space,
-      ...(optional(live.thread) === undefined ? {} : { thread: live.thread }),
-    }
-  }
   if (plan !== null) return { kind: 'plan', space: plan.space, plan: plan.plan }
   if (fresh !== null) return { kind: 'new', space: fresh.space }
   if (materials !== null) return { kind: 'materials', space: materials.space }
@@ -251,10 +240,6 @@ function pathOf(place: Place): string {
       return `/spaces/${part(place.space)}/new`
     case 'thread':
       return `/spaces/${part(place.space)}/threads/${part(place.thread)}`
-    case 'live':
-      return place.thread === undefined
-        ? `/spaces/${part(place.space)}/live`
-        : `/spaces/${part(place.space)}/live/${part(place.thread)}`
     case 'plan':
       return `/spaces/${part(place.space)}/plans/${part(place.plan)}`
     case 'desk':

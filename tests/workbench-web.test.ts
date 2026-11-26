@@ -527,14 +527,14 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.locator('.relations').getByRole('button', { name: '位置编码是必需的' }).click()
     await page.locator('.marks').getByText('未解决的矛盾').waitFor()
 
-    // Beside the conversation, the understanding layer shows the structure: the two items, the contradiction
+    // Beside the conversation, the understanding layer shows the narrative: the two items, the contradiction
     // between them in words, and the same as a graph that opens an item from its point.
     await page.getByRole('button', { name: '学习', exact: true }).click()
     const rail = page.locator('.rail')
     await rail.getByRole('button', { name: '整个空间' }).click()
-    const tree = rail.locator('.understanding-tree')
-    await tree.locator('.tree-relations li[data-type="contradicts"]').first().waitFor()
-    expect(await tree.locator('.state-mark[data-state="conflict"]').count()).toBe(2)
+    const narrative = rail.locator('.rail-nodes')
+    await narrative.locator('.rail-node-relations li[data-type="contradicts"]').first().waitFor()
+    expect(await narrative.locator('.state-mark[data-state="conflict"]').count()).toBe(2)
     await rail.getByRole('button', { name: '图谱', exact: true }).click()
     await rail.locator('.knowledge-graph .map-contradicts').first().waitFor()
     expect(await rail.locator('.knowledge-graph .map-node[data-state="conflict"]').count()).toBe(2)

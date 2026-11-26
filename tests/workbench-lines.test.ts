@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { HeldNode, Session, Turn } from '../apps/workbench/web/src/api.js'
-import { branchLines, nodesInOrder, originTurn } from '../apps/workbench/web/src/live.js'
+import { branchLines, nodesInOrder, originTurn } from '../apps/workbench/web/src/lines.js'
 
 /**
- * The live panel's two record-shaped decisions, kept out of the page so they can be read and tested without a
- * browser: which lines sit beside the one on show, and the order the understanding was made in.
+ * The understanding layer's two record-shaped decisions, kept out of the page so they can be read and tested
+ * without a browser: which lines sit beside the one on show, and the order the understanding was made in.
  */
 
 const session = (
@@ -31,7 +31,7 @@ const node = (id: string, originTurn?: string): HeldNode =>
     ...(originTurn === undefined ? {} : { origin: { turn: originTurn } }),
   }) as unknown as HeldNode
 
-describe("the live panel's line strip", () => {
+describe("the understanding layer's line strip", () => {
   it('shows the line on show beside the branches that left the same line, with the way back', () => {
     const root = session('root', 1)
     const first = session('first', 2, { thread: 'root', turn: 'turn-1' })
@@ -60,6 +60,24 @@ describe("the live panel's line strip", () => {
     ])
   })
 
+  it('names branches by what sets them apart from the line they left', () => {
+    const root = { ...session('root', 1), title: '端到端方案' }
+    const first = {
+      ...session('first', 2, { thread: 'root', turn: 'turn-1' }),
+      title: '端到端方案 · 分支 1',
+    }
+    const second = {
+      ...session('second', 3, { thread: 'root', turn: 'turn-1' }),
+      title: '端到端方案 · 分支 2',
+    }
+
+    expect(branchLines([root, first, second], 'root').map(({ label }) => label)).toEqual([
+      '端到端方案',
+      '分支 1',
+      '分支 2',
+    ])
+  })
+
   it('leaves unrelated root conversations out of the strip', () => {
     const root = session('root', 1)
     const other = session('other', 2)
@@ -71,7 +89,7 @@ describe("the live panel's line strip", () => {
   })
 })
 
-describe("the live panel's order", () => {
+describe("the understanding layer's order", () => {
   it('follows the turns, and puts what was written or brought back after them', () => {
     const turns = [turn('turn-1', 0), turn('turn-2', 1)]
     const later = node('later', 'turn-2')

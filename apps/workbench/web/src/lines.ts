@@ -1,11 +1,11 @@
 import type { HeldNode, Session, Turn } from './api.js'
 
 /**
- * The live panel reads the same record as the page beside it. These two helpers are the parts that depend only on
- * that record: which lines sit beside the one on show, and the order the understanding was made in.
+ * The understanding layer reads the same record as the page beside it. These helpers are the parts that depend only
+ * on that record: which lines sit beside the one on show, and the order the understanding was made in.
  */
 
-/** A conversation to switch to, as the strip above the panel shows it. */
+/** A conversation to switch to, as the strip above the understanding shows it. */
 export interface LineChip {
   readonly id: string
   readonly label: string
@@ -15,6 +15,18 @@ export interface LineChip {
   readonly parent?: true
   /** Which mark the strip puts in front: a root line, a branch beside it, or the way back. */
   readonly kind: 'root' | 'branch' | 'parent'
+}
+
+/** A branch named after the line it left reads as its own suffix, so the strip stays legible in a narrow rail. */
+function lineLabel(title: string, parent?: string): string {
+  if (parent !== undefined && title.startsWith(parent) && title.length > parent.length) {
+    const rest = title
+      .slice(parent.length)
+      .replace(/^\s*·\s*/u, '')
+      .trim()
+    if (rest !== '' && rest.length <= 12) return rest
+  }
+  return title
 }
 
 /**
@@ -38,7 +50,12 @@ export function branchLines(
   if (parent === undefined || !byId.has(parent)) {
     chips.push({ id: current.id, label: current.title, active: true, kind: 'root' })
     for (const child of children) {
-      chips.push({ id: child.id, label: child.title, active: false, kind: 'branch' })
+      chips.push({
+        id: child.id,
+        label: lineLabel(child.title, current.title),
+        active: false,
+        kind: 'branch',
+      })
     }
     return chips
   }
@@ -52,7 +69,7 @@ export function branchLines(
   for (const session of siblings) {
     chips.push({
       id: session.id,
-      label: session.title,
+      label: lineLabel(session.title, above?.title),
       active: session.id === thread,
       kind: 'branch',
     })
