@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { HeldNode, PendingCandidate, Session, Turn } from './api.js'
 import { stateOf } from './UnderstandingView.js'
 import { rowsOf } from './gitRows.js'
@@ -11,6 +11,38 @@ import { rowsOf } from './gitRows.js'
 function shortened(text: string): string {
   const one = text.replace(/\s+/gu, ' ').trim()
   return one.length > 88 ? `${one.slice(0, 88)}…` : one
+}
+
+/** A short label that says nearly the same thing as its quote should appear once. */
+function repeatsLabel(label: string, quote: string): boolean {
+  const grams = (text: string): ReadonlySet<string> => {
+    const clean = text.replace(/[^\p{L}\p{N}]/gu, '')
+    const found = new Set<string>()
+    for (let index = 0; index + 1 < clean.length; index += 1)
+      found.add(clean.slice(index, index + 2))
+    return found
+  }
+  const a = grams(label)
+  const b = grams(quote)
+  if (a.size === 0 || b.size === 0) return false
+  let shared = 0
+  for (const gram of a) if (b.has(gram)) shared += 1
+  return shared / Math.min(a.size, b.size) >= 0.72
+}
+
+function noteText(candidate: PendingCandidate): string {
+  return candidate.proposal.label ?? candidate.link?.toLabel ?? candidate.state?.label ?? '一条关系'
+}
+
+/** A topic label is the section when there is one, otherwise the document name without its file noise. */
+function topicLabel(topic: { readonly title: string; readonly section?: string }): string {
+  const base = topic.section ?? topic.title
+  const clean = base
+    .replace(/\.[a-z0-9]+$/iu, '')
+    .replace(/\s*\([^)]*\)/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+  return clean === '' ? base : clean
 }
 
 interface GitTreeProps {
@@ -28,14 +60,35 @@ interface GitTreeProps {
 export function GitTree(props: GitTreeProps) {
   const wrap = useRef<HTMLDivElement>(null)
   const rails = useRef<SVGSVGElement>(null)
-  const rows = useMemo(
-    () => rowsOf(props.sessions, props.nodes, props.pending, props.current),
-    [props.sessions, props.nodes, props.pending, props.current],
-  )
+  const rows = useMemo(() => {
+    const built = rowsOf(props.sessions, props.nodes, props.pending, props.current)
+    const held = props.nodes.map((node) => node.label)
+    return built.filter(
+      (row) =>
+        row.kind !== 'note' || !held.some((label) => repeatsLabel(label, noteText(row.candidate))),
+    )
+  }, [props.sessions, props.nodes, props.pending, props.current])
   const labels = useMemo(
     () => new Map(props.nodes.map((node) => [node.nodeId, node.label])),
     [props.nodes],
   )
+  // A topic label appears where the discussion changes topic. The wire keeps the chronology; the label gives it shape.
+  const marked = useMemo(() => {
+    let previous: string | undefined
+    return rows.map((row) => {
+      const nodeTopic = row.kind === 'node' ? row.node.topics[0] : undefined
+      const noteTopic = row.kind === 'note' ? row.candidate.topics?.[0] : undefined
+      const topic =
+        nodeTopic !== undefined
+          ? topicLabel(nodeTopic)
+          : noteTopic !== undefined
+            ? topicLabel(noteTopic)
+            : undefined
+      const fresh = topic !== undefined && topic !== previous
+      if (topic !== undefined) previous = topic
+      return { row, topic, fresh }
+    })
+  }, [rows])
 
   useEffect(() => {
     const box = wrap.current
@@ -132,65 +185,75 @@ export function GitTree(props: GitTreeProps) {
     <div className="git-tree" ref={wrap}>
       <svg className="git-rails" ref={rails} aria-hidden="true" />
       <ol className="git-rows">
-        {rows.map((row) =>
-          row.kind === 'note' ? (
-            <li
-              key={row.key}
-              className="git-row git-note"
-              data-key={row.key}
-              data-lane={row.lane}
-              data-live="true"
-              style={{ '--lane': row.lane } as CSSProperties}
-            >
-              <span className="git-dot" data-state="pending" aria-hidden="true" />
-              <p className="git-title">
-                {row.candidate.proposal.label ??
-                  row.candidate.link?.toLabel ??
-                  row.candidate.state?.label ??
-                  '一条关系'}
-              </p>
-            </li>
-          ) : row.kind === 'branch' ? (
-            <li
-              key={row.key}
-              className="git-row git-branch"
-              data-key={row.key}
-              data-lane={row.lane}
-              style={{ '--lane': row.lane } as CSSProperties}
-            >
-              <span className="git-dot" aria-hidden="true" />
-              <button
-                type="button"
-                className="git-branch-title"
-                onClick={() => props.onOpenThread(row.session.id)}
+        {marked.flatMap(({ row, topic, fresh }) => {
+          const lead: ReactNode =
+            fresh === true && topic !== undefined ? (
+              <li key={`topic-${row.key}`} className="git-topic" aria-hidden="true">
+                {topic}
+              </li>
+            ) : null
+          const body =
+            row.kind === 'note' ? (
+              <li
+                key={row.key}
+                className="git-row git-note"
+                data-key={row.key}
+                data-lane={row.lane}
+                data-live="true"
+                style={{ '--lane': row.lane } as CSSProperties}
               >
-                <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true" fill="none">
-                  <path
-                    d="M4 13V8.5A2.5 2.5 0 0 1 6.5 6H13m-2.6-2.5L13 6l-2.6 2.5"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                {row.label}
-              </button>
-            </li>
-          ) : (
-            <GitNodeRow
-              key={row.key}
-              node={row.node}
-              lane={row.lane}
-              rowKey={row.key}
-              current={props.current}
-              turns={props.turns}
-              labels={labels}
-              onOpen={props.onOpenNode}
-              onAskAbout={props.onAskAbout}
-              onJump={props.onJump}
-            />
-          ),
-        )}
+                <span className="git-dot" data-state="pending" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="git-title"
+                  aria-label="定位到这条纪要的原对话"
+                  onClick={() => props.onJump(props.current ?? '', row.candidate.origin?.turn)}
+                >
+                  {noteText(row.candidate)}
+                </button>
+              </li>
+            ) : row.kind === 'branch' ? (
+              <li
+                key={row.key}
+                className="git-row git-branch"
+                data-key={row.key}
+                data-lane={row.lane}
+                style={{ '--lane': row.lane } as CSSProperties}
+              >
+                <span className="git-dot" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="git-branch-title"
+                  onClick={() => props.onOpenThread(row.session.id)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true" fill="none">
+                    <path
+                      d="M4 13V8.5A2.5 2.5 0 0 1 6.5 6H13m-2.6-2.5L13 6l-2.6 2.5"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  {row.label}
+                </button>
+              </li>
+            ) : (
+              <GitNodeRow
+                key={row.key}
+                node={row.node}
+                lane={row.lane}
+                rowKey={row.key}
+                current={props.current}
+                turns={props.turns}
+                labels={labels}
+                onOpen={props.onOpenNode}
+                onAskAbout={props.onAskAbout}
+                onJump={props.onJump}
+              />
+            )
+          return lead === null ? [body] : [lead, body]
+        })}
       </ol>
     </div>
   )
@@ -210,7 +273,8 @@ function GitNodeRow(props: {
   const { node } = props
   const state = stateOf(node)
   const origin = node.origin
-  const quote = node.excerpt ?? props.turns.find((turn) => turn.id === origin?.turn)?.text
+  const source = node.excerpt ?? props.turns.find((turn) => turn.id === origin?.turn)?.text
+  const quote = source !== undefined && !repeatsLabel(node.label, source) ? source : undefined
   const anchor =
     origin !== undefined && origin.thread !== undefined && origin.turn !== undefined
       ? origin
@@ -224,7 +288,15 @@ function GitNodeRow(props: {
       style={{ '--lane': props.lane } as CSSProperties}
     >
       <span className="git-dot" data-state={state} aria-hidden="true" />
-      <button type="button" className="git-title" onClick={() => props.onOpen(node.nodeId)}>
+      <button
+        type="button"
+        className="git-title"
+        aria-label={`定位到「${node.label}」的原对话`}
+        onClick={() => {
+          if (origin?.thread !== undefined) props.onJump(origin.thread, origin.turn)
+          else props.onOpen(node.nodeId)
+        }}
+      >
         {node.label}
       </button>
       {quote !== undefined && quote !== '' && (
@@ -241,7 +313,7 @@ function GitNodeRow(props: {
             title="查看当时的对话"
             onClick={() => props.onJump(anchor.thread ?? '', anchor.turn)}
           >
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path
                 d="M3 3.5h10v7H7.5L4.5 13v-2.5H3v-7Z"
                 stroke="currentColor"
@@ -264,7 +336,7 @@ function GitNodeRow(props: {
           title="追问这条理解"
           onClick={() => props.onAskAbout(node.label)}
         >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path
               d="M3 3.5h10v7H7.5L4.5 13v-2.5H3v-7Z"
               stroke="currentColor"

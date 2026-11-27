@@ -2339,6 +2339,20 @@ li[data-status="skipped"] > span:first-child {
   border-top: 0;
 }
 
+.git-topic {
+  padding: 14px 0 4px 78px;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.git-topic + .git-row {
+  border-top: 0;
+}
+
 .git-row[data-live="true"] {
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
