@@ -2353,6 +2353,26 @@ li[data-status="skipped"] > span:first-child {
   border-top: 0;
 }
 
+.git-question {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 0 78px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.git-question span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-question + .git-row {
+  border-top: 0;
+}
+
 .git-row[data-live="true"] {
   background: color-mix(in srgb, var(--accent) 4%, transparent);
 }

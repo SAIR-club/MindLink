@@ -34,15 +34,16 @@ function noteText(candidate: PendingCandidate): string {
   return candidate.proposal.label ?? candidate.link?.toLabel ?? candidate.state?.label ?? '一条关系'
 }
 
-/** A topic label is the section when there is one, otherwise the document name without its file noise. */
-function topicLabel(topic: { readonly title: string; readonly section?: string }): string {
-  const base = topic.section ?? topic.title
-  const clean = base
-    .replace(/\.[a-z0-9]+$/iu, '')
-    .replace(/\s*\([^)]*\)/gu, ' ')
-    .replace(/\s+/gu, ' ')
-    .trim()
-  return clean === '' ? base : clean
+/** The question that led into a turn, so a conclusion reads as an answer rather than a floating claim. */
+function questionBefore(turn: string | undefined, turns: readonly Turn[]): string | undefined {
+  if (turn === undefined) return undefined
+  const at = turns.findIndex((candidate) => candidate.id === turn)
+  if (at < 0) return undefined
+  for (let index = at - 1; index >= 0; index -= 1) {
+    const turn = turns[index]
+    if (turn?.speaker === 'learner') return turn.text
+  }
+  return undefined
 }
 
 interface GitTreeProps {
@@ -74,21 +75,25 @@ export function GitTree(props: GitTreeProps) {
   )
   // A topic label appears where the discussion changes topic. The wire keeps the chronology; the label gives it shape.
   const marked = useMemo(() => {
-    let previous: string | undefined
+    let previousTopic: string | undefined
+    let previousQuestion: string | undefined
     return rows.map((row) => {
       const nodeTopic = row.kind === 'node' ? row.node.topics[0] : undefined
       const noteTopic = row.kind === 'note' ? row.candidate.topics?.[0] : undefined
-      const topic =
-        nodeTopic !== undefined
-          ? topicLabel(nodeTopic)
-          : noteTopic !== undefined
-            ? topicLabel(noteTopic)
+      const topic = nodeTopic?.section ?? nodeTopic?.title ?? noteTopic?.section ?? noteTopic?.title
+      const question =
+        row.kind === 'node'
+          ? questionBefore(row.node.origin?.turn, props.turns)
+          : row.kind === 'note'
+            ? questionBefore(row.candidate.origin?.turn, props.turns)
             : undefined
-      const fresh = topic !== undefined && topic !== previous
-      if (topic !== undefined) previous = topic
-      return { row, topic, fresh }
+      const freshTopic = topic !== undefined && topic !== previousTopic
+      const freshQuestion = question !== undefined && question !== previousQuestion
+      if (topic !== undefined) previousTopic = topic
+      if (question !== undefined) previousQuestion = question
+      return { row, topic, freshTopic, question, freshQuestion }
     })
-  }, [rows])
+  }, [rows, props.turns])
 
   useEffect(() => {
     const box = wrap.current
@@ -185,13 +190,30 @@ export function GitTree(props: GitTreeProps) {
     <div className="git-tree" ref={wrap}>
       <svg className="git-rails" ref={rails} aria-hidden="true" />
       <ol className="git-rows">
-        {marked.flatMap(({ row, topic, fresh }) => {
-          const lead: ReactNode =
-            fresh === true && topic !== undefined ? (
+        {marked.flatMap(({ row, topic, freshTopic, question, freshQuestion }) => {
+          const lead: ReactNode[] = []
+          if (freshTopic && topic !== undefined) {
+            lead.push(
               <li key={`topic-${row.key}`} className="git-topic" aria-hidden="true">
                 {topic}
-              </li>
-            ) : null
+              </li>,
+            )
+          }
+          if (freshQuestion && question !== undefined) {
+            lead.push(
+              <li key={`question-${row.key}`} className="git-question">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 3.5h10v7H7.5L4.5 13v-2.5H3v-7Z"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>{shortened(question)}</span>
+              </li>,
+            )
+          }
           const body =
             row.kind === 'note' ? (
               <li
@@ -252,7 +274,7 @@ export function GitTree(props: GitTreeProps) {
                 onJump={props.onJump}
               />
             )
-          return lead === null ? [body] : [lead, body]
+          return [...lead, body]
         })}
       </ol>
     </div>
