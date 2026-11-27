@@ -819,6 +819,28 @@ button:disabled {
   max-width: 720px;
 }
 
+.conversation-page {
+  padding: 28px 32px 48px;
+}
+
+.conversation-page > * {
+  max-width: none;
+}
+
+.conversation-page .answer-block,
+.conversation-page .learner-turn .question {
+  max-width: none;
+}
+
+.conversation-page .learner-turn {
+  margin-top: 18px;
+}
+
+.talk > .composer {
+  width: calc(100% - 48px);
+  max-width: none;
+}
+
 .space-title {
   margin-bottom: 6px;
   font-family: var(--display);
@@ -3319,6 +3341,38 @@ li[data-status="skipped"] > span:first-child {
 
 .conversation-original .learner-turn {
   margin-top: 14px;
+}
+
+.conversation-tree.compact .conversation-node {
+  padding: 9px 0 12px 24px;
+}
+
+.conversation-tree.compact .conversation-node::before {
+  top: 22px;
+  left: 6px;
+}
+
+.conversation-tree.compact .conversation-dot {
+  top: 13px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+}
+
+.conversation-tree.compact .conversation-node-title {
+  font-size: 12.5px;
+}
+
+.conversation-tree.compact .conversation-node-gist {
+  display: none;
+}
+
+.conversation-tree.compact .conversation-points {
+  gap: 2px;
+}
+
+.conversation-tree.compact .conversation-points button {
+  font-size: 12px;
 }
 
 .conversation-title {

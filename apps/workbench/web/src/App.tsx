@@ -32,7 +32,6 @@ import {
   type Understanding,
   type WorkflowInfo,
 } from './api.js'
-import { ConversationTree } from './ConversationTree.js'
 import { Commons, SignIn } from './Commons.js'
 import { AgentSessionsPage } from './AgentSessions.js'
 import { ConnectPage } from './Connect.js'
@@ -1204,10 +1203,6 @@ function Desk({
               branchOf={branchOf(sessions, threadId)}
               onForkPoint={(parent) => jumpTo(parent.thread, parent.turn)}
               turns={turnsOf === threadId ? turns : undefined}
-              outline={outline}
-              onOpenThread={(id) => {
-                if (spaceId !== undefined) moveTo({ kind: 'thread', space: spaceId, thread: id })
-              }}
               asking={asking}
               failed={failed}
               onAsk={ask}
@@ -1302,6 +1297,7 @@ function Desk({
             onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
             onTidy={tidyThread}
             onAcceptAll={acceptAllNotes}
+            outline={outline}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
@@ -1759,8 +1755,6 @@ function Conversation(props: {
   onForkPoint: (parent: BranchOf['parent']) => void
   /** Undefined while the conversation's turns are being read, so another conversation's never show under its name. */
   turns: readonly Turn[] | undefined
-  outline: OutlineRecord
-  onOpenThread: (thread: string) => void
   asking: boolean
   failed: { question: string; failure: Failure } | undefined
   onAsk: (question: string, retry: boolean) => void
@@ -1825,7 +1819,7 @@ function Conversation(props: {
 
   return (
     <>
-      <div className="page">
+      <div className="page conversation-page">
         <h2 className="space-title">{space.name}</h2>
         {branchOf !== undefined && (
           <p className="hint branch-of">
@@ -1859,36 +1853,23 @@ function Conversation(props: {
           </p>
         )}
         {turns.length > 0 && props.extract}
-        {props.outline.topics.length > 0 ? (
-          <ConversationTree
-            outline={props.outline}
-            thread={props.thread}
-            turns={turns}
-            onCite={props.onCite}
-            onCandidates={props.onCandidates}
-            onOpenThread={props.onOpenThread}
-          />
-        ) : (
+        {carried.length > 0 && (
           <>
-            {carried.length > 0 && (
-              <>
-                <section
-                  className="carried"
-                  aria-label={`继承自《${branchOf?.title ?? '原对话'}》的对话`}
-                >
-                  {carried.map(shown)}
-                </section>
-                <p className="fork-line" role="separator">
-                  以上继承自《{branchOf?.title ?? '原对话'}》，以下是这个分支自己的对话
-                </p>
-                {own.length === 0 && !asking && (
-                  <p className="hint page-hint">在下面接着问，对话从这里继续。</p>
-                )}
-              </>
+            <section
+              className="carried"
+              aria-label={`继承自《${branchOf?.title ?? '原对话'}》的对话`}
+            >
+              {carried.map(shown)}
+            </section>
+            <p className="fork-line" role="separator">
+              以上继承自《{branchOf?.title ?? '原对话'}》，以下是这个分支自己的对话
+            </p>
+            {own.length === 0 && !asking && (
+              <p className="hint page-hint">在下面接着问，对话从这里继续。</p>
             )}
-            {own.map(shown)}
           </>
         )}
+        {own.map(shown)}
         {asking && (
           <p className="working" role="status">
             正在查材料并回答…

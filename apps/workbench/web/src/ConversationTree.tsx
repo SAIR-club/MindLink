@@ -12,9 +12,11 @@ interface ConversationTreeProps {
   readonly outline: Outline
   readonly thread: string | undefined
   readonly turns: readonly Turn[]
-  readonly onCite: (citation: Citation, evidence?: Evidence) => void
-  readonly onCandidates: (reply: string) => Promise<string | undefined>
   readonly onOpenThread: (thread: string) => void
+  readonly compact?: boolean
+  readonly onJump?: (thread: string, turn: string | undefined) => void
+  readonly onCite?: (citation: Citation, evidence?: Evidence) => void
+  readonly onCandidates?: (reply: string) => Promise<string | undefined>
 }
 
 function rangeOf(
@@ -35,6 +37,7 @@ function rangeOf(
 export function ConversationTree(props: ConversationTreeProps) {
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
   const { outline, turns } = props
+  const compact = props.compact === true
 
   const toggle = (id: string): void => {
     setOpen((held) => {
@@ -46,6 +49,10 @@ export function ConversationTree(props: ConversationTreeProps) {
   }
 
   const locate = (turn: string): void => {
+    if (props.onJump !== undefined) {
+      props.onJump(props.thread ?? '', turn)
+      return
+    }
     const topic = outline.topics.find((candidate) =>
       candidate.points.some((point) => point.turn === turn),
     )
@@ -60,7 +67,7 @@ export function ConversationTree(props: ConversationTreeProps) {
   }
 
   return (
-    <ol className="conversation-tree">
+    <ol className={compact ? 'conversation-tree compact' : 'conversation-tree'}>
       {outline.topics.map((topic, index) => {
         const [start, end] = rangeOf(outline.topics, turns, index)
         const expanded = open.has(topic.id)
@@ -77,8 +84,15 @@ export function ConversationTree(props: ConversationTreeProps) {
             <button
               type="button"
               className="conversation-node-title"
-              aria-expanded={expanded}
-              onClick={() => toggle(topic.id)}
+              aria-expanded={compact ? undefined : expanded}
+              onClick={() => {
+                if (compact) {
+                  const first = topic.points[0]
+                  if (first !== undefined) locate(first.turn)
+                } else {
+                  toggle(topic.id)
+                }
+              }}
             >
               {topic.title}
             </button>
@@ -86,7 +100,11 @@ export function ConversationTree(props: ConversationTreeProps) {
             <ul className="conversation-points">
               {topic.points.map((point) => (
                 <li key={`${topic.id}-${point.turn}`}>
-                  <button type="button" onClick={() => locate(point.turn)}>
+                  <button
+                    type="button"
+                    aria-label={`定位到「${point.text}」的原对话`}
+                    onClick={() => locate(point.turn)}
+                  >
                     {point.text}
                   </button>
                 </li>
@@ -130,7 +148,7 @@ export function ConversationTree(props: ConversationTreeProps) {
                 {merge.summary}
               </button>
             )}
-            {expanded && (
+            {!compact && expanded && (
               <div className="conversation-original">
                 {turns
                   .slice(start, end + 1)
@@ -141,8 +159,11 @@ export function ConversationTree(props: ConversationTreeProps) {
                       <AgentTurn
                         key={turn.id}
                         turn={turn}
-                        onCite={props.onCite}
-                        onCandidates={props.onCandidates}
+                        onCite={props.onCite ?? (() => undefined)}
+                        onCandidates={
+                          props.onCandidates ??
+                          (() => Promise.resolve<string | undefined>(undefined))
+                        }
                       />
                     ),
                   )}

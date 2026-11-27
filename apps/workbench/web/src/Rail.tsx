@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Session, Turn, Understanding } from './api.js'
+import type { Outline, Session, Turn, Understanding } from './api.js'
+import { ConversationTree } from './ConversationTree.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
 import { branchLines, type LineChip } from './lines.js'
 import { kept, keep } from './storage.js'
@@ -37,6 +38,7 @@ interface RailProps {
   readonly onOpenThread: (thread: string) => void
   readonly onTidy: () => Promise<void>
   readonly onAcceptAll: () => Promise<void>
+  readonly outline: Outline
 }
 
 export function Rail(props: RailProps) {
@@ -253,6 +255,15 @@ export function Rail(props: RailProps) {
             ) : (
               <span className="rail-empty-mark" role="img" aria-label="还没有理解" />
             )
+          ) : props.outline.topics.length > 0 ? (
+            <ConversationTree
+              outline={props.outline}
+              thread={thread}
+              turns={turns}
+              compact
+              onJump={props.onJump}
+              onOpenThread={props.onOpenThread}
+            />
           ) : held.length > 0 ? (
             <ol className="rail-line-list">
               {held.map((node) => (
