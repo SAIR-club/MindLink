@@ -40,7 +40,6 @@ interface RailProps {
   readonly onTidy: () => Promise<void>
   readonly onAcceptAll: () => Promise<void>
   readonly outline: Outline
-  readonly onFork: (title: string, turn: string) => void
 }
 
 export function Rail(props: RailProps) {
@@ -254,7 +253,7 @@ export function Rail(props: RailProps) {
               outline={props.outline}
               thread={thread ?? ''}
               onJump={props.onJump}
-              onFork={props.onFork}
+              onOpenThread={props.onOpenThread}
             />
           ) : (
             <GitTree

@@ -92,6 +92,24 @@ export interface Outline {
     readonly points: readonly { readonly text: string; readonly turn: string }[]
     readonly branch?: { readonly title: string; readonly turn: string }
   }[]
+  readonly branches?: readonly {
+    readonly id: string
+    readonly parent: string
+    readonly turn: string
+    readonly title: string
+    readonly at: number
+    readonly by: string
+  }[]
+  readonly merges?: readonly {
+    readonly id: string
+    readonly parent: string
+    readonly branch: string
+    readonly anchor: string
+    readonly turn: string
+    readonly summary: string
+    readonly at: number
+    readonly by: string
+  }[]
   readonly failure?: Failure
 }
 
@@ -582,6 +600,8 @@ export const api = {
     scene(`/session?thread=${encoded(thread)}`) as Promise<{ turns: readonly Turn[] }>,
   outline: (space: string, thread: string) =>
     scene('/outline', { space, thread }) as Promise<Outline>,
+  organize: (space: string, thread: string) =>
+    scene('/organize', { space, thread }) as Promise<Outline>,
   /** A new line of a conversation from one of the turns it shows. The original stays as it is. */
   fork: (space: string, thread: string, turn: string, title?: string) =>
     scene('/sessions/fork', {

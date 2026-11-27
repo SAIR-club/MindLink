@@ -17,6 +17,7 @@ import {
 import { learningRoutes } from './learning.js'
 import { MaterialStore } from './materials.js'
 import { ModelFailure, type ModelClient, type ModelMessage } from './model.js'
+import { organizerRoutes } from './organizer.js'
 import type { ModelSettings } from './model-settings.js'
 import { MAX_MATERIAL_BYTES, MaterialRefusal, parseMaterial } from './parse.js'
 import { sharingRoutes } from './sharing.js'
@@ -183,6 +184,7 @@ export interface WorkbenchRouteOptions {
 export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneRoute[] {
   const { model } = options
   const now = options.now ?? Date.now
+  const organizer = organizerRoutes({ model, now })
   const library = options.library ?? BUILT_IN_LIBRARY
   const problems = libraryProblems(library)
   if (problems.length > 0) throw new Error(`Invalid learning library: ${problems.join('; ')}`)
@@ -549,6 +551,10 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
       return { session: { ...shownThread(view, fork), ownTurns: 0 } }
     }),
 
+    // One model pass organises the line: outline, topic branches, and conclusions merged back to the parent.
+    route('POST', '/organize', ({ view, writes, body }) =>
+      organizer.organize({ view, writes, body }),
+    ),
     // A true summary of the conversation: topics and their points, each anchored to the turn it came from.
     route('POST', '/outline', async ({ view, body }) => {
       const space = openSpaceOf(view, text(body, 'space'))
@@ -557,8 +563,10 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
         refuse('unknown_thread', '这个空间里没有这段对话。')
       }
       const turns = thread.turns.slice(-60)
-      if (turns.length === 0) return { topics: [] }
-      if (model.simulated) return { topics: [] }
+      const state = organizer.organizerState(view, thread.thread.id)
+      if (turns.length === 0) return { topics: [], ...state }
+      if (model.simulated)
+        return { topics: organizer.latestSummaries(view, thread.thread.id), ...state }
       const dialogue = turns
         .map(
           (turn) =>
@@ -570,11 +578,12 @@ export function workbenchRoutes(options: WorkbenchRouteOptions): readonly SceneR
           { role: 'system', content: OUTLINE_SYSTEM },
           { role: 'user', content: dialogue },
         ])
-        return outlineOf(reply.text, new Set(turns.map((turn) => turn.id)))
+        return { ...outlineOf(reply.text, new Set(turns.map((turn) => turn.id))), ...state }
       } catch (error) {
         if (!(error instanceof ModelFailure)) throw error
         return {
           topics: [],
+          ...state,
           failure: { code: error.code, message: error.message, retryable: error.retryable },
         }
       }

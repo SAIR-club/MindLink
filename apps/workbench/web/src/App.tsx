@@ -490,9 +490,12 @@ function Desk({
     }
     let current = true
     void api
-      .outline(spaceId, threadId)
-      .then((next) => {
-        if (current) setOutline(next)
+      .organize(spaceId, threadId)
+      .then(async (next) => {
+        if (!current) return
+        setOutline(next)
+        const listed = await api.sessions(spaceId)
+        if (current) setSessions(listed.sessions)
       })
       .catch(() => {
         if (current) setOutline({ topics: [] })
@@ -581,6 +584,14 @@ function Desk({
           })
         }
         if (asked.failure !== undefined) setFailed({ question, failure: asked.failure })
+        // A branch can settle into a conclusion useful to the line it left.
+        const parent = sessions.find((session) => session.id === asked.thread)?.parent?.thread
+        if (asked.failure === undefined && parent !== undefined) {
+          void api
+            .organize(spaceId, parent)
+            .then(async () => setSessions((await api.sessions(spaceId)).sessions))
+            .catch(() => undefined)
+        }
         // A rolling summary, not one note per turn: the pause lets the whole thread be read at once.
         if (asked.failure === undefined) {
           clearTimeout(summaryTimer.current)
@@ -624,16 +635,6 @@ function Desk({
     await refreshUnderstanding()
     relateLater(made)
     return made.message
-  }
-
-  /** A suggested branch becomes a real conversation line from the turn where the topic changed. */
-  const forkOutline = (title: string, turn: string): void => {
-    if (spaceId === undefined || threadId === undefined) return
-    guard(async () => {
-      const { session } = await api.fork(spaceId, threadId, turn, title)
-      setSessions((await api.sessions(spaceId)).sessions)
-      moveTo({ kind: 'thread', space: spaceId, thread: session.id })
-    })
   }
 
   /** The live notes are accepted by default: one decision puts the whole summary into the understanding layer. */
@@ -1297,7 +1298,6 @@ function Desk({
             onTidy={tidyThread}
             onAcceptAll={acceptAllNotes}
             outline={outline}
-            onFork={forkOutline}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
