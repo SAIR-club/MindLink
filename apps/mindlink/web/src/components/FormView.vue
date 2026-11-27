@@ -74,7 +74,7 @@ async function send(): Promise<void> {
         :required="field.required === true"
         :placeholder="field.placeholder"
       />
-      <input
+      <input class="ui-input"
         v-else
         v-model="values[field.name]"
         type="text"
@@ -84,6 +84,6 @@ async function send(): Promise<void> {
       />
     </label>
     <p class="form-error" role="alert">{{ message }}</p>
-    <button type="submit" :disabled="busy">{{ submitLabel }}</button>
+    <button class="ui-button" type="submit" :disabled="busy">{{ submitLabel }}</button>
   </form>
 </template>

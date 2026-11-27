@@ -681,8 +681,21 @@ describe('the learning library', () => {
     }
     await start(new SimulatedModel(), { library })
     const space = await spaceWithNotes()
-    const listed = await call<{ workflows: readonly { id: string }[] }>(`${scene}/workflows`)
+    const listed = await call<{
+      workflows: readonly {
+        id: string
+        opening: readonly string[]
+        perFocus: readonly string[]
+        closing: readonly string[]
+      }[]
+    }>(`${scene}/workflows`)
     expect(listed.body.workflows.map((workflow) => workflow.id)).toContain('feynman')
+    // The live panel explains a workflow by the blocks it runs; the shape is part of the interface.
+    expect(listed.body.workflows.find((workflow) => workflow.id === 'feynman')).toMatchObject({
+      opening: [],
+      perFocus: ['teach-back'],
+      closing: ['summary'],
+    })
     const { plan } = await propose(space, 'feynman', 10, '位置编码')
     expect(blocksOf(plan)).toEqual(['teach-back', 'summary'])
     const opened = await act(plan, 'begin')

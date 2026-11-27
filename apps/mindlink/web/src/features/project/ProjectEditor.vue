@@ -128,7 +128,7 @@ async function archive(archived: boolean): Promise<void> {
 
   <p v-if="current.archived" class="notice project-archived" role="status">
     <span>这个项目已归档，设置不能修改。恢复后可以继续使用。</span>
-    <button type="button" :disabled="busy" @click="archive(false)">恢复项目</button>
+    <button class="ui-button" type="button" :disabled="busy" @click="archive(false)">恢复项目</button>
   </p>
 
   <section>
@@ -137,11 +137,11 @@ async function archive(archived: boolean): Promise<void> {
       <fieldset class="project-fields" :disabled="current.archived">
         <label class="field">
           <span class="field-label">项目名称</span>
-          <input v-model="values.title" type="text" name="title" required />
+          <input class="ui-input" v-model="values.title" type="text" name="title" required />
         </label>
         <label class="field">
           <span class="field-label">课程（可不填）</span>
-          <input v-model="values.course" type="text" name="course" />
+          <input class="ui-input" v-model="values.course" type="text" name="course" />
         </label>
         <label class="field">
           <span class="field-label">工作流</span>
@@ -167,7 +167,7 @@ async function archive(archived: boolean): Promise<void> {
       </fieldset>
       <p class="form-error" role="alert">{{ message }}</p>
       <p class="form-saved" role="status">{{ saved }}</p>
-      <button v-if="!current.archived" type="submit" :disabled="busy">保存设置</button>
+      <button class="ui-button" v-if="!current.archived" type="submit" :disabled="busy">保存设置</button>
     </form>
   </section>
 
@@ -196,6 +196,6 @@ async function archive(archived: boolean): Promise<void> {
   <section v-if="!current.archived">
     <h2>归档</h2>
     <p class="project-note">不再学这个项目时可以归档。归档不会删除学过的内容，之后可以恢复。</p>
-    <button type="button" class="danger" :disabled="busy" @click="archive(true)">归档项目</button>
+    <button type="button" class="ui-button danger" :disabled="busy" @click="archive(true)">归档项目</button>
   </section>
 </template>

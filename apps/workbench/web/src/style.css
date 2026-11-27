@@ -5,79 +5,31 @@
  * find. Buttons that act are plain ink, so the meaning colours never compete with them.
  */
 :root {
-  --canvas: #f3f3f2;
-  --paper: #ffffff;
-  --paper-raised: #f8f8f7;
-  --ink: #1b1b1f;
-  --ink-soft: #6c6c74;
-  --ink-faint: #a2a2a9;
-  --rule: #e6e6e8;
-  --rule-strong: #d4d4d8;
-  --accent: #2c46a8;
-  --accent-ink: #ffffff;
-  --accent-soft: #eceffa;
-  --wait: #a2600a;
-  --wait-soft: #fbf2e3;
-  --button: #1b1b1f;
-  --button-ink: #ffffff;
-  --red: #b8392a;
-  --marker: #fbeeb0;
-  --radius: 10px;
-  --radius-control: 6px;
-  --sans:
-    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "PingFang SC",
-    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --display:
-    "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --canvas: var(--ml-canvas);
+  --paper: var(--ml-surface);
+  --paper-raised: var(--ml-surface-raised);
+  --ink: var(--ml-text);
+  --ink-soft: var(--ml-text-soft);
+  --ink-faint: var(--ml-text-faint);
+  --rule: var(--ml-line);
+  --rule-strong: var(--ml-line-strong);
+  --accent: var(--ml-accent);
+  --accent-ink: var(--ml-accent-ink);
+  --accent-soft: var(--ml-accent-soft);
+  --wait: var(--ml-wait);
+  --wait-soft: var(--ml-wait-soft);
+  --button: var(--ml-control);
+  --button-ink: var(--ml-control-ink);
+  --red: var(--ml-danger);
+  --marker: var(--ml-marker);
+  --radius: var(--ml-radius-panel);
+  --radius-control: var(--ml-radius-control);
+  --sans: var(--ml-font-ui);
+  --display: var(--ml-font-ui);
+  --mono: var(--ml-font-mono);
   /* Reading text shares the face; it is set larger and looser instead of in a second family. */
   --serif: var(--sans);
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --canvas: #141416;
-    --paper: #1b1b1e;
-    --paper-raised: #222226;
-    --ink: #ececef;
-    --ink-soft: #9c9ca5;
-    --ink-faint: #66666e;
-    --rule: #2b2b30;
-    --rule-strong: #3b3b41;
-    --accent: #a3b4ff;
-    --accent-ink: #10162f;
-    --accent-soft: #232a46;
-    --wait: #e9ab4b;
-    --wait-soft: #33290f;
-    --button: #ececef;
-    --button-ink: #141416;
-    --red: #ff8b78;
-    --marker: #5a5021;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --canvas: #141416;
-  --paper: #1b1b1e;
-  --paper-raised: #222226;
-  --ink: #ececef;
-  --ink-soft: #9c9ca5;
-  --ink-faint: #66666e;
-  --rule: #2b2b30;
-  --rule-strong: #3b3b41;
-  --accent: #a3b4ff;
-  --accent-ink: #10162f;
-  --accent-soft: #232a46;
-  --wait: #e9ab4b;
-  --wait-soft: #33290f;
-  --button: #ececef;
-  --button-ink: #141416;
-  --red: #ff8b78;
-  --marker: #5a5021;
-  color-scheme: dark;
 }
 
 * {
@@ -127,6 +79,52 @@ select {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+.shelf,
+.page,
+.rail-body,
+.side-body,
+.vision-main {
+  scrollbar-color: var(--rule-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.shelf::-webkit-scrollbar,
+.page::-webkit-scrollbar,
+.rail-body::-webkit-scrollbar,
+.side-body::-webkit-scrollbar,
+.vision-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.shelf::-webkit-scrollbar-track,
+.page::-webkit-scrollbar-track,
+.rail-body::-webkit-scrollbar-track,
+.side-body::-webkit-scrollbar-track,
+.vision-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.shelf::-webkit-scrollbar-thumb,
+.page::-webkit-scrollbar-thumb,
+.rail-body::-webkit-scrollbar-thumb,
+.side-body::-webkit-scrollbar-thumb,
+.vision-main::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  background-clip: content-box;
+}
+
+.shelf::-webkit-scrollbar-thumb:hover,
+.page::-webkit-scrollbar-thumb:hover,
+.rail-body::-webkit-scrollbar-thumb:hover,
+.side-body::-webkit-scrollbar-thumb:hover,
+.vision-main::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink-soft) 80%, transparent);
+  background-clip: content-box;
 }
 
 .visually-hidden {
@@ -546,8 +544,14 @@ button:not(
   .node-row,
   .material-title,
   .tool,
+  .icon,
   .tree-toggle,
   .plain,
+  .rail-line,
+  .conversation-node-title,
+  .conversation-points button,
+  .conversation-merge,
+  .rail-line-list button,
   [role="tab"]
 ),
 .upload {
@@ -573,8 +577,14 @@ button:not(
   .node-row,
   .material-title,
   .tool,
+  .icon,
   .tree-toggle,
   .plain,
+  .rail-line,
+  .conversation-node-title,
+  .conversation-points button,
+  .conversation-merge,
+  .rail-line-list button,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {
@@ -624,6 +634,31 @@ button.secondary:hover:not(:disabled) {
 button:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.icon:hover:not(:disabled) {
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+.icon[data-busy="true"] svg {
+  animation: relating 1.1s ease-in-out infinite alternate;
 }
 
 .link {
@@ -784,6 +819,28 @@ button:disabled {
   max-width: 720px;
 }
 
+.conversation-page {
+  padding: 28px 32px 48px;
+}
+
+.conversation-page > * {
+  max-width: none;
+}
+
+.conversation-page .answer-block,
+.conversation-page .learner-turn .question {
+  max-width: none;
+}
+
+.conversation-page .learner-turn {
+  margin-top: 18px;
+}
+
+.talk > .composer {
+  width: calc(100% - 48px);
+  max-width: none;
+}
+
 .space-title {
   margin-bottom: 6px;
   font-family: var(--display);
@@ -941,6 +998,16 @@ button:disabled {
   font-weight: 600;
 }
 
+.rail-mark {
+  display: inline-flex;
+  color: var(--ink-soft);
+}
+
+.rail-head .segmented {
+  margin-right: auto;
+  margin-left: auto;
+}
+
 /*
  * The understanding layer. What the person confirmed is in pen: solid, with an ink tick. What an agent proposed is
  * in pencil: a dashed outline in graphite, with the amber of waiting. Nothing an agent does turns pencil into pen.
@@ -1024,45 +1091,19 @@ button:disabled {
   font-size: 12.5px;
 }
 
-.held {
-  display: grid;
-  gap: 2px;
-}
-
-.held button {
-  position: relative;
-  width: 100%;
-  padding: 6px 8px 6px 28px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: none;
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 13.5px;
-  line-height: 1.55;
-  text-align: left;
-}
-
-.held button:hover {
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
-}
-
-.held button::before {
-  position: absolute;
-  top: 0.62em;
-  left: 12px;
-  width: 5px;
-  height: 10px;
-  border-right: 2px solid var(--accent);
-  border-bottom: 2px solid var(--accent);
-  content: "";
-  transform: rotate(40deg);
-}
-
 .rail-empty {
   margin: 0 4px;
   color: var(--ink-soft);
   font-size: 12.5px;
+}
+
+.rail-empty-mark,
+.git-empty {
+  display: block;
+  width: 34px;
+  height: 1px;
+  margin: 18px 4px;
+  background: repeating-linear-gradient(to right, var(--rule-strong) 0 3px, transparent 3px 6px);
 }
 
 .rail-foot {
@@ -2178,119 +2219,177 @@ li[data-status="skipped"] > span:first-child {
   font-size: 12.5px;
 }
 
-/* The tree: each section of the material as a highlighted heading, what was learned from it beneath. */
-.understanding-tree .tree-group + .tree-group {
-  margin-top: 16px;
-}
-
-.understanding-tree h4 {
+/* The narrative: what this conversation confirmed, in the order it was said, with the words behind it. */
+.rail-lines {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0 2px 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.topic-mark {
-  padding: 0 3px;
-  background: linear-gradient(
-    transparent 38%,
-    var(--marker) 38%,
-    var(--marker) 92%,
-    transparent 92%
-  );
-  color: var(--ink);
-}
-
-.topic-mark[data-none="true"] {
-  background: none;
-  color: var(--ink-soft);
-  font-weight: 500;
-}
-
-.topic-source {
-  overflow: hidden;
-  color: var(--ink-faint);
-  font-size: 11.5px;
-  font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.understanding-tree h4 .count {
-  margin-left: auto;
-}
-
-.held.tree-nodes button {
-  display: flex;
-  align-items: baseline;
+  flex: none;
   gap: 2px;
-  padding: 5px 8px 5px 6px;
+  padding: 6px 10px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rule);
+  scrollbar-width: none;
 }
 
-.held.tree-nodes button::before {
+.rail-lines::-webkit-scrollbar {
   display: none;
 }
 
-.held.tree-nodes .state-mark {
-  position: relative;
-  top: -1px;
-}
-
-.tree-label {
-  flex: 1;
-}
-
-.tree-tag {
+.rail-line {
+  display: inline-flex;
   flex: none;
-  margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 4px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 11px;
-  line-height: 18px;
+  align-items: center;
+  gap: 5px;
+  max-width: 164px;
+  min-height: 28px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 
-.tree-relations {
-  margin: 0 0 4px 22px;
-  padding-left: 10px;
-  border-left: 1px solid var(--rule-strong);
-  font-size: 12.5px;
-}
-
-.tree-relations li {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  padding: 1px 0;
-}
-
-.tree-relations .relation-word {
+.rail-line svg {
   flex: none;
-  color: var(--ink-faint);
 }
 
-.tree-relations li[data-type="contradicts"] .relation-word {
-  color: var(--red);
-}
-
-.tree-relations .link {
+.rail-line span {
   overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rail-line:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+
+.rail-line[aria-current="page"] {
+  background: var(--paper);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 12%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* The branch tree: each confirmed understanding on the line it was made on, with rails drawn between lines. */
+/* A compact action bar above the working end of the branch tree. */
+.rail-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.rail-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-count span {
+  font-weight: 600;
+}
+
+.rail-summary[data-waiting="true"] .rail-count {
+  color: var(--wait);
+}
+
+.rail-summary .rail-relating {
+  display: inline-flex;
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.rail-line-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-line-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rail-line-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.rail-line-dot[data-state="conflict"],
+.rail-line-dot[data-state="challenged"] {
+  background: var(--red);
+}
+
+.rail-line-list button {
+  overflow: hidden;
+  padding: 5px 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.tree-past {
-  margin: 16px 2px 0;
+.rail-past {
+  margin-top: 12px;
   color: var(--ink-soft);
   font-size: 12.5px;
 }
 
-.tree-past summary {
+.rail-past summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+}
+
+.rail-past summary::-webkit-details-marker {
+  display: none;
+}
+
+.rail-past ul {
+  display: grid;
+  gap: 2px;
+  margin-top: 5px;
+}
+
+.rail-past .link {
+  text-align: left;
+}
+
+@media (pointer: coarse) {
+  .rail-line {
+    min-height: 34px;
+  }
+
+  .git-branch-title {
+    min-height: 34px;
+  }
+
+  .git-actions button {
+    padding: 6px 0;
+  }
 }
 
 .node-detail h4 {
@@ -2726,7 +2825,9 @@ li[data-status="skipped"] > span:first-child {
     background: color-mix(in srgb, var(--ink) 6%, transparent);
   }
 
-  .switcher button[aria-current="true"] {
+  .switcher button[aria-current="true"],
+  .switcher button[aria-current="true"]:hover:not(:disabled) {
+    background: none;
     box-shadow: inset 0 2px 0 var(--ink);
     color: var(--ink);
     font-weight: 600;
@@ -3114,6 +3215,166 @@ li[data-status="skipped"] > span:first-child {
 }
 
 /* All conversations, and the agents' own session records. */
+.conversation-tree {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-node {
+  position: relative;
+  padding: 10px 0 18px 28px;
+  border-top: 1px solid var(--rule);
+}
+
+.conversation-node:first-child {
+  border-top: 0;
+}
+
+.conversation-node::before {
+  position: absolute;
+  top: 26px;
+  bottom: -1px;
+  left: 8px;
+  width: 1px;
+  background: var(--rule-strong);
+  content: "";
+}
+
+.conversation-node:last-child::before {
+  display: none;
+}
+
+.conversation-dot {
+  position: absolute;
+  top: 16px;
+  left: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.conversation-node-title {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.conversation-node-gist {
+  margin: 3px 0 9px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.conversation-points {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-points button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.conversation-points button::before {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 8px 2px 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  content: "";
+}
+
+.conversation-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--accent);
+}
+
+.conversation-merge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 0 6px 10px;
+  border: 0;
+  border-left: 1px solid var(--accent);
+  border-bottom-left-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.conversation-original {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.conversation-original .learner-turn {
+  margin-top: 14px;
+}
+
+.conversation-tree.compact .conversation-node {
+  padding: 9px 0 12px 24px;
+}
+
+.conversation-tree.compact .conversation-node::before {
+  top: 22px;
+  left: 6px;
+}
+
+.conversation-tree.compact .conversation-dot {
+  top: 13px;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+}
+
+.conversation-tree.compact .conversation-node-title {
+  font-size: 12.5px;
+}
+
+.conversation-tree.compact .conversation-node-gist {
+  display: none;
+}
+
+.conversation-tree.compact .conversation-points {
+  gap: 2px;
+}
+
+.conversation-tree.compact .conversation-points button {
+  font-size: 12px;
+}
+
 .conversation-title {
   text-align: left;
   font-weight: 600;

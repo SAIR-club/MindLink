@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import { Router } from 'wouter'
 import { useHashLocation } from 'wouter/use-hash-location'
 import { App } from './App.js'
+import '@mindlink/ui/tokens.css'
 import './style.css'
+import '@mindlink/ui/primitives.css'
 
 const root = document.getElementById('root')
 if (root !== null) {

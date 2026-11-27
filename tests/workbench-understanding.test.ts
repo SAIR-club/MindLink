@@ -974,9 +974,9 @@ describe('reusing', () => {
     const { node } = await hold(space, '光合作用发生在叶绿体里')
     const before = model.calls.length
     const asked = await ask(space, '光合作用发生在哪里')
-    expect(asked.answer?.status).toBe('insufficient_evidence')
+    expect(asked.answer?.status).toBe('conversation')
     expect(asked.answer?.recalled?.[0]?.nodeId).toBe(node.nodeId)
-    expect(model.calls.length).toBe(before)
+    expect(model.calls.length).toBe(before + 1)
   })
 
   it('leaves out of a new plan only what is still held', async () => {

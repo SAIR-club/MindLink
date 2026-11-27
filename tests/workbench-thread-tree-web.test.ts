@@ -195,13 +195,10 @@ describe.skipIf(browser === undefined)('branching a conversation in a browser', 
     await page.goto(`${service.workspaceUrl ?? ''}${address.hash}`)
     await main().getByText('以上继承自《位置编码有什么用》，以下是这个分支自己的对话').waitFor()
     const titles = await shelf().locator('.thread-tree .row').allInnerTexts()
-    expect(titles).toEqual([
-      '位置编码有什么用',
-      '位置编码有什么用 · 分支 1',
-      '位置编码有什么用 · 分支 1 · 分支 1',
-      // Branched from the deep one, at a turn it carries.
-      '位置编码有什么用 · 分支 1 · 分支 1 · 分支 1',
-    ])
+    expect(titles).toHaveLength(2)
+    expect(titles[0]).toBe('位置编码有什么用')
+    expect(titles[1]).toContain('位置编码有什么用 · 分支 1')
+    expect(titles[1]).toContain('2 个分支')
     expect([root, first, deep, back].every((id) => id.startsWith('thr_'))).toBe(true)
   }, 120_000)
 

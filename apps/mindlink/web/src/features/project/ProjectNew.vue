@@ -85,11 +85,11 @@ async function create(): Promise<void> {
   <form class="form" novalidate @submit.prevent="create">
     <label class="field">
       <span class="field-label">项目名称</span>
-      <input v-model="title" type="text" name="title" required placeholder="例如：线性代数期末" />
+      <input class="ui-input" v-model="title" type="text" name="title" required placeholder="例如：线性代数期末" />
     </label>
     <label class="field">
       <span class="field-label">课程（可不填）</span>
-      <input v-model="course" type="text" name="course" placeholder="例如：MATH101" />
+      <input class="ui-input" v-model="course" type="text" name="course" placeholder="例如：MATH101" />
       <span class="field-hint">同一门课的同学用同一个课程名，就能共用这门课的内容。</span>
     </label>
     <fieldset class="field choices">
@@ -117,6 +117,6 @@ async function create(): Promise<void> {
       </label>
     </fieldset>
     <p class="form-error" role="alert">{{ message }}</p>
-    <button type="submit" :disabled="busy">创建项目</button>
+    <button class="ui-button" type="submit" :disabled="busy">创建项目</button>
   </form>
 </template>

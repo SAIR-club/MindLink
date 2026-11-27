@@ -22,10 +22,11 @@ onMounted(() => cancel.value?.focus())
       <p class="dialog-message">{{ spec.message }}</p>
       <p v-if="spec.detail !== undefined" class="dialog-detail">{{ spec.detail }}</p>
       <div class="dialog-actions">
-        <button ref="cancel" type="button" @click="emit('answer', false)">
+        <button class="ui-button" ref="cancel" type="button" @click="emit('answer', false)">
           {{ spec.cancelLabel ?? '取消' }}
         </button>
         <button
+          class="ui-button"
           type="button"
           :class="spec.danger === true ? 'danger' : undefined"
           @click="emit('answer', true)"

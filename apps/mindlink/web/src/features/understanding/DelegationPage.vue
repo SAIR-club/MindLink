@@ -104,11 +104,11 @@ async function undoAll(decisions: readonly DelegatedDecision[]): Promise<void> {
       <div class="toggle">
         <label class="field">
           <span class="field-label">学习项目（填项目编号；填 * 表示全部）</span>
-          <input v-model="scope" type="text" name="scope" placeholder="*" />
+          <input class="ui-input" v-model="scope" type="text" name="scope" placeholder="*" />
         </label>
         <p v-if="delegationFor(data.delegations, chosen) !== undefined" class="on">
           「{{ scopeText(chosen) }}」的托管确认已开启。
-          <button
+          <button class="ui-button"
             type="button"
             :disabled="busy"
             @click="turnOff(delegationFor(data.delegations, chosen)!)"
@@ -118,7 +118,7 @@ async function undoAll(decisions: readonly DelegatedDecision[]): Promise<void> {
         </p>
         <p v-else class="off">
           「{{ scopeText(chosen) }}」的托管确认没有开启。
-          <button type="button" class="primary" :disabled="busy" @click="turnOn()">开启托管</button>
+          <button type="button" class="ui-button primary" :disabled="busy" @click="turnOn()">开启托管</button>
         </p>
       </div>
       <h3>已开启的托管</h3>
@@ -130,7 +130,7 @@ async function undoAll(decisions: readonly DelegatedDecision[]): Promise<void> {
       >
         <div class="row">
           <span>{{ scopeText(item.scope) }}，{{ timeOf(item.grantedAt) }} 开启</span>
-          <button type="button" :disabled="busy" @click="turnOff(item)">关闭托管</button>
+          <button class="ui-button" type="button" :disabled="busy" @click="turnOff(item)">关闭托管</button>
         </div>
       </ListView>
     </section>
@@ -151,7 +151,7 @@ async function undoAll(decisions: readonly DelegatedDecision[]): Promise<void> {
             <span class="muted">{{ timeOf(item.decidedAt) }}</span>
           </span>
           <span v-if="item.undone" class="muted">已撤销</span>
-          <button
+          <button class="ui-button"
             v-else
             type="button"
             :disabled="busy"
@@ -162,7 +162,7 @@ async function undoAll(decisions: readonly DelegatedDecision[]): Promise<void> {
         </div>
       </ListView>
       <p v-if="data.decisions.some((decision) => !decision.undone)">
-        <button type="button" class="danger" :disabled="busy" @click="undoAll(data.decisions)">
+        <button type="button" class="ui-button danger" :disabled="busy" @click="undoAll(data.decisions)">
           全部撤销
         </button>
       </p>

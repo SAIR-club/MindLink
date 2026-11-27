@@ -3,7 +3,7 @@
   "layers": [
     {
       "name": "L0 platform",
-      "modules": ["packages/platform", "packages/domain-learn"]
+      "modules": ["packages/platform", "packages/domain-learn", "packages/ui"]
     },
     {
       "name": "L1 base",

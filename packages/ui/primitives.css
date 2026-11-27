@@ -1,0 +1,171 @@
+/*
+ * Behavioural primitives. These styles are deliberately small: they set the shape and the states, while pages keep
+ * their own layout. React and Vue use the same class names so a control reads and behaves the same in both screens.
+ */
+
+.ui-button,
+.ui-input,
+.ui-textarea,
+.ui-select {
+  min-height: var(--ml-control-height);
+  padding: 0 var(--ml-space-3);
+  border: 1px solid var(--ml-line-strong);
+  border-radius: var(--ml-radius-control);
+  background: var(--ml-surface);
+  color: var(--ml-text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  transition:
+    background-color 0.12s var(--ml-ease-out),
+    border-color 0.12s var(--ml-ease-out),
+    color 0.12s var(--ml-ease-out);
+}
+
+.ui-textarea {
+  min-height: 72px;
+  padding: var(--ml-space-2) var(--ml-space-3);
+  resize: vertical;
+}
+
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ml-space-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ui-button:hover:not(:disabled) {
+  border-color: var(--ml-accent);
+  color: var(--ml-accent);
+}
+
+.ui-button[data-variant="primary"] {
+  border-color: var(--ml-control);
+  background: var(--ml-control);
+  color: var(--ml-control-ink);
+}
+
+.ui-button[data-variant="primary"]:hover:not(:disabled) {
+  border-color: var(--ml-accent);
+  background: var(--ml-accent);
+  color: var(--ml-accent-ink);
+}
+
+.ui-button[data-variant="danger"] {
+  border-color: var(--ml-danger);
+  color: var(--ml-danger);
+}
+
+.ui-button:disabled,
+.ui-icon-button:disabled,
+.ui-input:disabled,
+.ui-textarea:disabled,
+.ui-select:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.ui-icon-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--ml-control-height);
+  height: var(--ml-control-height);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--ml-radius-control);
+  background: transparent;
+  color: var(--ml-text-soft);
+  cursor: pointer;
+}
+
+.ui-icon-button svg {
+  width: var(--ml-icon-size);
+  height: var(--ml-icon-size);
+}
+
+.ui-icon-button:hover:not(:disabled),
+.ui-icon-button[aria-current="page"] {
+  border-color: var(--ml-line);
+  background: var(--ml-surface-raised);
+  color: var(--ml-text);
+}
+
+.ui-input::placeholder,
+.ui-textarea::placeholder {
+  color: var(--ml-text-soft);
+  opacity: 1;
+}
+
+.ui-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius-control);
+  background: var(--ml-surface-raised);
+}
+
+.ui-segmented button {
+  min-height: 26px;
+  padding: 0 var(--ml-space-2);
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ml-text-soft);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.ui-segmented button[aria-pressed="true"] {
+  background: var(--ml-surface);
+  box-shadow: 0 1px 2px rgba(27, 27, 31, 0.12);
+  color: var(--ml-text);
+  font-weight: 600;
+}
+
+.ui-list-row {
+  position: relative;
+  padding: var(--ml-space-3);
+  border-top: 1px solid var(--ml-line);
+}
+
+.ui-list-row:first-child {
+  border-top: 0;
+}
+
+.ui-sheet {
+  border: 1px solid var(--ml-line);
+  border-radius: var(--ml-radius-panel);
+  background: var(--ml-surface);
+  box-shadow: var(--ml-shadow-panel);
+}
+
+.ui-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--ml-accent-soft);
+  color: var(--ml-accent);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.ui-focus-ring:focus-visible,
+.ui-button:focus-visible,
+.ui-icon-button:focus-visible,
+.ui-input:focus-visible,
+.ui-textarea:focus-visible,
+.ui-select:focus-visible,
+.ui-segmented button:focus-visible {
+  outline: var(--ml-focus-width) solid var(--ml-accent);
+  outline-offset: 2px;
+}

@@ -84,6 +84,35 @@ export interface Asked {
   readonly failure?: Failure
 }
 
+export interface Outline {
+  readonly topics: readonly {
+    readonly id: string
+    readonly title: string
+    readonly gist: string
+    readonly points: readonly { readonly text: string; readonly turn: string }[]
+    readonly branch?: { readonly title: string; readonly turn: string }
+  }[]
+  readonly branches?: readonly {
+    readonly id: string
+    readonly parent: string
+    readonly turn: string
+    readonly title: string
+    readonly at: number
+    readonly by: string
+  }[]
+  readonly merges?: readonly {
+    readonly id: string
+    readonly parent: string
+    readonly branch: string
+    readonly anchor: string
+    readonly turn: string
+    readonly summary: string
+    readonly at: number
+    readonly by: string
+  }[]
+  readonly failure?: Failure
+}
+
 export interface PendingCandidate {
   readonly id: string
   readonly proposal: {
@@ -152,6 +181,10 @@ export interface WorkflowInfo {
   readonly id: string
   readonly title: string
   readonly description: string
+  /** The blocks it runs, in order: once at the start, for each focus, and once at the end. */
+  readonly opening: readonly string[]
+  readonly perFocus: readonly string[]
+  readonly closing: readonly string[]
 }
 
 export interface BlockInfo {
@@ -565,9 +598,18 @@ export const api = {
     scene(`/sessions?space=${encoded(space)}`) as Promise<{ sessions: readonly Session[] }>,
   session: (thread: string) =>
     scene(`/session?thread=${encoded(thread)}`) as Promise<{ turns: readonly Turn[] }>,
+  outline: (space: string, thread: string) =>
+    scene('/outline', { space, thread }) as Promise<Outline>,
+  organize: (space: string, thread: string) =>
+    scene('/organize', { space, thread }) as Promise<Outline>,
   /** A new line of a conversation from one of the turns it shows. The original stays as it is. */
-  fork: (space: string, thread: string, turn: string) =>
-    scene('/sessions/fork', { space, thread, turn }) as Promise<{ session: Session }>,
+  fork: (space: string, thread: string, turn: string, title?: string) =>
+    scene('/sessions/fork', {
+      space,
+      thread,
+      turn,
+      ...(title === undefined ? {} : { title }),
+    }) as Promise<{ session: Session }>,
   ask: (space: string, question: string, thread: string | undefined, retry: boolean) =>
     scene('/ask', {
       space,

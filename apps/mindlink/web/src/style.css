@@ -1,15 +1,15 @@
 :root {
-  --text: #1d2228;
-  --muted: #5c6670;
-  --line: #d9dee3;
-  --surface: #ffffff;
-  --background: #f5f6f8;
-  --accent: #2f5bd3;
-  --danger: #b42318;
-  --notice: #fff4d6;
-  font-family:
-    system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
-    sans-serif;
+  --text: var(--ml-text);
+  --muted: var(--ml-text-soft);
+  --line: var(--ml-line);
+  --line-strong: var(--ml-line-strong);
+  --surface: var(--ml-surface);
+  --surface-raised: var(--ml-surface-raised);
+  --background: var(--ml-canvas);
+  --accent: var(--ml-accent);
+  --danger: var(--ml-danger);
+  --notice: var(--ml-wait-soft);
+  font-family: var(--ml-font-ui);
   color: var(--text);
   background: var(--background);
   line-height: 1.6;

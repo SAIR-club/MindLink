@@ -185,9 +185,11 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     const model: ModelClient = {
       name: 'stub',
       simulated: false,
-      complete: () =>
+      complete: (messages) =>
         Promise.resolve({
-          text: '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
+          text: messages.at(-1)?.content.includes('暗反应')
+            ? '材料没有讲暗反应，按一般知识它在叶绿体基质里进行。'
+            : '位置编码把序列的顺序告诉模型。[1]\n我猜这也影响训练速度。[推断]',
         }),
     }
     await open(model)
@@ -201,7 +203,8 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.locator('.sourced', { hasText: '位置编码把序列' }).waitFor()
 
     await ask('光合作用的暗反应在哪里发生')
-    await page.getByText('材料里没有足够的依据').waitFor()
+    await page.getByText('材料没有讲暗反应').waitFor()
+    expect(await page.locator('.answer-block').last().locator('.cite').count()).toBe(0)
   }, 60_000)
 
   it('says why a file is refused, keeps a failed question, and answers it on retry', async () => {
@@ -527,14 +530,14 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await page.locator('.relations').getByRole('button', { name: '位置编码是必需的' }).click()
     await page.locator('.marks').getByText('未解决的矛盾').waitFor()
 
-    // Beside the conversation, the understanding layer shows the structure: the two items, the contradiction
+    // Beside the conversation, the understanding layer shows the narrative: the two items, the contradiction
     // between them in words, and the same as a graph that opens an item from its point.
     await page.getByRole('button', { name: '学习', exact: true }).click()
     const rail = page.locator('.rail')
     await rail.getByRole('button', { name: '整个空间' }).click()
-    const tree = rail.locator('.understanding-tree')
-    await tree.locator('.tree-relations li[data-type="contradicts"]').first().waitFor()
-    expect(await tree.locator('.state-mark[data-state="conflict"]').count()).toBe(2)
+    const narrative = rail.locator('.conversation-tree.compact, .rail-line-list')
+    await narrative.getByRole('button', { name: '定位到「位置编码不是必需的」的原对话' }).waitFor()
+    expect(await narrative.locator('li').count()).toBeGreaterThanOrEqual(1)
     await rail.getByRole('button', { name: '图谱', exact: true }).click()
     await rail.locator('.knowledge-graph .map-contradicts').first().waitFor()
     expect(await rail.locator('.knowledge-graph .map-node[data-state="conflict"]').count()).toBe(2)

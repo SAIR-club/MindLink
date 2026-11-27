@@ -338,13 +338,11 @@ describe('the published workbench in a browser', () => {
         `(kind) => document.querySelector('.vision-shell')?.getAttribute('data-page') === kind`,
         view.kind,
       )
-      await page.waitForFunction(
-        `(label) => document.querySelector('.vision-nav-link[aria-current="page"]')?.getAttribute('aria-label') === label`,
-        view.label,
-      )
-      expect(
-        await page.locator('.vision-nav-link[aria-current="page"]').getAttribute('aria-label'),
-      ).toBe(view.label)
+      await expect
+        .poll(() =>
+          page.locator('.vision-nav-link[aria-current="page"]').getAttribute('aria-label'),
+        )
+        .toBe(view.label)
       expect(await page.locator('.vision-card:visible').count()).toBeGreaterThan(0)
       expect(new URL(page.url()).hash.length).toBeGreaterThan(1)
     }
