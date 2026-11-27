@@ -58,7 +58,6 @@ export function Rail(props: RailProps) {
       scope === 'thread' ? shown.nodes.filter((node) => shown.focus.has(node.nodeId)) : shown.nodes,
     [shown, scope],
   )
-  const held = useMemo(() => inScope.filter((node) => stateOf(node) !== 'past'), [inScope])
   const past = useMemo(() => inScope.filter((node) => stateOf(node) === 'past'), [inScope])
   const choose = (next: 'thread' | 'graph'): void => {
     setView(next)
@@ -68,7 +67,19 @@ export function Rail(props: RailProps) {
   return (
     <aside className="rail" aria-label="理解层">
       <div className="rail-head">
-        <h2>理解层</h2>
+        <span className="rail-mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="4" cy="9" r="2" fill="currentColor" />
+            <circle cx="14" cy="4" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="14" cy="14" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <path
+              d="M5.8 8.2 12.2 4.8M5.8 9.8l6.4 3.4"
+              stroke="currentColor"
+              strokeWidth="1.3"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
         <div className="segmented" role="group" aria-label="怎么看">
           <button
             type="button"
@@ -90,9 +101,11 @@ export function Rail(props: RailProps) {
         {thread !== undefined && (
           <button
             type="button"
-            className="tool"
+            className="tool icon"
+            aria-label="整理对话"
+            title="整理对话"
             disabled={tidying}
-            title="让模型整理这段对话，新的理解先进待确认"
+            data-busy={tidying ? 'true' : undefined}
             onClick={() => {
               setTidying(true)
               props.guard(async () => {
@@ -104,11 +117,32 @@ export function Rail(props: RailProps) {
               })
             }}
           >
-            {tidying ? '整理中' : '整理'}
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M8 1.5 9.4 5l3.6 1.4L9.4 7.8 8 11.3 6.6 7.8 3 6.4 6.6 5 8 1.5ZM12.5 10l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         )}
-        <button type="button" className="tool" onClick={props.onClose}>
-          收起
+        <button
+          type="button"
+          className="tool icon"
+          aria-label="收起理解层"
+          title="收起理解层"
+          onClick={props.onClose}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="m10 4-4 4 4 4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </button>
       </div>
 
@@ -122,14 +156,24 @@ export function Rail(props: RailProps) {
 
       <div className="rail-body" data-view={view}>
         <section className="rail-summary" data-waiting={understanding.pending.length > 0}>
-          <h3>
-            实时纪要
-            <span className="count">{understanding.pending.length}</span>
-          </h3>
+          <span className="rail-count" aria-label={`${understanding.pending.length} 条实时纪要`}>
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 4h2M3 8h2M3 12h2M7 4h6M7 8h6M7 12h6"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinecap="round"
+                strokeDasharray="1.5 1.5"
+              />
+            </svg>
+            <span>{understanding.pending.length}</span>
+          </span>
           {understanding.pending.length > 0 && (
             <button
               type="button"
-              className="plain"
+              className="icon"
+              aria-label={`全部接受 ${understanding.pending.length} 条`}
+              title="全部接受"
               disabled={accepting}
               onClick={() => {
                 setAccepting(true)
@@ -142,21 +186,33 @@ export function Rail(props: RailProps) {
                 })
               }}
             >
-              {accepting ? '收下中' : '全部接受'}
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="m3 8.5 3.2 3L13 4.8"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
           )}
           {props.relating && (
             <span className="rail-relating" role="status">
-              正在整理…
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="3" stroke="currentColor" strokeWidth="1.3" />
+                <path
+                  d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+              </svg>
             </span>
           )}
         </section>
 
         <section className="rail-section rail-structure">
-          <h3>
-            你已确认
-            <span className="count">{held.length}</span>
-          </h3>
           {thread !== undefined && (
             <div className="segmented scope" role="group" aria-label="范围">
               <button
@@ -188,11 +244,7 @@ export function Rail(props: RailProps) {
                 }}
               />
             ) : (
-              <p className="rail-empty">
-                {scope === 'thread'
-                  ? '这段对话还没有产生或用到你确认过的理解。'
-                  : '还没有。确认一条提议，它就会出现在这里。'}
-              </p>
+              <span className="rail-empty-mark" role="img" aria-label="还没有理解" />
             )
           ) : (
             <GitTree
@@ -209,7 +261,18 @@ export function Rail(props: RailProps) {
           )}
           {past.length > 0 && view === 'thread' && (
             <details className="rail-past">
-              <summary>已修正或撤回（{past.length}）</summary>
+              <summary aria-label={`${past.length} 条已修正或撤回`}>
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path
+                    d="M3.2 8a4.8 4.8 0 1 0 1.5-3.5M3 2.3v3h3"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span>{past.length}</span>
+              </summary>
               <ul>
                 {past.map((node) => (
                   <li key={node.nodeId}>
@@ -227,8 +290,22 @@ export function Rail(props: RailProps) {
           )}
         </section>
         <p className="rail-foot">
-          <button type="button" className="link" onClick={props.onOpenAll}>
-            整页查看我的理解
+          <button
+            type="button"
+            className="link icon"
+            aria-label="整页查看理解"
+            title="整页查看理解"
+            onClick={props.onOpenAll}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M9.5 3H13v3.5M13 3 8.8 7.2M6.5 13H3V9.5M3 13l4.2-4.2"
+                stroke="currentColor"
+                strokeWidth="1.3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </p>
       </div>

@@ -1,21 +1,12 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import type { HeldNode, PendingCandidate, Session, Turn } from './api.js'
-import { wordsOf } from './Understanding.js'
 import { stateOf } from './UnderstandingView.js'
 import { rowsOf } from './gitRows.js'
 
 /**
- * The conversation as a branch tree. Each confirmed understanding sits on the line it was made on; a branch
- * starts at the turn it left and carries its own items. The rails are drawn from the rows' real positions so the
- * tree stays aligned when rows wrap or a pane is resized.
+ * The conversation as a branch tree. Each item sits on the line it was made on; the wire, the point and the
+ * item's position carry the state, so the tree needs no captions to explain itself.
  */
-
-const STATE_WORD: Readonly<Record<string, string>> = {
-  held: '已确认',
-  conflict: '有未解决的矛盾',
-  challenged: '有质疑待回应',
-  past: '已修正或撤回',
-}
 
 function shortened(text: string): string {
   const one = text.replace(/\s+/gu, ' ').trim()
@@ -134,7 +125,7 @@ export function GitTree(props: GitTreeProps) {
   }, [rows])
 
   if (rows.length === 0) {
-    return <p className="rail-empty">对话里还没有整理出理解。点「整理」，确认后会出现在这里。</p>
+    return <span className="git-empty" role="img" aria-label="还没有理解" />
   }
 
   return (
@@ -152,10 +143,6 @@ export function GitTree(props: GitTreeProps) {
               style={{ '--lane': row.lane } as CSSProperties}
             >
               <span className="git-dot" data-state="pending" aria-hidden="true" />
-              <p className="git-meta">
-                <span className="state-mark" data-state="pending" aria-hidden="true" />
-                <span>实时纪要</span>
-              </p>
               <p className="git-title">
                 {row.candidate.proposal.label ??
                   row.candidate.link?.toLabel ??
@@ -237,11 +224,6 @@ function GitNodeRow(props: {
       style={{ '--lane': props.lane } as CSSProperties}
     >
       <span className="git-dot" data-state={state} aria-hidden="true" />
-      <p className="git-meta">
-        <span className="state-mark" data-state={state} aria-hidden="true" />
-        <span>{STATE_WORD[state]}</span>
-        <span>{wordsOf(origin?.basis, node.wordsBy)}</span>
-      </p>
       <button type="button" className="git-title" onClick={() => props.onOpen(node.nodeId)}>
         {node.label}
       </button>
@@ -254,14 +236,49 @@ function GitNodeRow(props: {
         {anchor !== undefined && (
           <button
             type="button"
-            className="link"
+            className="link icon"
+            aria-label="查看当时的对话"
+            title="查看当时的对话"
             onClick={() => props.onJump(anchor.thread ?? '', anchor.turn)}
           >
-            原话
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M3 3.5h10v7H7.5L4.5 13v-2.5H3v-7Z"
+                stroke="currentColor"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M5.5 6.3h5M5.5 8.4h3"
+                stroke="currentColor"
+                strokeWidth="1.1"
+                strokeLinecap="round"
+              />
+            </svg>
           </button>
         )}
-        <button type="button" className="link" onClick={() => props.onAskAbout(node.label)}>
-          追问
+        <button
+          type="button"
+          className="link icon"
+          aria-label="追问这条理解"
+          title="追问这条理解"
+          onClick={() => props.onAskAbout(node.label)}
+        >
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M3 3.5h10v7H7.5L4.5 13v-2.5H3v-7Z"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M6.3 6.2a1.8 1.8 0 1 1 2.5 1.7c-.6.3-.8.7-.8 1.2"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+            />
+            <circle cx="8" cy="10.4" r="0.6" fill="currentColor" />
+          </svg>
         </button>
       </p>
       {node.relations.length > 0 && (

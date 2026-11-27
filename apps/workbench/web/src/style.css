@@ -546,6 +546,7 @@ button:not(
   .node-row,
   .material-title,
   .tool,
+  .icon,
   .tree-toggle,
   .plain,
   .rail-line,
@@ -576,6 +577,7 @@ button:not(
   .node-row,
   .material-title,
   .tool,
+  .icon,
   .tree-toggle,
   .plain,
   .rail-line,
@@ -630,6 +632,31 @@ button.secondary:hover:not(:disabled) {
 button:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.icon:hover:not(:disabled) {
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  color: var(--ink);
+}
+
+.icon[data-busy="true"] svg {
+  animation: relating 1.1s ease-in-out infinite alternate;
 }
 
 .link {
@@ -947,6 +974,16 @@ button:disabled {
   font-weight: 600;
 }
 
+.rail-mark {
+  display: inline-flex;
+  color: var(--ink-soft);
+}
+
+.rail-head .segmented {
+  margin-right: auto;
+  margin-left: auto;
+}
+
 /*
  * The understanding layer. What the person confirmed is in pen: solid, with an ink tick. What an agent proposed is
  * in pencil: a dashed outline in graphite, with the amber of waiting. Nothing an agent does turns pencil into pen.
@@ -1034,6 +1071,15 @@ button:disabled {
   margin: 0 4px;
   color: var(--ink-soft);
   font-size: 12.5px;
+}
+
+.rail-empty-mark,
+.git-empty {
+  display: block;
+  width: 34px;
+  height: 1px;
+  margin: 18px 4px;
+  background: repeating-linear-gradient(to right, var(--rule-strong) 0 3px, transparent 3px 6px);
 }
 
 .rail-foot {
@@ -2214,29 +2260,27 @@ li[data-status="skipped"] > span:first-child {
   border-bottom: 1px solid var(--rule);
 }
 
-.rail-summary h3 {
-  display: flex;
+.rail-count {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 0;
+  gap: 5px;
   color: var(--ink-soft);
-  font-size: 12.5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-count span {
   font-weight: 600;
 }
 
-.rail-summary h3 .count {
-  margin-left: 0;
-}
-
-.rail-summary[data-waiting="true"] .count {
-  background: var(--wait-soft);
+.rail-summary[data-waiting="true"] .rail-count {
   color: var(--wait);
-  font-weight: 600;
 }
 
 .rail-summary .rail-relating {
+  display: inline-flex;
   margin: 0;
-  font-size: 11.5px;
+  color: var(--ink-soft);
 }
 
 /* The branch tree: held understanding, live notes, and the wires between them. */
@@ -2428,7 +2472,16 @@ li[data-status="skipped"] > span:first-child {
 }
 
 .rail-past summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  list-style: none;
+}
+
+.rail-past summary::-webkit-details-marker {
+  display: none;
 }
 
 .rail-past ul {

@@ -537,7 +537,7 @@ describe.skipIf(browser === undefined)('the workbench in a browser', () => {
     await rail.getByRole('button', { name: '整个空间' }).click()
     const narrative = rail.locator('.git-tree')
     await narrative.locator('.git-relations li[data-type="contradicts"]').first().waitFor()
-    expect(await narrative.locator('.git-node .state-mark[data-state="conflict"]').count()).toBe(2)
+    expect(await narrative.locator('.git-node .git-dot[data-state="conflict"]').count()).toBe(2)
     await rail.getByRole('button', { name: '图谱', exact: true }).click()
     await rail.locator('.knowledge-graph .map-contradicts').first().waitFor()
     expect(await rail.locator('.knowledge-graph .map-node[data-state="conflict"]').count()).toBe(2)
