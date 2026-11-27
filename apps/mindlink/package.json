@@ -41,6 +41,7 @@
     "yaml": "2.9.0"
   },
   "devDependencies": {
+    "@mindlink/ui": "workspace:*",
     "@vitejs/plugin-vue": "6.0.9",
     "vite": "7.3.6",
     "vue-tsc": "3.3.11"

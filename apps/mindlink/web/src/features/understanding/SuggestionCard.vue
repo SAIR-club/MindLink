@@ -102,19 +102,19 @@ async function saveEdit(values: Values): Promise<void> {
 
     <div v-if="editing" class="editor">
       <FormView :fields="fields" submit-label="按我的修改接受" :submit="saveEdit" />
-      <button type="button" class="cancel" @click="setEditing(false)">取消修改</button>
+      <button type="button" class="ui-button cancel" @click="setEditing(false)">取消修改</button>
     </div>
     <div v-else class="actions">
       <button
         type="button"
-        class="primary"
+        class="ui-button primary"
         :disabled="busy || waiting !== undefined"
         @click="send({ action: 'accept' })"
       >
         接受
       </button>
-      <button type="button" :disabled="busy" @click="setEditing(true)">修改后接受</button>
-      <button type="button" :disabled="busy" @click="send({ action: 'dismiss' })">驳回</button>
+      <button class="ui-button" type="button" :disabled="busy" @click="setEditing(true)">修改后接受</button>
+      <button class="ui-button" type="button" :disabled="busy" @click="send({ action: 'dismiss' })">驳回</button>
     </div>
     <p class="card-error" role="alert">{{ message }}</p>
   </article>

@@ -5,79 +5,31 @@
  * find. Buttons that act are plain ink, so the meaning colours never compete with them.
  */
 :root {
-  --canvas: #f3f3f2;
-  --paper: #ffffff;
-  --paper-raised: #f8f8f7;
-  --ink: #1b1b1f;
-  --ink-soft: #6c6c74;
-  --ink-faint: #a2a2a9;
-  --rule: #e6e6e8;
-  --rule-strong: #d4d4d8;
-  --accent: #2c46a8;
-  --accent-ink: #ffffff;
-  --accent-soft: #eceffa;
-  --wait: #a2600a;
-  --wait-soft: #fbf2e3;
-  --button: #1b1b1f;
-  --button-ink: #ffffff;
-  --red: #b8392a;
-  --marker: #fbeeb0;
-  --radius: 10px;
-  --radius-control: 6px;
-  --sans:
-    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "PingFang SC",
-    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
-  --display:
-    "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "PingFang SC",
-    "Microsoft YaHei", sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --canvas: var(--ml-canvas);
+  --paper: var(--ml-surface);
+  --paper-raised: var(--ml-surface-raised);
+  --ink: var(--ml-text);
+  --ink-soft: var(--ml-text-soft);
+  --ink-faint: var(--ml-text-faint);
+  --rule: var(--ml-line);
+  --rule-strong: var(--ml-line-strong);
+  --accent: var(--ml-accent);
+  --accent-ink: var(--ml-accent-ink);
+  --accent-soft: var(--ml-accent-soft);
+  --wait: var(--ml-wait);
+  --wait-soft: var(--ml-wait-soft);
+  --button: var(--ml-control);
+  --button-ink: var(--ml-control-ink);
+  --red: var(--ml-danger);
+  --marker: var(--ml-marker);
+  --radius: var(--ml-radius-panel);
+  --radius-control: var(--ml-radius-control);
+  --sans: var(--ml-font-ui);
+  --display: var(--ml-font-ui);
+  --mono: var(--ml-font-mono);
   /* Reading text shares the face; it is set larger and looser instead of in a second family. */
   --serif: var(--sans);
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --canvas: #141416;
-    --paper: #1b1b1e;
-    --paper-raised: #222226;
-    --ink: #ececef;
-    --ink-soft: #9c9ca5;
-    --ink-faint: #66666e;
-    --rule: #2b2b30;
-    --rule-strong: #3b3b41;
-    --accent: #a3b4ff;
-    --accent-ink: #10162f;
-    --accent-soft: #232a46;
-    --wait: #e9ab4b;
-    --wait-soft: #33290f;
-    --button: #ececef;
-    --button-ink: #141416;
-    --red: #ff8b78;
-    --marker: #5a5021;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --canvas: #141416;
-  --paper: #1b1b1e;
-  --paper-raised: #222226;
-  --ink: #ececef;
-  --ink-soft: #9c9ca5;
-  --ink-faint: #66666e;
-  --rule: #2b2b30;
-  --rule-strong: #3b3b41;
-  --accent: #a3b4ff;
-  --accent-ink: #10162f;
-  --accent-soft: #232a46;
-  --wait: #e9ab4b;
-  --wait-soft: #33290f;
-  --button: #ececef;
-  --button-ink: #141416;
-  --red: #ff8b78;
-  --marker: #5a5021;
-  color-scheme: dark;
 }
 
 * {

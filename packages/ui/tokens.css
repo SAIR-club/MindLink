@@ -1,0 +1,89 @@
+/*
+ * One visual vocabulary for every MindLink web surface. Components read these tokens; they never hard-code a
+ * colour, radius, control height or spacing value. Native platforms keep their own components and map the same
+ * product colours into their system palette.
+ */
+:root {
+  --ml-canvas: #f3f3f2;
+  --ml-surface: #ffffff;
+  --ml-surface-raised: #f8f8f7;
+  --ml-text: #1b1b1f;
+  --ml-text-soft: #6c6c74;
+  --ml-text-faint: #a2a2a9;
+  --ml-line: #e6e6e8;
+  --ml-line-strong: #d4d4d8;
+  --ml-accent: #2c46a8;
+  --ml-accent-ink: #ffffff;
+  --ml-accent-soft: #eceffa;
+  --ml-wait: #a2600a;
+  --ml-wait-soft: #fbf2e3;
+  --ml-danger: #b8392a;
+  --ml-marker: #fbeeb0;
+  --ml-control: #1b1b1f;
+  --ml-control-ink: #ffffff;
+
+  --ml-space-1: 4px;
+  --ml-space-2: 8px;
+  --ml-space-3: 12px;
+  --ml-space-4: 16px;
+  --ml-space-5: 24px;
+  --ml-radius-control: 6px;
+  --ml-radius-panel: 10px;
+  --ml-control-height: 32px;
+  --ml-icon-size: 16px;
+  --ml-focus-width: 2px;
+  --ml-shadow-panel: 0 6px 20px rgba(27, 27, 31, 0.08);
+
+  --ml-font-ui:
+    "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "PingFang SC",
+    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --ml-font-mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  --ml-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ml-canvas: #141416;
+    --ml-surface: #1b1b1e;
+    --ml-surface-raised: #222226;
+    --ml-text: #ececef;
+    --ml-text-soft: #9c9ca5;
+    --ml-text-faint: #66666e;
+    --ml-line: #2b2b30;
+    --ml-line-strong: #3b3b41;
+    --ml-accent: #a3b4ff;
+    --ml-accent-ink: #10162f;
+    --ml-accent-soft: #232a46;
+    --ml-wait: #e9ab4b;
+    --ml-wait-soft: #33290f;
+    --ml-danger: #ff8b78;
+    --ml-marker: #5a5021;
+    --ml-control: #ececef;
+    --ml-control-ink: #141416;
+    --ml-shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.38);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ml-canvas: #141416;
+  --ml-surface: #1b1b1e;
+  --ml-surface-raised: #222226;
+  --ml-text: #ececef;
+  --ml-text-soft: #9c9ca5;
+  --ml-text-faint: #66666e;
+  --ml-line: #2b2b30;
+  --ml-line-strong: #3b3b41;
+  --ml-accent: #a3b4ff;
+  --ml-accent-ink: #10162f;
+  --ml-accent-soft: #232a46;
+  --ml-wait: #e9ab4b;
+  --ml-wait-soft: #33290f;
+  --ml-danger: #ff8b78;
+  --ml-marker: #5a5021;
+  --ml-control: #ececef;
+  --ml-control-ink: #141416;
+  --ml-shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.38);
+  color-scheme: dark;
+}

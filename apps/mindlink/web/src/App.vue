@@ -37,7 +37,7 @@ const question = confirmer.current
   </header>
   <div v-if="expired" class="notice" role="alert">
     <span>登录已过期。重新载入页面即可继续。</span>
-    <button type="button" @click="session.reload()">重新载入</button>
+    <button class="ui-button" type="button" @click="session.reload()">重新载入</button>
   </div>
   <main id="page" class="page">
     <RouterView />

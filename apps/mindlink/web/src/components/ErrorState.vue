@@ -17,6 +17,6 @@ const code = computed(() => codeOf(props.error))
   <div class="state state-error" role="alert">
     <p>{{ message }}</p>
     <p v-if="code !== undefined" class="state-code">代码：{{ code }}</p>
-    <button v-if="retry !== undefined" type="button" @click="retry()">重试</button>
+    <button class="ui-button" v-if="retry !== undefined" type="button" @click="retry()">重试</button>
   </div>
 </template>

@@ -197,7 +197,7 @@ describe('the confirm dialog', () => {
     const [cancel, accept] = node.findAll('button')
     expect(document.activeElement).toBe(cancel?.element)
     expect(accept?.text()).toBe('撤回')
-    expect(accept?.classes()).toEqual(['danger'])
+    expect(accept?.classes()).toEqual(['ui-button', 'danger'])
     node.unmount()
   })
 

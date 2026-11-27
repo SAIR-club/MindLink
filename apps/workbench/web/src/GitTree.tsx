@@ -330,7 +330,7 @@ function GitNodeRow(props: {
         {anchor !== undefined && (
           <button
             type="button"
-            className="link icon"
+            className="link icon ui-icon-button"
             aria-label="查看当时的对话"
             title="查看当时的对话"
             onClick={() => props.onJump(anchor.thread ?? '', anchor.turn)}
@@ -353,7 +353,7 @@ function GitNodeRow(props: {
         )}
         <button
           type="button"
-          className="link icon"
+          className="link icon ui-icon-button"
           aria-label="追问这条理解"
           title="追问这条理解"
           onClick={() => props.onAskAbout(node.label)}

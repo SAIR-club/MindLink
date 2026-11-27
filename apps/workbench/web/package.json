@@ -15,6 +15,7 @@
     "wouter": "3.13.0"
   },
   "devDependencies": {
+    "@mindlink/ui": "workspace:*",
     "@types/d3-force": "3.0.10",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",

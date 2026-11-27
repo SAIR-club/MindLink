@@ -42,7 +42,7 @@ export function Outline({ outline, thread, onJump, onFork }: OutlineProps) {
           {topic.branch !== undefined && (
             <button
               type="button"
-              className="outline-branch"
+              className="outline-branch ui-button"
               aria-label={`从「${topic.branch.title}」分叉`}
               onClick={() => onFork(topic.branch?.title ?? '', topic.branch?.turn ?? '')}
             >

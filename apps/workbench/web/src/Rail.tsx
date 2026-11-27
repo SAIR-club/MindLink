@@ -83,7 +83,7 @@ export function Rail(props: RailProps) {
             />
           </svg>
         </span>
-        <div className="segmented" role="group" aria-label="怎么看">
+        <div className="segmented ui-segmented" role="group" aria-label="怎么看">
           <button
             type="button"
             className="plain"
@@ -104,7 +104,7 @@ export function Rail(props: RailProps) {
         {thread !== undefined && (
           <button
             type="button"
-            className="tool icon"
+            className="tool icon ui-icon-button"
             aria-label="整理对话"
             title="整理对话"
             disabled={tidying}
@@ -132,7 +132,7 @@ export function Rail(props: RailProps) {
         )}
         <button
           type="button"
-          className="tool icon"
+          className="tool icon ui-icon-button"
           aria-label="收起理解层"
           title="收起理解层"
           onClick={props.onClose}
@@ -174,7 +174,7 @@ export function Rail(props: RailProps) {
           {understanding.pending.length > 0 && (
             <button
               type="button"
-              className="icon"
+              className="icon ui-icon-button"
               aria-label={`全部接受 ${understanding.pending.length} 条`}
               title="全部接受"
               disabled={accepting}
@@ -302,7 +302,7 @@ export function Rail(props: RailProps) {
         <p className="rail-foot">
           <button
             type="button"
-            className="link icon"
+            className="link icon ui-icon-button"
             aria-label="整页查看理解"
             title="整页查看理解"
             onClick={props.onOpenAll}

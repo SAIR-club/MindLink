@@ -979,7 +979,7 @@ function Desk({
             {!shelfOpen && (
               <button
                 type="button"
-                className="tool icon-tool shelf-show"
+                className="tool icon-tool shelf-show ui-icon-button"
                 aria-label="展开侧栏"
                 title="展开侧栏（Ctrl+B）"
                 onClick={toggleShelf}
@@ -1495,7 +1495,7 @@ function Shelf(props: {
         </h1>
         <button
           type="button"
-          className="tool icon-tool"
+          className="tool icon-tool ui-icon-button"
           aria-label="收起侧栏"
           title="收起侧栏（Ctrl+B）"
           onClick={props.onHide}
@@ -1889,6 +1889,7 @@ function Conversation(props: {
       <form className="composer" onSubmit={submit}>
         <textarea
           ref={composer}
+          className="ui-textarea"
           aria-label="你的问题"
           placeholder={space.archived ? '这个空间已归档' : '问一个关于材料的问题'}
           rows={2}
