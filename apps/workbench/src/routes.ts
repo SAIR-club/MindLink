@@ -111,9 +111,15 @@ function outlineOf(reply: string, turnIds: ReadonlySet<string>) {
   })
   const kept = topics.filter((topic) => topic.title !== '' && topic.points.length > 0)
   // A model that returns no branch still leaves topic changes visible as proposed lines.
-  let branches = kept.filter((topic) => topic.branch !== undefined).length
+  let branches = 0
   const withBranches = kept.map((topic, index) => {
-    if (topic.branch !== undefined || index === 0 || branches >= 3) return topic
+    if (topic.branch !== undefined) {
+      branches += 1
+      if (branches <= 3) return topic
+      const { branch: _extra, ...rest } = topic
+      return rest
+    }
+    if (index === 0 || branches >= 3) return topic
     const first = topic.points[0]
     if (first === undefined) return topic
     branches += 1
