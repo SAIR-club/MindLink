@@ -81,6 +81,52 @@ select {
   outline-offset: 2px;
 }
 
+.shelf,
+.page,
+.rail-body,
+.side-body,
+.vision-main {
+  scrollbar-color: var(--rule-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.shelf::-webkit-scrollbar,
+.page::-webkit-scrollbar,
+.rail-body::-webkit-scrollbar,
+.side-body::-webkit-scrollbar,
+.vision-main::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.shelf::-webkit-scrollbar-track,
+.page::-webkit-scrollbar-track,
+.rail-body::-webkit-scrollbar-track,
+.side-body::-webkit-scrollbar-track,
+.vision-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.shelf::-webkit-scrollbar-thumb,
+.page::-webkit-scrollbar-thumb,
+.rail-body::-webkit-scrollbar-thumb,
+.side-body::-webkit-scrollbar-thumb,
+.vision-main::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink-soft) 55%, transparent);
+  background-clip: content-box;
+}
+
+.shelf::-webkit-scrollbar-thumb:hover,
+.page::-webkit-scrollbar-thumb:hover,
+.rail-body::-webkit-scrollbar-thumb:hover,
+.side-body::-webkit-scrollbar-thumb:hover,
+.vision-main::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ink-soft) 80%, transparent);
+  background-clip: content-box;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -502,11 +548,10 @@ button:not(
   .tree-toggle,
   .plain,
   .rail-line,
-  .git-title,
-  .git-branch-title,
-  .outline-point,
-  .outline-branch,
-  .outline-merge,
+  .conversation-node-title,
+  .conversation-points button,
+  .conversation-merge,
+  .rail-line-list button,
   [role="tab"]
 ),
 .upload {
@@ -536,11 +581,10 @@ button:not(
   .tree-toggle,
   .plain,
   .rail-line,
-  .git-title,
-  .git-branch-title,
-  .outline-point,
-  .outline-branch,
-  .outline-merge,
+  .conversation-node-title,
+  .conversation-points button,
+  .conversation-merge,
+  .rail-line-list button,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {
@@ -2241,342 +2285,47 @@ li[data-status="skipped"] > span:first-child {
   color: var(--ink-soft);
 }
 
-/* The branch tree: held understanding, live notes, and the wires between them. */
-.git-tree {
-  position: relative;
-  padding: 10px 4px 16px;
-}
-
-.git-rails {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 1;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.git-rail {
-  fill: none;
-  stroke-linecap: round;
-}
-
-.git-rail-main {
-  stroke: var(--ink-soft);
-  stroke-opacity: 0.68;
-  stroke-width: 1.8;
-}
-
-.git-rail-branch {
-  stroke: var(--accent);
-  stroke-opacity: 0.85;
-  stroke-width: 1.6;
-}
-
-.git-rail-live {
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-dasharray: 2 4;
-}
-
-.git-rows {
-  position: relative;
-  z-index: 2;
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
-}
-
-.git-row {
-  position: relative;
-  padding: 10px 0 10px 78px;
-  border-top: 1px solid var(--rule);
-}
-
-.git-row:first-child {
-  border-top: 0;
-}
-
-.git-topic {
-  padding: 14px 0 4px 78px;
-  border-top: 1px solid var(--rule);
-  color: var(--ink-soft);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-}
-
-.git-topic + .git-row {
-  border-top: 0;
-}
-
-.git-question {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 0 0 78px;
-  color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.git-question span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.git-question + .git-row {
-  border-top: 0;
-}
-
-.git-row[data-live="true"] {
-  background: color-mix(in srgb, var(--accent) 4%, transparent);
-}
-
-.git-dot {
-  position: absolute;
-  top: 16px;
-  left: calc(18px + var(--lane, 0) * 16px);
-  z-index: 3;
-  width: 9px;
-  height: 9px;
-  border: 1.5px solid var(--ink-soft);
-  border-radius: 50%;
-  background: var(--canvas);
-}
-
-.git-node .git-dot[data-state="held"] {
-  background: var(--ink-soft);
-}
-
-.git-branch .git-dot {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-
-.git-note .git-dot {
-  border-color: var(--accent);
-  background: var(--canvas);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.git-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-  margin-bottom: 2px;
-  color: var(--ink-soft);
-  font-size: 11.5px;
-  line-height: 1.5;
-}
-
-.git-meta .state-mark {
-  position: relative;
-  top: -1px;
-}
-
-.git-title {
-  display: block;
-  width: 100%;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--ink);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.5;
-  text-align: left;
-}
-
-.git-title:hover {
-  color: var(--accent);
-}
-
-.git-branch-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1.5;
-}
-
-.git-note .git-meta {
-  color: var(--accent);
-}
-
-.git-note .git-title {
-  color: var(--ink);
-  cursor: default;
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.git-quote {
-  display: -webkit-box;
-  overflow: hidden;
-  margin: 2px 0 0;
-  color: var(--ink-soft);
-  font-size: 12.5px;
-  line-height: 1.6;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.git-actions {
-  display: flex;
-  gap: 12px;
-  margin-top: 5px;
-}
-
-.git-actions button {
-  font-size: 12px;
-}
-
-.git-relations {
+.rail-line-list {
   display: grid;
   gap: 2px;
-  margin: 6px 0 0;
-  padding-left: 10px;
-  border-left: 1px solid var(--rule-strong);
-  font-size: 12px;
-}
-
-.git-relations .link {
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.outline-topics {
-  position: relative;
   margin: 0;
-  padding: 6px 4px 16px;
+  padding: 0;
   list-style: none;
 }
 
-.outline-topic {
-  position: relative;
-  padding: 12px 0 12px 34px;
-  border-top: 1px solid var(--rule);
+.rail-line-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
-.outline-topic:first-child {
-  border-top: 0;
-}
-
-.outline-topic::before {
-  position: absolute;
-  top: 26px;
-  bottom: -1px;
-  left: 12px;
-  width: 1px;
-  background: var(--rule-strong);
-  content: "";
-}
-
-.outline-topic:last-child::before {
-  display: none;
-}
-
-.outline-topic-dot {
-  position: absolute;
-  top: 17px;
-  left: 8px;
-  width: 9px;
-  height: 9px;
+.rail-line-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--ink-soft);
 }
 
-.outline-topic h4 {
-  margin: 0;
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.5;
+.rail-line-dot[data-state="conflict"],
+.rail-line-dot[data-state="challenged"] {
+  background: var(--red);
 }
 
-.outline-gist {
-  margin: 2px 0 8px;
-  color: var(--ink-soft);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.outline-points {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.outline-points li {
-  position: relative;
-  padding-left: 18px;
-}
-
-.outline-point-dot {
-  position: absolute;
-  top: 8px;
-  left: 1px;
-  width: 5px;
-  height: 5px;
-  border: 1px solid var(--accent);
-  border-radius: 50%;
-}
-
-.outline-point {
-  display: block;
-  padding: 0;
+.rail-line-list button {
+  overflow: hidden;
+  padding: 5px 0;
   border: 0;
   background: none;
   color: var(--ink);
   cursor: pointer;
-  font-size: 12.5px;
-  line-height: 1.6;
-  text-align: left;
-}
-
-.outline-point:hover {
-  color: var(--accent);
-}
-
-.outline-branch {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 9px;
-  color: var(--accent);
-}
-
-.outline-merge {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  margin-top: 9px;
-  padding: 6px 0 6px 10px;
-  border: 0;
-  border-left: 1px solid var(--accent);
-  border-bottom-left-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  cursor: pointer;
   font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.5;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .rail-past {
   margin-top: 12px;
@@ -3444,6 +3193,134 @@ li[data-status="skipped"] > span:first-child {
 }
 
 /* All conversations, and the agents' own session records. */
+.conversation-tree {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-node {
+  position: relative;
+  padding: 10px 0 18px 28px;
+  border-top: 1px solid var(--rule);
+}
+
+.conversation-node:first-child {
+  border-top: 0;
+}
+
+.conversation-node::before {
+  position: absolute;
+  top: 26px;
+  bottom: -1px;
+  left: 8px;
+  width: 1px;
+  background: var(--rule-strong);
+  content: "";
+}
+
+.conversation-node:last-child::before {
+  display: none;
+}
+
+.conversation-dot {
+  position: absolute;
+  top: 16px;
+  left: 4px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.conversation-node-title {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.conversation-node-gist {
+  margin: 3px 0 9px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.conversation-points {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-points button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.conversation-points button::before {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 8px 2px 0;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  content: "";
+}
+
+.conversation-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--accent);
+}
+
+.conversation-merge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 6px 0 6px 10px;
+  border: 0;
+  border-left: 1px solid var(--accent);
+  border-bottom-left-radius: 8px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.conversation-original {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+.conversation-original .learner-turn {
+  margin-top: 14px;
+}
+
 .conversation-title {
   text-align: left;
   font-weight: 600;

@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
-import type { Outline, Session, Turn, Understanding } from './api.js'
-import { GitTree } from './GitTree.js'
+import type { Session, Turn, Understanding } from './api.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
-import { Outline as OutlineView } from './Outline.js'
 import { branchLines, type LineChip } from './lines.js'
 import { kept, keep } from './storage.js'
 import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
@@ -39,7 +37,6 @@ interface RailProps {
   readonly onOpenThread: (thread: string) => void
   readonly onTidy: () => Promise<void>
   readonly onAcceptAll: () => Promise<void>
-  readonly outline: Outline
 }
 
 export function Rail(props: RailProps) {
@@ -59,6 +56,14 @@ export function Rail(props: RailProps) {
     () =>
       scope === 'thread' ? shown.nodes.filter((node) => shown.focus.has(node.nodeId)) : shown.nodes,
     [shown, scope],
+  )
+  const held = useMemo(
+    () =>
+      inScope
+        .filter((node) => stateOf(node) !== 'past')
+        .slice()
+        .sort((a, b) => (a.origin?.at ?? 0) - (b.origin?.at ?? 0)),
+    [inScope],
   )
   const past = useMemo(() => inScope.filter((node) => stateOf(node) === 'past'), [inScope])
   const choose = (next: 'thread' | 'graph'): void => {
@@ -248,25 +253,25 @@ export function Rail(props: RailProps) {
             ) : (
               <span className="rail-empty-mark" role="img" aria-label="还没有理解" />
             )
-          ) : props.outline.topics.length > 0 ? (
-            <OutlineView
-              outline={props.outline}
-              thread={thread ?? ''}
-              onJump={props.onJump}
-              onOpenThread={props.onOpenThread}
-            />
+          ) : held.length > 0 ? (
+            <ol className="rail-line-list">
+              {held.map((node) => (
+                <li key={node.nodeId}>
+                  <span className="rail-line-dot" data-state={stateOf(node)} aria-hidden="true" />
+                  <button
+                    type="button"
+                    aria-label={`定位到「${node.label}」的原对话`}
+                    onClick={() =>
+                      props.onJump(node.origin?.thread ?? thread ?? '', node.origin?.turn)
+                    }
+                  >
+                    {node.label}
+                  </button>
+                </li>
+              ))}
+            </ol>
           ) : (
-            <GitTree
-              sessions={props.sessions}
-              nodes={understanding.nodes}
-              pending={understanding.pending}
-              turns={turns}
-              current={thread}
-              onOpenNode={props.onOpenNode}
-              onOpenThread={props.onOpenThread}
-              onAskAbout={props.onAskAbout}
-              onJump={props.onJump}
-            />
+            <span className="rail-empty-mark" role="img" aria-label="还没有理解" />
           )}
           {past.length > 0 && view === 'thread' && (
             <details className="rail-past">

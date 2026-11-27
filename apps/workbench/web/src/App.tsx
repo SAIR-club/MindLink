@@ -32,6 +32,7 @@ import {
   type Understanding,
   type WorkflowInfo,
 } from './api.js'
+import { ConversationTree } from './ConversationTree.js'
 import { Commons, SignIn } from './Commons.js'
 import { AgentSessionsPage } from './AgentSessions.js'
 import { ConnectPage } from './Connect.js'
@@ -1203,6 +1204,10 @@ function Desk({
               branchOf={branchOf(sessions, threadId)}
               onForkPoint={(parent) => jumpTo(parent.thread, parent.turn)}
               turns={turnsOf === threadId ? turns : undefined}
+              outline={outline}
+              onOpenThread={(id) => {
+                if (spaceId !== undefined) moveTo({ kind: 'thread', space: spaceId, thread: id })
+              }}
               asking={asking}
               failed={failed}
               onAsk={ask}
@@ -1297,7 +1302,6 @@ function Desk({
             onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
             onTidy={tidyThread}
             onAcceptAll={acceptAllNotes}
-            outline={outline}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
@@ -1674,15 +1678,16 @@ function ThreadTree(props: {
     (below.get(id) ?? []).reduce((sum, branch) => sum + 1 + branchCount(branch.id), 0)
   const branched = below.size > 0
 
-  const lines = (list: readonly Session[], nested: boolean): ReactNode => (
+  const lines = (list: readonly Session[], nested: boolean, depth = 0): ReactNode => (
     <ul className={nested ? 'thread-tree thread-branches' : 'list thread-tree'}>
       {list.map((session) => {
         const branches = below.get(session.id) ?? []
-        const open = branches.length > 0 && !folded.has(session.id)
+        const canShow = depth === 0 || above.includes(session.id)
+        const open = canShow && branches.length > 0 && !folded.has(session.id)
         return (
           <li key={session.id}>
             <div className="tree-item">
-              {branches.length > 0 ? (
+              {canShow && branches.length > 0 ? (
                 <button
                   type="button"
                   className="tree-toggle"
@@ -1724,7 +1729,7 @@ function ThreadTree(props: {
                 )}
               </button>
             </div>
-            {open && lines(branches, true)}
+            {open && lines(branches, true, depth + 1)}
           </li>
         )
       })}
@@ -1754,6 +1759,8 @@ function Conversation(props: {
   onForkPoint: (parent: BranchOf['parent']) => void
   /** Undefined while the conversation's turns are being read, so another conversation's never show under its name. */
   turns: readonly Turn[] | undefined
+  outline: OutlineRecord
+  onOpenThread: (thread: string) => void
   asking: boolean
   failed: { question: string; failure: Failure } | undefined
   onAsk: (question: string, retry: boolean) => void
@@ -1852,23 +1859,36 @@ function Conversation(props: {
           </p>
         )}
         {turns.length > 0 && props.extract}
-        {carried.length > 0 && (
+        {props.outline.topics.length > 0 ? (
+          <ConversationTree
+            outline={props.outline}
+            thread={props.thread}
+            turns={turns}
+            onCite={props.onCite}
+            onCandidates={props.onCandidates}
+            onOpenThread={props.onOpenThread}
+          />
+        ) : (
           <>
-            <section
-              className="carried"
-              aria-label={`继承自《${branchOf?.title ?? '原对话'}》的对话`}
-            >
-              {carried.map(shown)}
-            </section>
-            <p className="fork-line" role="separator">
-              以上继承自《{branchOf?.title ?? '原对话'}》，以下是这个分支自己的对话
-            </p>
-            {own.length === 0 && !asking && (
-              <p className="hint page-hint">在下面接着问，对话从这里继续。</p>
+            {carried.length > 0 && (
+              <>
+                <section
+                  className="carried"
+                  aria-label={`继承自《${branchOf?.title ?? '原对话'}》的对话`}
+                >
+                  {carried.map(shown)}
+                </section>
+                <p className="fork-line" role="separator">
+                  以上继承自《{branchOf?.title ?? '原对话'}》，以下是这个分支自己的对话
+                </p>
+                {own.length === 0 && !asking && (
+                  <p className="hint page-hint">在下面接着问，对话从这里继续。</p>
+                )}
+              </>
             )}
+            {own.map(shown)}
           </>
         )}
-        {own.map(shown)}
         {asking && (
           <p className="working" role="status">
             正在查材料并回答…
