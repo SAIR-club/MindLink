@@ -84,6 +84,17 @@ export interface Asked {
   readonly failure?: Failure
 }
 
+export interface Outline {
+  readonly topics: readonly {
+    readonly id: string
+    readonly title: string
+    readonly gist: string
+    readonly points: readonly { readonly text: string; readonly turn: string }[]
+    readonly branch?: { readonly title: string; readonly turn: string }
+  }[]
+  readonly failure?: Failure
+}
+
 export interface PendingCandidate {
   readonly id: string
   readonly proposal: {
@@ -569,9 +580,16 @@ export const api = {
     scene(`/sessions?space=${encoded(space)}`) as Promise<{ sessions: readonly Session[] }>,
   session: (thread: string) =>
     scene(`/session?thread=${encoded(thread)}`) as Promise<{ turns: readonly Turn[] }>,
+  outline: (space: string, thread: string) =>
+    scene('/outline', { space, thread }) as Promise<Outline>,
   /** A new line of a conversation from one of the turns it shows. The original stays as it is. */
-  fork: (space: string, thread: string, turn: string) =>
-    scene('/sessions/fork', { space, thread, turn }) as Promise<{ session: Session }>,
+  fork: (space: string, thread: string, turn: string, title?: string) =>
+    scene('/sessions/fork', {
+      space,
+      thread,
+      turn,
+      ...(title === undefined ? {} : { title }),
+    }) as Promise<{ session: Session }>,
   ask: (space: string, question: string, thread: string | undefined, retry: boolean) =>
     scene('/ask', {
       space,

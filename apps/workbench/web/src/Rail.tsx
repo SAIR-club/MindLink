@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import type { Session, Turn, Understanding } from './api.js'
+import type { Outline, Session, Turn, Understanding } from './api.js'
 import { GitTree } from './GitTree.js'
 import { KnowledgeGraph } from './KnowledgeGraph.js'
+import { Outline as OutlineView } from './Outline.js'
 import { branchLines, type LineChip } from './lines.js'
 import { kept, keep } from './storage.js'
 import { pendingId, shownFor, stateOf, type Scope } from './UnderstandingView.js'
@@ -38,6 +39,8 @@ interface RailProps {
   readonly onOpenThread: (thread: string) => void
   readonly onTidy: () => Promise<void>
   readonly onAcceptAll: () => Promise<void>
+  readonly outline: Outline
+  readonly onFork: (title: string, turn: string) => void
 }
 
 export function Rail(props: RailProps) {
@@ -246,6 +249,13 @@ export function Rail(props: RailProps) {
             ) : (
               <span className="rail-empty-mark" role="img" aria-label="还没有理解" />
             )
+          ) : props.outline.topics.length > 0 ? (
+            <OutlineView
+              outline={props.outline}
+              thread={thread ?? ''}
+              onJump={props.onJump}
+              onFork={props.onFork}
+            />
           ) : (
             <GitTree
               sessions={props.sessions}

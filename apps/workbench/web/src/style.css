@@ -552,6 +552,8 @@ button:not(
   .rail-line,
   .git-title,
   .git-branch-title,
+  .outline-point,
+  .outline-branch,
   [role="tab"]
 ),
 .upload {
@@ -583,6 +585,8 @@ button:not(
   .rail-line,
   .git-title,
   .git-branch-title,
+  .outline-point,
+  .outline-branch,
   [role="tab"]
 ):hover:not(:disabled),
 .upload:hover {
@@ -2498,6 +2502,108 @@ li[data-status="skipped"] > span:first-child {
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.outline-topics {
+  position: relative;
+  margin: 0;
+  padding: 6px 4px 16px;
+  list-style: none;
+}
+
+.outline-topic {
+  position: relative;
+  padding: 12px 0 12px 34px;
+  border-top: 1px solid var(--rule);
+}
+
+.outline-topic:first-child {
+  border-top: 0;
+}
+
+.outline-topic::before {
+  position: absolute;
+  top: 26px;
+  bottom: -1px;
+  left: 12px;
+  width: 1px;
+  background: var(--rule-strong);
+  content: "";
+}
+
+.outline-topic:last-child::before {
+  display: none;
+}
+
+.outline-topic-dot {
+  position: absolute;
+  top: 17px;
+  left: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink-soft);
+}
+
+.outline-topic h4 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.outline-gist {
+  margin: 2px 0 8px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.outline-points {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.outline-points li {
+  position: relative;
+  padding-left: 18px;
+}
+
+.outline-point-dot {
+  position: absolute;
+  top: 8px;
+  left: 1px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+}
+
+.outline-point {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.outline-point:hover {
+  color: var(--accent);
+}
+
+.outline-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: var(--accent);
 }
 .rail-past {
   margin-top: 12px;

@@ -24,6 +24,7 @@ import {
   type Me,
   type ModelInfo,
   type Offered,
+  type Outline as OutlineRecord,
   type Plan,
   type Session,
   type Space,
@@ -258,6 +259,7 @@ function Desk({
   const summaryTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(summaryTimer.current), [])
   const [understanding, setUnderstanding] = useState<Understanding>(NO_UNDERSTANDING)
+  const [outline, setOutline] = useState<OutlineRecord>({ topics: [] })
   const [pane, setPane] = useState<Pane>(() =>
     opensSide(panel) ? 'side' : place.kind === 'home' ? 'shelf' : 'talk',
   )
@@ -480,6 +482,26 @@ function Desk({
     }
   }, [threadId, guard])
 
+  // The outline is a summary of the whole conversation, refreshed when its turns change.
+  useEffect(() => {
+    if (spaceId === undefined || threadId === undefined || turnsOf !== threadId) {
+      setOutline({ topics: [] })
+      return undefined
+    }
+    let current = true
+    void api
+      .outline(spaceId, threadId)
+      .then((next) => {
+        if (current) setOutline(next)
+      })
+      .catch(() => {
+        if (current) setOutline({ topics: [] })
+      })
+    return () => {
+      current = false
+    }
+  }, [spaceId, threadId, turnsOf, turns.length])
+
   // A host agent writes while this page sits in the background, so coming back to it reads again.
   useEffect(() => {
     const reread = (): void => {
@@ -602,6 +624,16 @@ function Desk({
     await refreshUnderstanding()
     relateLater(made)
     return made.message
+  }
+
+  /** A suggested branch becomes a real conversation line from the turn where the topic changed. */
+  const forkOutline = (title: string, turn: string): void => {
+    if (spaceId === undefined || threadId === undefined) return
+    guard(async () => {
+      const { session } = await api.fork(spaceId, threadId, turn, title)
+      setSessions((await api.sessions(spaceId)).sessions)
+      moveTo({ kind: 'thread', space: spaceId, thread: session.id })
+    })
   }
 
   /** The live notes are accepted by default: one decision puts the whole summary into the understanding layer. */
@@ -1264,6 +1296,8 @@ function Desk({
             onOpenThread={(id) => moveTo({ kind: 'thread', space: spaceId, thread: id })}
             onTidy={tidyThread}
             onAcceptAll={acceptAllNotes}
+            outline={outline}
+            onFork={forkOutline}
           />
         )}
         <nav className="switcher" aria-label="切换页面">
